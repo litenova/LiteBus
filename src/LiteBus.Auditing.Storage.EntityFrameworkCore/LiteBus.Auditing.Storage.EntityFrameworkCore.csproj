@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.EntityFrameworkCore"/>
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Relational"/>
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\LiteBus.Auditing.Abstractions\LiteBus.Auditing.Abstractions.csproj"/>
+        <ProjectReference Include="..\LiteBus.Auditing\LiteBus.Auditing.csproj"/>
+        <ProjectReference Include="..\LiteBus.Messaging.Abstractions\LiteBus.Messaging.Abstractions.csproj"/>
+        <ProjectReference Include="..\LiteBus.Runtime.Abstractions\LiteBus.Runtime.Abstractions.csproj"/>
+        <ProjectReference Include="..\LiteBus.Storage.EntityFrameworkCore\LiteBus.Storage.EntityFrameworkCore.csproj"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="LiteBus.Storage.IntegrationTests, PublicKey=$(LiteBusPublicKey)"/>
+        <InternalsVisibleTo Include="LiteBus.Storage.UnitTests, PublicKey=$(LiteBusPublicKey)"/>
+    </ItemGroup>
+
+</Project>

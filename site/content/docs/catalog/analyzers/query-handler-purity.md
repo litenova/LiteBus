@@ -16,10 +16,12 @@
 
 It reports when a dependency type in constructor parameters, fields, or properties matches or implements one of the impure APIs. Members inherited from base handler classes are inspected the same way as declared members. Ordinary method parameters are not dependencies, because a helper receives them from its caller rather than from injection, so they stay silent. The impure APIs are:
 
-- `ICommandMediator`, `IEventMediator`, `IQueryMediator`
+- `ICommandMediator`, `IEventMediator`
 - `IInbox`, `ITransactionalInbox`, `ITransactionalInbox<T>`, `IInboxStore`, `ITransactionalInboxStore`
 - `IOutbox`, `ITransactionalOutbox`, `ITransactionalOutbox<T>`, `IOutboxStore`, `ITransactionalOutboxStore`
 - `ITransportPublisher`
+
+Depending on `IQueryMediator` is allowed. A nested query reads through the provider's own pipeline with its authorization and audit, so it has no side effect; a modular monolith reads another module through that module's public query this way. Commands, events, inbox, outbox, and transport publishing stay forbidden.
 
 The analyzer reports each impure dependency type once per handler.
 
@@ -80,6 +82,8 @@ Source: `tests/LiteBus.Analyzers.UnitTests/QueryHandlerImpurityAnalyzerTests.cs`
 | Test method | Verifies |
 | --- | --- |
 | `PureQueryHandler_ProducesNoDiagnostic` | Pure query handler is accepted |
+| `QueryHandlerWithQueryMediatorField_ProducesNoDiagnostic` | `IQueryMediator` field dependency is accepted |
+| `QueryHandlerWithQueryMediator_ProducesNoDiagnostic` | `IQueryMediator` constructor dependency is accepted |
 | `QueryHandlerWithCommandMediator_ProducesDiagnostic` | `ICommandMediator` dependency reports `LB1003` |
 | `QueryHandlerWithInbox_ProducesDiagnostic` | `IInbox` dependency reports `LB1003` |
 | `QueryHandlerWithTransactionalInbox_ProducesDiagnostic` | `IInboxStore` dependency reports `LB1003` |
@@ -89,5 +93,8 @@ Source: `tests/LiteBus.Analyzers.UnitTests/QueryHandlerImpurityAnalyzerTests.cs`
 | `StreamQueryHandlerWithCommandMediator_ProducesDiagnostic` | Stream query handlers are covered |
 | `QueryHandlerWithImpureField_ProducesDiagnostic` | Field dependency on `IEventMediator` reports `LB1003` |
 | `QueryHandlerWithMessageTransport_ProducesDiagnostic` | `ITransportPublisher` dependency reports `LB1003` |
+| `QueryHandlerWithGenericTransactionalInbox_ProducesDiagnostic` | `ITransactionalInbox<T>` dependency reports `LB1003` |
 | `QueryHandlerWithOrdinaryMethodParameter_ProducesNoDiagnostic` | Ordinary method parameter is not an injected dependency |
+| `QueryHandlerWithInheritedImpureField_ProducesDiagnostic` | Base-class field dependency reports `LB1003` |
+| `QueryHandlerWithInheritedImpureConstructorParameter_ProducesDiagnostic` | Base-class constructor parameter reports `LB1003` |
 | `QueryHandlerWithInheritedImpureProperty_ProducesDiagnostic` | Base-class property dependency reports `LB1003` |

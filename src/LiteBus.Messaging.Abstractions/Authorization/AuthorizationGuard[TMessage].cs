@@ -66,6 +66,16 @@ public abstract class AuthorizationGuard<TMessage> : DeclarationGuard<TMessage, 
     }
 
     /// <summary>
+    ///     Gets the identity of the mediation currently running: the calling principal and the tenant the work belongs to.
+    /// </summary>
+    /// <remarks>
+    ///     The mediator resolves it once per mediation, so a guard reads the caller from here instead of from a
+    ///     property every message carries. Outside a mediation there is no caller, and the value is
+    ///     <see cref="ExecutionIdentity.Anonymous" />.
+    /// </remarks>
+    protected static ExecutionIdentity CurrentIdentity => AmbientExecutionContext.GetCurrentOrDefault()?.Identity ?? ExecutionIdentity.Anonymous;
+
+    /// <summary>
     ///     Decides whether a message carrying an authorization declaration is permitted to proceed.
     /// </summary>
     /// <param name="declaration">The authorization declaration read from the message.</param>

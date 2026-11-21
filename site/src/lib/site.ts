@@ -18,7 +18,7 @@ export const siteDescription =
 export const siteOgImage = '/og.png';
 
 /** The LiteBus release the documentation describes. Updated in the commit that cuts a release. */
-export const latestRelease = '7.2.0';
+export const latestRelease = '8.0.0';
 
 /** Where the documentation is served. */
 export const docsBasePath = '/docs';
@@ -27,7 +27,7 @@ export const docsBasePath = '/docs';
 export const docsContentDir = 'content/docs';
 
 /** The target framework fact the home page shows. */
-export const targetFramework = '.NET 10';
+export const targetFramework = '.NET 10 and 11';
 
 /** Git ref used for fallback links into the repository from documentation pages. */
 export const sourceRef = 'v7';

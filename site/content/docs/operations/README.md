@@ -12,6 +12,7 @@ LiteBus operations cover running LiteBus in production. That means mapping manag
 | Triage backlogs, stuck leases, broker failures, and deploy-time drains | [Production Runbook](runbook.md) |
 | Configure payload encryption and tenant-scoped leases | [Security and Tenancy](security-and-tenancy.md) |
 | Understand mediation cost and keep handlers fast | [Performance Considerations](performance.md) |
+| Look up every options default and what changing it does | [Processor, Retry, Dispatch, and Cleanup Defaults](defaults.md) |
 | Map an exception or a behavior to its cause and fix | [Troubleshooting](troubleshooting.md) |
 
 ## Control Processors

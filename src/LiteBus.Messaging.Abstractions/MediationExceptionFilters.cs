@@ -48,7 +48,9 @@ public static class MediationExceptionFilters
     ///     Cancellation is never classified: an <see cref="OperationCanceledException" /> reports the caller's own
     ///     decision, so classifying it would let a refusal swallow a cancellation. An exception that already carries
     ///     a refusal is not offered either, because it is a decision rather than a fault and a second classification
-    ///     would rewrite one. Callers offer only recoverable faults, so a configuration error never reaches a
+    ///     would rewrite one. A <see cref="MessageFaultException" /> is never classified either: it reports a
+    ///     configuration or dependency failure an operator must fix, so no offer site may rewrite it into a refusal
+    ///     the caller can act on. Callers offer only recoverable faults, so a configuration error never reaches a
     ///     classifier.
     /// </remarks>
     /// <exception cref="ArgumentNullException">
@@ -64,7 +66,7 @@ public static class MediationExceptionFilters
 
         refusal = default;
 
-        if (exception is OperationCanceledException || IsRefusal(exception))
+        if (exception is OperationCanceledException || exception is MessageFaultException || IsRefusal(exception))
         {
             return false;
         }

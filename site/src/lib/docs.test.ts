@@ -289,6 +289,7 @@ describe("navigation", () => {
         "getting-started/sample.md",
         "getting-started/cheat-sheet.md",
         "getting-started/cookbook.md",
+        "getting-started/aspnetcore-efcore-outbox.md",
         "getting-started/best-practices.md",
       ],
     );

@@ -37,6 +37,10 @@ internal static class DeclarationAnalysis
     /// <summary>
     ///     The message kinds a declaration requirement applies to.
     /// </summary>
+    /// <remarks>
+    ///     Events are excluded: event declaration requirements are composition-only, enforced by
+    ///     <c>RequireDeclaration</c> at composition time rather than by <c>LB1020</c>.
+    /// </remarks>
     private static readonly MessageKind[] DeclarableKinds =
         [MessageKind.Command, MessageKind.Query, MessageKind.StreamQuery];
 
@@ -262,7 +266,9 @@ internal static class DeclarationAnalysis
     ///     requirement is answered either way, exactly as <c>[DeclarationExempt]</c> is. <c>Audited</c> and
     ///     <c>NotAudited</c> both key their declaration by <c>AuditDeclaration</c>, which is what makes
     ///     <c>NotAudited</c> answer the same question <c>Audited</c> does, and <c>Authorized</c> and
-    ///     <c>AuthorizationExempt</c> both key theirs by <c>AuthorizationDeclaration</c> for the same reason.
+    ///     <c>AuthorizationExempt</c> both key theirs by <c>AuthorizationDeclaration</c> for the same reason. Audit
+    ///     declarations live in the auditing package as extension methods on the collector, so calls on it are matched
+    ///     through their original definition as well as through ordinary members.
     /// </remarks>
     private static void RecordDescribeBody(
         SyntaxNodeAnalysisContext context,
@@ -288,8 +294,7 @@ internal static class DeclarationAnalysis
             }
 
             if (context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken).Symbol is not IMethodSymbol called ||
-                called.ContainingType is null ||
-                !SymbolEqualityComparer.Default.Equals(called.ContainingType.OriginalDefinition, declarations))
+                !IsCallOnDeclarations(called, declarations))
             {
                 continue;
             }
@@ -724,6 +729,31 @@ internal static class DeclarationAnalysis
         }
 
         return false;
+    }
+
+    /// <summary>
+    ///     Determines whether an invocation calls a member of the declaration collector, including an extension method.
+    /// </summary>
+    /// <param name="called">The invoked method symbol.</param>
+    /// <param name="declarations">The declaration collector symbol.</param>
+    /// <returns><see langword="true" /> when the call targets the declaration collector.</returns>
+    /// <remarks>
+    ///     Audit declarations are extension methods on <c>IMessageDeclarations</c> in the auditing package. A reduced
+    ///     extension method carries the extension class as its containing type, so the original definition has to be
+    ///     read to find the receiver in the first parameter, as the module builder analyses do.
+    /// </remarks>
+    private static bool IsCallOnDeclarations(IMethodSymbol called, INamedTypeSymbol declarations)
+    {
+        if (called.ContainingType is not null &&
+            SymbolEqualityComparer.Default.Equals(called.ContainingType.OriginalDefinition, declarations))
+        {
+            return true;
+        }
+
+        var declaredMethod = called.ReducedFrom ?? called;
+
+        return declaredMethod is { IsExtensionMethod: true, Parameters.Length: > 0 } &&
+               SymbolEqualityComparer.Default.Equals(declaredMethod.Parameters[0].Type, declarations);
     }
 
     /// <summary>

@@ -37,6 +37,12 @@ internal sealed class MessageDependencies : IMessageDependencies
     private readonly Lazy<IReadOnlyList<IFaultRefusalClassifier>> _faultRefusalClassifiers;
 
     /// <summary>
+    ///     The refusal exception translators, resolved from the dispatch scope on first use so that offering a fault
+    ///     never creates the scope for a mediation that never faults.
+    /// </summary>
+    private readonly Lazy<IReadOnlyList<IRefusalExceptionTranslator>> _refusalExceptionTranslators;
+
+    /// <summary>
     ///     Initializes a new instance of the <see cref="MessageDependencies" /> class.
     /// </summary>
     /// <param name="messageType">The concrete runtime type of the message being mediated.</param>
@@ -75,6 +81,8 @@ internal sealed class MessageDependencies : IMessageDependencies
         IndirectRefusalMappers = ResolveHandlers(descriptor.IndirectRefusalMappers, handlerType => (IMessageRefusalMapper) serviceProvider.GetRequiredService(handlerType));
         _faultRefusalClassifiers = new Lazy<IReadOnlyList<IFaultRefusalClassifier>>(
             () => ResolveFaultRefusalClassifiers(serviceProvider));
+        _refusalExceptionTranslators = new Lazy<IReadOnlyList<IRefusalExceptionTranslator>>(
+            () => ResolveRefusalExceptionTranslators(serviceProvider));
         _occupiedPreStages = ComputeOccupiedPreStages(PreStageHandlers, IndirectPreStageHandlers);
     }
 
@@ -113,6 +121,9 @@ internal sealed class MessageDependencies : IMessageDependencies
 
     /// <inheritdoc />
     public IReadOnlyList<IFaultRefusalClassifier> FaultRefusalClassifiers => _faultRefusalClassifiers.Value;
+
+    /// <inheritdoc />
+    public IReadOnlyList<IRefusalExceptionTranslator> RefusalExceptionTranslators => _refusalExceptionTranslators.Value;
 
     /// <inheritdoc />
     public bool HasPreStageHandlers(PreStage stage)
@@ -165,6 +176,31 @@ internal sealed class MessageDependencies : IMessageDependencies
         if (serviceProvider.GetService(typeof(IFaultRefusalClassifier)) is IFaultRefusalClassifier classifier)
         {
             return [classifier];
+        }
+
+        return [];
+    }
+
+    /// <summary>
+    ///     Resolves the registered refusal exception translators from the dispatch scope.
+    /// </summary>
+    /// <param name="serviceProvider">The service provider handlers resolve from.</param>
+    /// <returns>The registered translators in registration order, or an empty list when there are none.</returns>
+    /// <remarks>
+    ///     The collection resolves first, because that is how the messaging module registers translators. A single
+    ///     translator registered directly against the service type is honored as a one-item collection, so a host
+    ///     that wires one by hand without the module builder still translates.
+    /// </remarks>
+    private static IRefusalExceptionTranslator[] ResolveRefusalExceptionTranslators(IServiceProvider serviceProvider)
+    {
+        if (serviceProvider.GetService(typeof(IEnumerable<IRefusalExceptionTranslator>)) is IEnumerable<IRefusalExceptionTranslator> translators)
+        {
+            return translators.ToArray();
+        }
+
+        if (serviceProvider.GetService(typeof(IRefusalExceptionTranslator)) is IRefusalExceptionTranslator translator)
+        {
+            return [translator];
         }
 
         return [];

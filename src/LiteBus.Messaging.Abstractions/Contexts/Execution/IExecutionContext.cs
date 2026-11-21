@@ -39,6 +39,56 @@ public interface IExecutionContext
     DateTimeOffset HandledAt { get; }
 
     /// <summary>
+    ///     Gets who the mediation runs for: the calling principal and the tenant the work belongs to.
+    /// </summary>
+    /// <remarks>
+    ///     The mediator resolves it once per mediation; see <see cref="ExecutionIdentity" /> for the resolution order.
+    ///     The default implementation returns <see cref="ExecutionIdentity.Anonymous" /> so custom contexts keep
+    ///     compiling.
+    /// </remarks>
+    ExecutionIdentity Identity => ExecutionIdentity.Anonymous;
+
+    /// <summary>
+    ///     Gets the runtime type of the message this mediation handles.
+    /// </summary>
+    /// <value>
+    ///     The message type, or <see langword="null" /> for a custom context that does not track it.
+    /// </value>
+    /// <remarks>
+    ///     The default implementation returns <see langword="null" /> so custom contexts keep compiling.
+    /// </remarks>
+    Type? MessageType => null;
+
+    /// <summary>
+    ///     Gets the execution context of the mediation that started this one.
+    /// </summary>
+    /// <value>
+    ///     The enclosing mediation's context, or <see langword="null" /> for a root mediation such as an HTTP request,
+    ///     a durable dispatcher, an inbox processor or a recurring command loop.
+    /// </value>
+    /// <remarks>
+    ///     A handler that sends or publishes another message starts a nested mediation whose parent is the handler's
+    ///     own context. Walking <see cref="Parent" /> gives the chain of messages that led to the current one, which
+    ///     nesting rules and authorization policies read. The default implementation returns
+    ///     <see langword="null" /> so custom contexts keep compiling.
+    /// </remarks>
+    IExecutionContext? Parent => null;
+
+    /// <summary>
+    ///     Gets the committed fact that caused this root mediation.
+    /// </summary>
+    /// <value>
+    ///     The cause carried as data, or <see langword="null" /> for a nested mediation or an application-started root.
+    /// </value>
+    /// <remarks>
+    ///     A root started by a boundary carries its cause as data rather than inheriting ambient context. Entry points
+    ///     that set <see cref="Cause" /> leave <see cref="Parent" /> as <see langword="null" />, so processor delivery
+    ///     and immediate delivery observe identical lineage. The default implementation returns
+    ///     <see langword="null" /> so custom contexts keep compiling.
+    /// </remarks>
+    MediationCause? Cause => null;
+
+    /// <summary>
     ///     Gets a key-value collection that can be used to pass contextual data through the mediation pipeline.
     /// </summary>
     /// <remarks>

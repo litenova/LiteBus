@@ -252,6 +252,115 @@ public abstract class OutboxStoreContractTests
     }
 
     /// <summary>
+    ///     Verifies that a per-tenant lease cap limits each tenant share of one batch while other tenants are leased.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [SkippableFact]
+    public async Task LeasePendingAsync_WhenMaxPerTenantIsSet_ShouldCapEachTenantShareOfOneBatch()
+    {
+        var store = CreateStore();
+        var now = BaseTime;
+        Guid[] busyTenantIds =
+        [
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            Guid.NewGuid()
+        ];
+        Guid[] quietTenantIds =
+        [
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            Guid.NewGuid()
+        ];
+
+        for (var index = 0; index < busyTenantIds.Length; index++)
+        {
+            await store.Writer.EnqueueAsync(CreatePendingEnvelope(busyTenantIds[index], now.AddSeconds(index)) with
+            {
+                TenantId = "tenant-busy"
+            }).ConfigureAwait(false);
+        }
+
+        for (var index = 0; index < quietTenantIds.Length; index++)
+        {
+            await store.Writer.EnqueueAsync(
+                CreatePendingEnvelope(quietTenantIds[index], now.AddSeconds(busyTenantIds.Length + index)) with
+                {
+                    TenantId = "tenant-quiet"
+                }).ConfigureAwait(false);
+        }
+
+        var leased = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
+        {
+            BatchSize = 6,
+            LeaseOwner = "publisher-1",
+            Now = now.AddMinutes(1),
+            LeaseDuration = TimeSpan.FromMinutes(5),
+            MaxPerTenant = 2
+        }).ConfigureAwait(false);
+
+        leased.Should().HaveCount(4);
+        leased.Count(envelope => envelope.TenantId == "tenant-busy").Should().Be(2);
+        leased.Count(envelope => envelope.TenantId == "tenant-quiet").Should().Be(2);
+        leased.Where(envelope => envelope.TenantId == "tenant-busy").Select(envelope => envelope.Id)
+            .Should().BeEquivalentTo([busyTenantIds[0], busyTenantIds[1]]);
+        leased.Where(envelope => envelope.TenantId == "tenant-quiet").Select(envelope => envelope.Id)
+            .Should().BeEquivalentTo([quietTenantIds[0], quietTenantIds[1]]);
+
+        var remaining = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
+        {
+            BatchSize = 6,
+            LeaseOwner = "publisher-2",
+            Now = now.AddMinutes(2),
+            LeaseDuration = TimeSpan.FromMinutes(5),
+            MaxPerTenant = 2
+        }).ConfigureAwait(false);
+
+        remaining.Should().HaveCount(4);
+        remaining.Count(envelope => envelope.TenantId == "tenant-busy").Should().Be(2);
+        remaining.Count(envelope => envelope.TenantId == "tenant-quiet").Should().Be(2);
+        remaining.Where(envelope => envelope.TenantId == "tenant-busy").Select(envelope => envelope.Id)
+            .Should().BeEquivalentTo([busyTenantIds[2], busyTenantIds[3]]);
+        remaining.Where(envelope => envelope.TenantId == "tenant-quiet").Select(envelope => envelope.Id)
+            .Should().BeEquivalentTo([quietTenantIds[2], quietTenantIds[3]]);
+    }
+
+    /// <summary>
+    ///     Verifies that unscoped envelopes share one per-tenant lease cap.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [SkippableFact]
+    public async Task LeasePendingAsync_WhenMaxPerTenantIsSet_ShouldCountUnscopedEnvelopesAsOneTenant()
+    {
+        var store = CreateStore();
+        var now = BaseTime;
+        var firstUnscopedId = Guid.NewGuid();
+        var secondUnscopedId = Guid.NewGuid();
+        var scopedId = Guid.NewGuid();
+
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(firstUnscopedId, now) with { TenantId = null }).ConfigureAwait(false);
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(secondUnscopedId, now.AddSeconds(1)) with { TenantId = null }).ConfigureAwait(false);
+        await store.Writer.EnqueueAsync(CreatePendingEnvelope(scopedId, now.AddSeconds(2)) with { TenantId = "tenant-a" }).ConfigureAwait(false);
+
+        var leased = await store.Lease.LeasePendingAsync(new OutboxLeaseRequest
+        {
+            BatchSize = 10,
+            LeaseOwner = "publisher-1",
+            Now = now.AddMinutes(1),
+            LeaseDuration = TimeSpan.FromMinutes(5),
+            MaxPerTenant = 1
+        }).ConfigureAwait(false);
+
+        leased.Should().HaveCount(2);
+        leased.Where(envelope => string.IsNullOrEmpty(envelope.TenantId))
+            .Should().ContainSingle().Which.Id.Should().Be(firstUnscopedId);
+        leased.Where(envelope => envelope.TenantId == "tenant-a")
+            .Should().ContainSingle().Which.Id.Should().Be(scopedId);
+    }
+
+    /// <summary>
     ///     Verifies that a tenant-scoped message query excludes rows stored for another tenant.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>

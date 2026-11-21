@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Globalization;
 using System.Linq;
 using System.Text;
@@ -45,6 +46,11 @@ public sealed class LiteBusCompositionSummary
     private readonly List<string> _requiredDeclarations = [];
 
     /// <summary>
+    ///     The safeguards the application turned off on purpose, each with the reason it gave, in recording order.
+    /// </summary>
+    private readonly List<string> _relaxedSafeguards = [];
+
+    /// <summary>
     ///     Each handler type covering one message's stage twice, once directly and once through a base type.
     /// </summary>
     private readonly List<DuplicateStageCoverage> _duplicateStageCoverages = [];
@@ -83,41 +89,27 @@ public sealed class LiteBusCompositionSummary
     public IReadOnlyList<DuplicateStageCoverage> DuplicateStageCoverages => _duplicateStageCoverages;
 
     /// <summary>
-    ///     Gets a value indicating whether any axis produces audit records.
-    /// </summary>
-    public bool AuditingEnabled { get; internal set; }
-
-    /// <summary>
-    ///     Gets the registered audit trail implementation name, when the messaging builder registered one.
-    /// </summary>
-    /// <value>
-    ///     The trail type name and its lifetime, or <see langword="null" /> when the application registered the trail
-    ///     with its own container instead. The <c>litebus.audit.trail</c> probe reports the trail either way.
-    /// </value>
-    public string? AuditTrail { get; internal set; }
-
-    /// <summary>
-    ///     Gets the audit record writer that replaced the built-in one, or null when the built-in writer is in use.
-    /// </summary>
-    /// <value>
-    ///     The writer type name and its lifetime, such as <c>EntroAuditRecordWriter (Scoped)</c>, or
-    ///     <see langword="null" /> when the built-in writer builds the records.
-    /// </value>
-    /// <remarks>
-    ///     Reported because replacing the writer replaces the whole of record building, and nothing else in the
-    ///     composition would say so. A misregistration otherwise looks exactly like auditing working.
-    /// </remarks>
-    public string? AuditRecordWriter { get; internal set; }
-
-    /// <summary>
-    ///     Gets a value indicating whether an audit actor resolver is registered through the messaging builder.
-    /// </summary>
-    public bool AuditActorResolverRegistered { get; internal set; }
-
-    /// <summary>
     ///     Gets the number of application composition checks the host runs.
     /// </summary>
     public int CompositionChecks { get; internal set; }
+
+    /// <summary>
+    ///     Gets the safeguards the application turned off on purpose, such as publishing outbox envelopes with no
+    ///     handler, each with the reason it gave.
+    /// </summary>
+    public IReadOnlyList<string> RelaxedSafeguards => _relaxedSafeguards;
+
+    /// <summary>
+    ///     Records a safeguard the application turned off on purpose, so the startup summary names it.
+    /// </summary>
+    /// <param name="description">What was turned off and the reason the application gave.</param>
+    /// <remarks>Called by LiteBus modules in other assemblies during composition; not for application code.</remarks>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public void RecordRelaxedSafeguard(string description)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(description);
+        _relaxedSafeguards.Add(description);
+    }
 
     /// <summary>
     ///     Renders the summary as the startup line an operator reads.
@@ -161,19 +153,6 @@ public sealed class LiteBusCompositionSummary
                   .Append(')');
         }
 
-        report.Append("; auditing ").Append(AuditingEnabled ? "on" : "off");
-
-        if (AuditingEnabled)
-        {
-            report.Append(", trail ").Append(AuditTrail ?? "registered by the application");
-            report.Append(", actor resolver ").Append(AuditActorResolverRegistered ? "registered" : "missing");
-
-            if (AuditRecordWriter is not null)
-            {
-                report.Append(", record writer ").Append(AuditRecordWriter);
-            }
-        }
-
         if (_requiredDeclarations.Count > 0)
         {
             report.Append("; required declarations ").Append(string.Join(", ", _requiredDeclarations));
@@ -184,6 +163,11 @@ public sealed class LiteBusCompositionSummary
             report.Append("; ")
                   .Append(CompositionChecks.ToString(CultureInfo.InvariantCulture))
                   .Append(" composition checks");
+        }
+
+        foreach (var safeguard in _relaxedSafeguards)
+        {
+            report.Append("; relaxed safeguard: ").Append(safeguard);
         }
 
         return report.ToString();

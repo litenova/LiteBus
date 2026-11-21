@@ -1,0 +1,52 @@
+using System;
+using LiteBus.Runtime.Abstractions.Scheduling;
+
+namespace LiteBus.Runtime.Scheduling;
+
+/// <summary>
+///     A schedule that fires once a day at a fixed local time.
+/// </summary>
+internal sealed class DailySchedule : ISchedule
+{
+    /// <summary>
+    ///     The local time each occurrence fires at.
+    /// </summary>
+    private readonly TimeOnly _time;
+
+    /// <summary>
+    ///     The zone the local time is read in.
+    /// </summary>
+    private readonly TimeZoneInfo _zone;
+
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="DailySchedule" /> class.
+    /// </summary>
+    /// <param name="time">The local time each occurrence fires at.</param>
+    /// <param name="zone">The zone the local time is read in.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="zone" /> is <see langword="null" />.</exception>
+    public DailySchedule(TimeOnly time, TimeZoneInfo zone)
+    {
+        ArgumentNullException.ThrowIfNull(zone);
+
+        _time = time;
+        _zone = zone;
+    }
+
+    /// <inheritdoc />
+    public DateTimeOffset? GetNextOccurrence(DateTimeOffset after)
+    {
+        var zonedDate = ScheduleDates.ToZonedDate(after, _zone);
+
+        // Resolved instants move forward with the calendar date, so the first date whose instant follows the
+        // supplied one is the next occurrence.
+        for (var dayOffset = 0; ; dayOffset++)
+        {
+            var candidate = ScheduleDates.ResolveInstant(_zone, zonedDate.AddDays(dayOffset), _time);
+
+            if (candidate > after)
+            {
+                return candidate;
+            }
+        }
+    }
+}

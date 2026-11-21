@@ -18,38 +18,7 @@ Immediate dispatch replaces the two publications with one path. After the commit
 
 ## Setup
 
-Immediate dispatch is opt-in per outbox module and needs per-handler delivery, so each handler gets its own envelope:
-
-```csharp
-services.AddLiteBus(builder =>
-{
-    builder.AddCommands(commands =>
-    {
-        commands.Register<SubmitOrderCommandHandler>();
-        commands.UseUnitOfWork<OrderUnitOfWork>();
-    });
-
-    builder.AddEvents(events =>
-    {
-        events.Register<OrderProjectionHandler>();
-        events.Register<OrderAuditHandler>();
-    });
-
-    builder.AddOutbox(outbox =>
-    {
-        outbox.Contracts.Register<OrderSubmittedEvent>("orders.events.submitted", 1);
-        outbox.UsePostgreSqlStorage(pg => pg.UseDataSource(dataSource));
-        outbox.UseInProcessDispatch();
-        outbox.EnablePerHandlerDelivery();
-        outbox.EnableImmediateDispatch(dispatch =>
-        {
-            dispatch.Timeout = TimeSpan.FromSeconds(10);
-            dispatch.FallbackDelay = TimeSpan.FromSeconds(30);
-        });
-        outbox.EnableOutboxProcessor();
-    });
-});
-```
+Immediate dispatch is opt-in per outbox module and needs per-handler delivery, so each handler gets its own envelope. Register the host with the complete file on [ASP.NET Core with EF Core Outbox Registration](../getting-started/aspnetcore-efcore-outbox.md), which already includes `EnablePerHandlerDelivery()` and `EnableImmediateDispatch()` with a 10-second timeout and a 30-second fallback delay. The paragraphs below explain what those two calls require and what the attribute marks.
 
 Mark the handler whose effect must be visible at once with `[DispatchImmediately]`:
 
@@ -113,6 +82,10 @@ With the default `Timeout` of 10 seconds and `FallbackDelay` of 30 seconds, one 
 6. When an envelope fails, it is persisted as failed with the processor's retry visibility, not held for the rest of `FallbackDelay`. The processor retries it on the normal schedule while the command stays succeeded.
 7. When `Timeout` expires, dispatch stops and every leased envelope not yet dispatched is released as pending with `VisibleAfter` set to now, so the processor takes it at once instead of waiting out the delay.
 8. When the process stops before dispatching, the staged envelopes become visible after `FallbackDelay` and the processor delivers them. Recovery takes at most the delay, with no operator action.
+
+## Lineage of an Immediate Reaction
+
+Each immediate delivery runs as a root mediation inside `RootMediationScope`, so the reaction carries the envelope cause as data and never inherits the ambient scope of the mediation that staged it. Both paths deliver the same leased envelope through the same in-process outbox dispatcher, so processor delivery and immediate delivery observe the same cause (`MediationCauseSource.Outbox`) and the same identity, and the reaction `Parent` is `null` on both. A command sent from an immediate reaction therefore sees no staging ancestor and stays allowed under `ForbidNestedCommands()`. See [Execution Context](../concepts/execution-context.md).
 
 ## Idempotency
 

@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions"/>
+        <PackageReference Include="Npgsql"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <EmbeddedResource Include="Sql/**/*.sql"/>
+        <None Include="Sql/**/*.sql" Pack="true" PackagePath="sql/%(RecursiveDir)%(Filename)%(Extension)"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\LiteBus.Auditing.Abstractions\LiteBus.Auditing.Abstractions.csproj"/>
+        <ProjectReference Include="..\LiteBus.Auditing\LiteBus.Auditing.csproj"/>
+        <ProjectReference Include="..\LiteBus.Messaging.Abstractions\LiteBus.Messaging.Abstractions.csproj"/>
+        <ProjectReference Include="..\LiteBus.Runtime.Abstractions\LiteBus.Runtime.Abstractions.csproj"/>
+        <ProjectReference Include="..\LiteBus.Storage.PostgreSql\LiteBus.Storage.PostgreSql.csproj"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="LiteBus.Storage.IntegrationTests, PublicKey=$(LiteBusPublicKey)"/>
+        <InternalsVisibleTo Include="LiteBus.Storage.UnitTests, PublicKey=$(LiteBusPublicKey)"/>
+    </ItemGroup>
+
+</Project>

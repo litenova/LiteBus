@@ -49,8 +49,8 @@ public sealed class PostgreSqlInboxWorkSignalNotifyTests : IClassFixture<Postgre
                 Status = InboxStatus.Pending
             }).ConfigureAwait(false);
 
-            var completed = await Task.WhenAny(waitTask, Task.Delay(TimeSpan.FromSeconds(5))).ConfigureAwait(true) == waitTask;
-            completed.Should().BeTrue("the insert notify trigger should wake the listener before the poll timeout");
+            // The insert notify trigger should wake the listener before the poll timeout.
+            await waitTask.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
 
             await waitTask.ConfigureAwait(false);
         }

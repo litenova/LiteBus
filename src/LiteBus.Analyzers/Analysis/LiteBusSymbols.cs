@@ -9,8 +9,12 @@ namespace LiteBus.Analyzers.Analysis;
 internal static class LiteBusSymbols
 {
     /// <summary>
-    ///     Side-effecting dependency types that query handlers must not use.
+    ///     Side-effecting dependency types, including the query mediator.
     /// </summary>
+    /// <remarks>
+    ///     LB1003 reads <see cref="QueryHandlerImpureDependencyMetadataNames" /> instead, which excludes the query
+    ///     mediator. This list keeps the full set for rules that treat any mediation as an impurity.
+    /// </remarks>
     internal static readonly ImmutableArray<string> ImpureDependencyMetadataNames =
     [
         "LiteBus.Commands.Abstractions.ICommandMediator",
@@ -28,6 +32,17 @@ internal static class LiteBusSymbols
         "LiteBus.Outbox.Abstractions.ITransactionalOutboxStore",
         "LiteBus.Transport.Abstractions.ITransportPublisher"
     ];
+
+    /// <summary>
+    ///     Side-effecting dependency types forbidden in query handlers by LB1003.
+    /// </summary>
+    /// <remarks>
+    ///     <c>IQueryMediator</c> stays out of this list: a nested query reads through the provider's own pipeline
+    ///     without a side effect, so query handlers may depend on it. Commands, events, inbox, outbox and transport
+    ///     publishing stay forbidden.
+    /// </remarks>
+    internal static readonly ImmutableArray<string> QueryHandlerImpureDependencyMetadataNames =
+        ImpureDependencyMetadataNames.Remove("LiteBus.Queries.Abstractions.IQueryMediator");
 
     /// <summary>
     ///     Resolves a type symbol from the compilation using its metadata name.

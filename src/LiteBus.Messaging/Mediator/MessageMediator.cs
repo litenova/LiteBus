@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Runtime.Abstractions;
@@ -23,6 +25,9 @@ namespace LiteBus.Messaging.Mediator;
 ///         </item>
 ///         <item>
 ///             <description>Managing nested mediation calls by preserving execution context state</description>
+///         </item>
+///         <item>
+///             <description>Evaluating registered mediation nesting rules before a nested mediation starts</description>
 ///         </item>
 ///     </list>
 /// </remarks>
@@ -87,6 +92,9 @@ internal sealed class MessageMediator : IMessageMediator
     ///     scoped services resolve from that scope and the mediator never disposes it, including when the result is
     ///     asynchronous; the owner disposes it. When it is <see langword="null" />, the mediator creates one
     ///     <see cref="LazyMessageDispatchScope" /> for the call and disposes it when the pipeline completes.
+    ///     When the request carries a <see cref="MediationCause" />, the mediation starts as a root with that cause
+    ///     and no parent, even inside an ambient scope, so boundary delivery never nests and never inherits the
+    ///     enclosing identity.
     /// </remarks>
     /// <exception cref="NoHandlerFoundException">
     ///     Thrown when no handler is found for the message type and registration on spot
@@ -99,6 +107,9 @@ internal sealed class MessageMediator : IMessageMediator
     /// <exception cref="ArgumentNullException">
     ///     Thrown when <paramref name="message" /> or <paramref name="request" /> is <see langword="null" />.
     /// </exception>
+    /// <exception cref="NestedMediationException">
+    ///     Thrown when a registered mediation nesting rule denies the nested mediation.
+    /// </exception>
     public TMessageResult Mediate<TMessage, TMessageResult>(
         TMessage message,
         MessageMediationRequest<TMessage, TMessageResult> request,
@@ -108,12 +119,8 @@ internal sealed class MessageMediator : IMessageMediator
         ArgumentNullException.ThrowIfNull(message);
         ArgumentNullException.ThrowIfNull(request);
 
-        // Create a new execution context for the current scope.
-        var executionContext = new ExecutionContext(request.Tags, request.Items, _timeProvider, cancellationToken);
-
-        // Retain only the dispatch scope until asynchronous mediation results complete. The ambient scope must not leak
-        // into the caller after this method returns. A caller-supplied scope is resolved from but never disposed here.
-        var executionScope = AmbientExecutionContext.CreateScope(executionContext);
+        // The dispatch scope is created before the execution context because identity resolution reads the registered
+        // identity provider from it. A caller-supplied scope is resolved from but never disposed here.
         var externalScope = request.DispatchScope;
         LazyMessageDispatchScope? ownedScope;
         IMessageDispatchScope dispatchScope;
@@ -129,10 +136,39 @@ internal sealed class MessageMediator : IMessageMediator
             dispatchScope = ownedScope;
         }
 
+        // A cause marks a root mediation started by a boundary, so it never inherits the ambient scope even
+        // when one exists. Otherwise the mediation nests inside the ambient scope when there is one.
+        var cause = request.Cause;
+        var ambientContext = AmbientExecutionContext.GetCurrentOrDefault();
+        var parentContext = cause is null ? ambientContext : null;
+        var identity = ResolveIdentity(
+            request.Identity,
+            parentContext,
+            dispatchScope);
+
+        // Retain only the dispatch scope until asynchronous mediation results complete. The ambient scope must not leak
+        // into the caller after this method returns.
+        AmbientExecutionContext.ExecutionContextScope? executionScope = null;
+
         try
         {
             // Get the actual type of the message.
             var messageType = message.GetType();
+
+            ThrowIfNestingDenied(parentContext, messageType, dispatchScope);
+
+            // Create a new execution context for the current scope.
+            var executionContext = new ExecutionContext(
+                request.Tags,
+                request.Items,
+                _timeProvider,
+                identity,
+                cancellationToken,
+                messageType,
+                parentContext,
+                cause);
+
+            executionScope = AmbientExecutionContext.CreateScope(executionContext);
 
             RegisterWhenCoveredOnlyThroughOtherTypes(messageType);
 
@@ -183,10 +219,157 @@ internal sealed class MessageMediator : IMessageMediator
         }
         catch
         {
-            executionScope.Dispose();
+            executionScope?.Dispose();
             ownedScope?.Dispose();
             throw;
         }
+    }
+
+    /// <summary>
+    ///     Resolves the identity one mediation runs for, first match wins.
+    /// </summary>
+    /// <param name="requestIdentity">The identity the caller passed on the mediation request, if any.</param>
+    /// <param name="enclosingContext">The execution context of the enclosing mediation, captured before this one replaces it.</param>
+    /// <param name="dispatchScope">The dispatch scope the registered identity provider is resolved from.</param>
+    /// <returns>
+    ///     The identity, resolved on first read; <see cref="ExecutionIdentity.Anonymous" /> when nothing supplies one.
+    /// </returns>
+    /// <remarks>
+    ///     <para>
+    ///         Resolution order: the identity passed on the request (the semantic mediators copy it from their
+    ///         settings), the identity of the enclosing mediation when mediations nest and it is not
+    ///         <see cref="ExecutionIdentity.Anonymous" />, the <see cref="IExecutionIdentityProvider" /> registered in
+    ///         the dispatch scope, and finally <see cref="ExecutionIdentity.Anonymous" />.
+    ///     </para>
+    ///     <para>
+    ///         Only the explicit request identity is taken at once. The rest is deferred to the first read, so a
+    ///         mediation that never reads its identity does not open the dispatch scope to look for a provider.
+    ///     </para>
+    /// </remarks>
+    private static Lazy<ExecutionIdentity> ResolveIdentity(
+        ExecutionIdentity? requestIdentity,
+        IExecutionContext? enclosingContext,
+        IMessageDispatchScope dispatchScope)
+    {
+        if (requestIdentity is not null)
+        {
+            return new Lazy<ExecutionIdentity>(requestIdentity);
+        }
+
+        return new Lazy<ExecutionIdentity>(() =>
+        {
+            var enclosing = enclosingContext?.Identity;
+
+            if (enclosing is not null && !enclosing.Equals(ExecutionIdentity.Anonymous))
+            {
+                return enclosing;
+            }
+
+            if (dispatchScope.ServiceProvider.GetService(typeof(IExecutionIdentityProvider)) is IExecutionIdentityProvider provider)
+            {
+                return provider.GetCurrentIdentity() ?? ExecutionIdentity.Anonymous;
+            }
+
+            return ExecutionIdentity.Anonymous;
+        });
+    }
+
+    /// <summary>
+    ///     Evaluates the registered mediation nesting rules for a nested mediation.
+    /// </summary>
+    /// <param name="parentContext">The execution context of the enclosing mediation, or <see langword="null" /> for a root mediation.</param>
+    /// <param name="messageType">The runtime type of the message being mediated.</param>
+    /// <param name="dispatchScope">The dispatch scope the registered nesting rules resolve from.</param>
+    /// <exception cref="NestedMediationException">A registered rule denied the nested mediation.</exception>
+    /// <remarks>
+    ///     Root mediations return before touching the dispatch scope, so a composition without nesting rules pays
+    ///     nothing for them. Rules evaluate in registration order and the first denial wins, before the pipeline
+    ///     starts, so a denied message never reaches a guard, a handler, or the registry.
+    /// </remarks>
+    private static void ThrowIfNestingDenied(
+        IExecutionContext? parentContext,
+        Type messageType,
+        IMessageDispatchScope dispatchScope)
+    {
+        if (parentContext is null)
+        {
+            return;
+        }
+
+        var rules = ResolveNestingRules(dispatchScope.ServiceProvider);
+
+        if (rules.Length == 0)
+        {
+            return;
+        }
+
+        var context = new MediationNestingContext(parentContext, messageType);
+
+        foreach (var rule in rules)
+        {
+            var verdict = rule.Evaluate(context);
+
+            if (!verdict.IsDenied)
+            {
+                continue;
+            }
+
+            throw new NestedMediationException(
+                FindOuterMessageType(context, messageType),
+                messageType,
+                verdict.Reason!,
+                verdict.Code);
+        }
+    }
+
+    /// <summary>
+    ///     Resolves the registered mediation nesting rules from the dispatch scope.
+    /// </summary>
+    /// <param name="serviceProvider">The service provider nesting rules resolve from.</param>
+    /// <returns>The registered rules in registration order, or an empty array when there are none.</returns>
+    /// <remarks>
+    ///     The collection resolves first, because that is how the command module registers the built-in rule. A single
+    ///     rule registered directly against the service type is honored as a one-item collection, so a host
+    ///     that wires one by hand without the module builder still contributes.
+    /// </remarks>
+    private static IMediationNestingRule[] ResolveNestingRules(IServiceProvider serviceProvider)
+    {
+        if (serviceProvider.GetService(typeof(IEnumerable<IMediationNestingRule>)) is IEnumerable<IMediationNestingRule> rules)
+        {
+            return rules.ToArray();
+        }
+
+        if (serviceProvider.GetService(typeof(IMediationNestingRule)) is IMediationNestingRule rule)
+        {
+            return [rule];
+        }
+
+        return [];
+    }
+
+    /// <summary>
+    ///     Finds the message type of the nearest enclosing mediation that carries one.
+    /// </summary>
+    /// <param name="context">The nesting context whose ancestors are walked.</param>
+    /// <param name="innerMessageType">The inner message type, reported when no enclosing mediation carries one.</param>
+    /// <returns>The outer message type the denial is reported against.</returns>
+    /// <remarks>
+    ///     The walk normally ends at the direct parent. A custom execution context that does not track its message
+    ///     type reports <see langword="null" />, so the walk continues past it; when no enclosing mediation carries a
+    ///     type, the inner type is reported instead, and the rule's reason still says which ancestor the rule
+    ///     objected to.
+    /// </remarks>
+    private static Type FindOuterMessageType(MediationNestingContext context, Type innerMessageType)
+    {
+        foreach (var ancestor in context.Ancestors())
+        {
+            if (ancestor.MessageType is not null)
+            {
+                return ancestor.MessageType;
+            }
+        }
+
+        return innerMessageType;
     }
 
     /// <summary>

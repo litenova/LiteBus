@@ -107,7 +107,8 @@ internal sealed class MessageDescriptor : IMessageDescriptor
                     declaration.DeclarationType,
                     declaration.CreateDeclaration(),
                     messageType,
-                    MetadataSourceKind.Attribute);
+                    MetadataSourceKind.Attribute,
+                    declaration.GetType());
             }
 
             // Exemptions are collected rather than set one at a time. Metadata holds one value per key type, and a
@@ -125,7 +126,8 @@ internal sealed class MessageDescriptor : IMessageDescriptor
                 typeof(DeclarationExemptions),
                 new DeclarationExemptions(exemptions),
                 messageType,
-                MetadataSourceKind.Attribute);
+                MetadataSourceKind.Attribute,
+                sourceType: null);
         }
     }
 
@@ -160,14 +162,27 @@ internal sealed class MessageDescriptor : IMessageDescriptor
     }
 
     /// <summary>
-    ///     Applies a value declared by a message definition to this descriptor's metadata.
+    ///     Applies a value declared by a message definition or a composition default to this descriptor's metadata.
     /// </summary>
-    /// <param name="keyType">The metadata key type the definition declared.</param>
-    /// <param name="value">The metadata value the definition declared.</param>
-    /// <param name="declaringMessageType">The message type the definition was written for.</param>
-    public void ApplyMetadata(Type keyType, object value, Type declaringMessageType)
+    /// <param name="keyType">The metadata key type the declaration was stored under.</param>
+    /// <param name="value">The metadata value the declaration contributed.</param>
+    /// <param name="declaringMessageType">The message type the declaration was written for.</param>
+    /// <param name="sourceType">
+    ///     The definition class that declared the value, or <see langword="null" /> when composition code declared it
+    ///     directly as a default.
+    /// </param>
+    /// <remarks>
+    ///     A definition type records <see cref="MetadataSourceKind.Definition" />; a <see langword="null" /> source
+    ///     type records <see cref="MetadataSourceKind.Default" />, because only a definition class names its source.
+    /// </remarks>
+    public void ApplyMetadata(Type keyType, object value, Type declaringMessageType, Type? sourceType = null)
     {
-        _metadata.Set(keyType, value, declaringMessageType, MetadataSourceKind.Definition);
+        _metadata.Set(
+            keyType,
+            value,
+            declaringMessageType,
+            sourceType is null ? MetadataSourceKind.Default : MetadataSourceKind.Definition,
+            sourceType);
     }
 
     /// <inheritdoc />

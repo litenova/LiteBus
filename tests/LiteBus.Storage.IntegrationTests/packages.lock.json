@@ -169,6 +169,24 @@
           "SharpZipLib": "1.4.2"
         }
       },
+      "Testcontainers.Azurite": {
+        "type": "Direct",
+        "requested": "[4.16.0, )",
+        "resolved": "4.16.0",
+        "contentHash": "KwR+TJ4knPJnM8Dd8fWaPCA7wp1x+SNnuTITIXY0YtqFH+aeO3zrZCil+juk+HgplFWlXO5b1Na1zdt1qe+EgA==",
+        "dependencies": {
+          "Testcontainers": "4.16.0"
+        }
+      },
+      "Testcontainers.Minio": {
+        "type": "Direct",
+        "requested": "[4.15.0, )",
+        "resolved": "4.15.0",
+        "contentHash": "ta6o0i463GqP/X+J1homJq0p/hGfOiYFoZ+vxAj2y6qDy593DBJIREt33fUaaxpIkDuAmnj+Xa/DKrgTOBHHmg==",
+        "dependencies": {
+          "Testcontainers": "4.15.0"
+        }
+      },
       "Testcontainers.MsSql": {
         "type": "Direct",
         "requested": "[4.16.0, )",
@@ -232,14 +250,28 @@
           "xunit.extensibility.execution": "2.4.0"
         }
       },
+      "Apache.Arrow": {
+        "type": "Transitive",
+        "resolved": "22.1.0",
+        "contentHash": "mTdHWGsNCWpKyQxqyNcSS+q4BtBTSOUfhdG+Lwo6eAOznCLSwrZQ5VKtDG2G8VrUp1ul4DwWHefoBS1umjO/VQ=="
+      },
+      "AWSSDK.Core": {
+        "type": "Transitive",
+        "resolved": "4.0.103",
+        "contentHash": "DCOotOZU/uuGTJHyhdzDaISArck4hYC6Y9OzZM8/PI+G4AhtNaD1hszFG1Giwdpod0Sn7gxxlx6xUfcPKNeQ8Q=="
+      },
       "Azure.Core": {
         "type": "Transitive",
-        "resolved": "1.50.0",
-        "contentHash": "GBNKZEhdIbTXxedvD3R7I/yDVFX9jJJEz02kCziFSJxspSQ5RMHc3GktulJ1s7+ffXaXD7kMgrtdQTaggyInLw==",
+        "resolved": "1.60.0",
+        "contentHash": "qCa5DLAq0w14aTl9/bvMZNA/QxPzYj1a4zakrpeudxWd4D4YliRHRfccD3yFECeHkMkvQjMmyWLggb8bzhDVKA==",
         "dependencies": {
-          "Microsoft.Bcl.AsyncInterfaces": "8.0.0",
-          "System.ClientModel": "1.8.0",
-          "System.Memory.Data": "8.0.1"
+          "Microsoft.Bcl.AsyncInterfaces": "10.0.9",
+          "Microsoft.Extensions.Configuration.Abstractions": "10.0.9",
+          "Microsoft.Extensions.Hosting.Abstractions": "10.0.9",
+          "Microsoft.Identity.Client": "4.84.2",
+          "Microsoft.Identity.Client.Extensions.Msal": "4.84.2",
+          "System.ClientModel": "1.14.0",
+          "System.Memory.Data": "10.0.9"
         }
       },
       "Azure.Identity": {
@@ -250,6 +282,15 @@
           "Azure.Core": "1.50.0",
           "Microsoft.Identity.Client": "4.78.0",
           "Microsoft.Identity.Client.Extensions.Msal": "4.78.0"
+        }
+      },
+      "Azure.Storage.Common": {
+        "type": "Transitive",
+        "resolved": "12.29.0",
+        "contentHash": "0VqPcAinzXFJDAELqC+VPFUL6AaU1mmIpDAHarr7DVw3zcJrlo4k3Xc3TCTVBkDgY6YUOjJ00Fd9ZB9En5H2Jg==",
+        "dependencies": {
+          "Azure.Core": "1.60.0",
+          "System.IO.Hashing": "10.0.9"
         }
       },
       "BouncyCastle.Cryptography": {
@@ -379,8 +420,8 @@
       },
       "Microsoft.Bcl.AsyncInterfaces": {
         "type": "Transitive",
-        "resolved": "8.0.0",
-        "contentHash": "3WA9q9yVqJp222P3x1wYIGDAkpjAku0TMUaaQV22g6L67AI0LdOIrVS7Ht2vJfLHGSPVuqN94vIr15qn+HEkHw=="
+        "resolved": "10.0.9",
+        "contentHash": "Aq7M8lG6BrHeatqKqncVm9m55ec34k6nnfPRLe/PvGg+b/pAsRM2ejofeKmCLjTXMa+5NGXm382f8CG/D5WDow=="
       },
       "Microsoft.Bcl.TimeProvider": {
         "type": "Transitive",
@@ -728,10 +769,10 @@
       },
       "Microsoft.Identity.Client.Extensions.Msal": {
         "type": "Transitive",
-        "resolved": "4.78.0",
-        "contentHash": "DYU9o+DrDQuyZxeq91GBA9eNqBvA3ZMkLzQpF7L9dTk6FcIBM1y1IHXWqiKXTvptPF7CZE59upbyUoa+FJ5eiA==",
+        "resolved": "4.84.2",
+        "contentHash": "+D98LaU3dOu/Nzs6kgbBJapMvH7iwYcAeC99XwSkpmEadsPv6rozecOl9P6m4A3RfpOuPt9e6J6TwwUUp3+M4w==",
         "dependencies": {
-          "Microsoft.Identity.Client": "4.78.0",
+          "Microsoft.Identity.Client": "4.84.2",
           "System.Security.Cryptography.ProtectedData": "4.5.0"
         }
       },
@@ -911,11 +952,13 @@
       },
       "System.ClientModel": {
         "type": "Transitive",
-        "resolved": "1.8.0",
-        "contentHash": "AqRzhn0v29GGGLj/Z6gKq4lGNtvPHT4nHdG5PDJh9IfVjv/nYUVmX11hwwws1vDFeIAzrvmn0dPu8IjLtu6fAw==",
+        "resolved": "1.14.0",
+        "contentHash": "yhIJHDW3Hh5kcvhHv3ww1T8qvya06Nlwo/SR/rke4/fHXtyKiqQV/9b/VDhnVI7QUcMnpfvh4pIEFhNsTDLeKQ==",
         "dependencies": {
-          "Microsoft.Extensions.Logging.Abstractions": "8.0.3",
-          "System.Memory.Data": "8.0.1"
+          "Microsoft.Extensions.Configuration.Abstractions": "10.0.3",
+          "Microsoft.Extensions.Hosting.Abstractions": "10.0.3",
+          "Microsoft.Extensions.Logging.Abstractions": "10.0.3",
+          "System.Memory.Data": "10.0.3"
         }
       },
       "System.Configuration.ConfigurationManager": {
@@ -941,6 +984,11 @@
           "Microsoft.IdentityModel.Tokens": "7.7.1"
         }
       },
+      "System.IO.Hashing": {
+        "type": "Transitive",
+        "resolved": "10.0.9",
+        "contentHash": "vixglGnKEexAJDeIRhyayZYzxyrgK1K9GU3K/zRZVwDbaDcMkSqj4WDHoVmQMNfsdUtLALfNSJw6mBIpdxie4A=="
+      },
       "System.Linq.Dynamic.Core": {
         "type": "Transitive",
         "resolved": "1.7.4",
@@ -948,8 +996,8 @@
       },
       "System.Memory.Data": {
         "type": "Transitive",
-        "resolved": "8.0.1",
-        "contentHash": "BVYuec3jV23EMRDeR7Dr1/qhx7369dZzJ9IWy2xylvb4YfXsrUxspWc4UWYid/tj4zZK58uGZqn2WQiaDMhmAg=="
+        "resolved": "10.0.9",
+        "contentHash": "YweovHiLUoEdbr2Xv8eRqCSkTu1vMms4a6xBHaQiMSFVy32PL+hXv6Vhol2NWOmLHjaVgTyhJ3R52U6JxS6w3Q=="
       },
       "System.Security.Cryptography.ProtectedData": {
         "type": "Transitive",
@@ -1053,44 +1101,138 @@
         "resolved": "0.8.8",
         "contentHash": "UIDFkA5DC3en3tOJ3Mof11yBx9kUQLsaeo/oFdvN6Bbkr9E9+VCqfIadHci8cu+I51K2Sl7XYWVl2R/mA75NBQ=="
       },
+      "litebus.auditing": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Auditing.Abstractions": "[8.0.0, )",
+          "LiteBus.Commands.Abstractions": "[8.0.0, )",
+          "LiteBus.DurableMessaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Events.Abstractions": "[8.0.0, )",
+          "LiteBus.Messaging": "[8.0.0, )",
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Outbox.Abstractions": "[8.0.0, )",
+          "LiteBus.Queries.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )",
+          "Microsoft.Extensions.Logging.Abstractions": "[10.0.14, )"
+        }
+      },
+      "litebus.auditing.abstractions": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )"
+        }
+      },
+      "litebus.auditing.anchors.azureblob": {
+        "type": "Project",
+        "dependencies": {
+          "Azure.Storage.Blobs": "[12.30.1, )",
+          "LiteBus.Auditing": "[8.0.0, )",
+          "LiteBus.Auditing.Abstractions": "[8.0.0, )",
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )",
+          "Microsoft.Extensions.Logging.Abstractions": "[10.0.14, )"
+        }
+      },
+      "litebus.auditing.anchors.s3": {
+        "type": "Project",
+        "dependencies": {
+          "AWSSDK.S3": "[4.0.104.12, )",
+          "LiteBus.Auditing": "[8.0.0, )",
+          "LiteBus.Auditing.Abstractions": "[8.0.0, )",
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )",
+          "Microsoft.Extensions.Logging.Abstractions": "[10.0.14, )"
+        }
+      },
+      "litebus.auditing.anchors.timestamping": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Auditing": "[8.0.0, )",
+          "LiteBus.Auditing.Abstractions": "[8.0.0, )",
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )",
+          "Microsoft.Extensions.Logging.Abstractions": "[10.0.14, )",
+          "System.Security.Cryptography.Pkcs": "[10.0.14, )"
+        }
+      },
+      "litebus.auditing.storage.entityframeworkcore": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Auditing": "[8.0.0, )",
+          "LiteBus.Auditing.Abstractions": "[8.0.0, )",
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )",
+          "LiteBus.Storage.EntityFrameworkCore": "[8.0.0, )",
+          "Microsoft.EntityFrameworkCore": "[10.0.14, )",
+          "Microsoft.EntityFrameworkCore.Relational": "[10.0.14, )",
+          "Microsoft.Extensions.Logging.Abstractions": "[10.0.14, )"
+        }
+      },
+      "litebus.auditing.storage.marten": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Auditing": "[8.0.0, )",
+          "LiteBus.Auditing.Abstractions": "[8.0.0, )",
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )",
+          "Marten": "[9.57.0, )",
+          "Microsoft.Extensions.Logging.Abstractions": "[10.0.14, )",
+          "Npgsql": "[9.0.5, )"
+        }
+      },
+      "litebus.auditing.storage.postgresql": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Auditing": "[8.0.0, )",
+          "LiteBus.Auditing.Abstractions": "[8.0.0, )",
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )",
+          "LiteBus.Storage.PostgreSql": "[8.0.0, )",
+          "Microsoft.Extensions.Logging.Abstractions": "[10.0.14, )",
+          "Npgsql": "[9.0.5, )"
+        }
+      },
       "litebus.commands": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Commands.Abstractions": "[7.0.0, )",
-          "LiteBus.Messaging": "[7.0.0, )",
-          "LiteBus.Runtime.Abstractions": "[7.0.0, )"
+          "LiteBus.Commands.Abstractions": "[8.0.0, )",
+          "LiteBus.Messaging": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )"
         }
       },
       "litebus.commands.abstractions": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Messaging.Abstractions": "[7.0.0, )"
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )"
         }
       },
       "litebus.commands.extensions.microsoft.dependencyinjection": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Commands": "[7.0.0, )",
-          "LiteBus.Runtime.Extensions.Microsoft.DependencyInjection": "[7.0.0, )"
+          "LiteBus.Commands": "[8.0.0, )",
+          "LiteBus.Runtime.Extensions.Microsoft.DependencyInjection": "[8.0.0, )"
         }
       },
       "litebus.commands.recurring": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Commands": "[7.0.0, )",
-          "LiteBus.Commands.Abstractions": "[7.0.0, )",
-          "LiteBus.Messaging.Abstractions": "[7.0.0, )",
-          "LiteBus.Runtime.Abstractions": "[7.0.0, )",
+          "LiteBus.Commands": "[8.0.0, )",
+          "LiteBus.Commands.Abstractions": "[8.0.0, )",
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )",
           "Microsoft.Extensions.Logging.Abstractions": "[10.0.14, )"
         }
       },
       "litebus.commands.recurring.storage.postgresql": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Commands": "[7.0.0, )",
-          "LiteBus.Commands.Recurring": "[7.0.0, )",
-          "LiteBus.Runtime.Abstractions": "[7.0.0, )",
-          "LiteBus.Storage.PostgreSql": "[7.0.0, )",
+          "LiteBus.Commands": "[8.0.0, )",
+          "LiteBus.Commands.Recurring": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )",
+          "LiteBus.Storage.PostgreSql": "[8.0.0, )",
           "Microsoft.Extensions.Logging.Abstractions": "[10.0.14, )",
           "Npgsql": "[9.0.5, )"
         }
@@ -1098,9 +1240,9 @@
       "litebus.commands.storage.marten": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Commands": "[7.0.0, )",
-          "LiteBus.Messaging.Abstractions": "[7.0.0, )",
-          "LiteBus.Runtime.Abstractions": "[7.0.0, )",
+          "LiteBus.Commands": "[8.0.0, )",
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )",
           "Marten": "[9.57.0, )",
           "Npgsql": "[9.0.5, )"
         }
@@ -1108,129 +1250,129 @@
       "litebus.commands.storage.postgresql": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Commands": "[7.0.0, )",
-          "LiteBus.Messaging.Abstractions": "[7.0.0, )",
-          "LiteBus.Runtime.Abstractions": "[7.0.0, )",
-          "LiteBus.Storage.PostgreSql": "[7.0.0, )",
+          "LiteBus.Commands": "[8.0.0, )",
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )",
+          "LiteBus.Storage.PostgreSql": "[8.0.0, )",
           "Npgsql": "[9.0.5, )"
         }
       },
       "litebus.durablemessaging.abstractions": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Messaging.Abstractions": "[7.0.0, )",
-          "LiteBus.Runtime.Abstractions": "[7.0.0, )"
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )"
         }
       },
       "litebus.events": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Events.Abstractions": "[7.0.0, )",
-          "LiteBus.Messaging": "[7.0.0, )",
-          "LiteBus.Messaging.Abstractions": "[7.0.0, )",
-          "LiteBus.Runtime.Abstractions": "[7.0.0, )"
+          "LiteBus.Events.Abstractions": "[8.0.0, )",
+          "LiteBus.Messaging": "[8.0.0, )",
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )"
         }
       },
       "litebus.events.abstractions": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Messaging.Abstractions": "[7.0.0, )"
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )"
         }
       },
       "litebus.events.extensions.microsoft.dependencyinjection": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Events": "[7.0.0, )",
-          "LiteBus.Runtime.Extensions.Microsoft.DependencyInjection": "[7.0.0, )"
+          "LiteBus.Events": "[8.0.0, )",
+          "LiteBus.Runtime.Extensions.Microsoft.DependencyInjection": "[8.0.0, )"
         }
       },
       "litebus.extensions.microsoft.dependencyinjection": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Commands.Extensions.Microsoft.DependencyInjection": "[7.0.0, )",
-          "LiteBus.Events.Extensions.Microsoft.DependencyInjection": "[7.0.0, )",
-          "LiteBus.Messaging.Extensions.Microsoft.DependencyInjection": "[7.0.0, )",
-          "LiteBus.Queries.Extensions.Microsoft.DependencyInjection": "[7.0.0, )"
+          "LiteBus.Commands.Extensions.Microsoft.DependencyInjection": "[8.0.0, )",
+          "LiteBus.Events.Extensions.Microsoft.DependencyInjection": "[8.0.0, )",
+          "LiteBus.Messaging.Extensions.Microsoft.DependencyInjection": "[8.0.0, )",
+          "LiteBus.Queries.Extensions.Microsoft.DependencyInjection": "[8.0.0, )"
         }
       },
       "litebus.inbox": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.DurableMessaging.Abstractions": "[7.0.0, )",
-          "LiteBus.Inbox.Abstractions": "[7.0.0, )",
-          "LiteBus.Messaging": "[7.0.0, )",
-          "LiteBus.Runtime.Abstractions": "[7.0.0, )",
+          "LiteBus.DurableMessaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Inbox.Abstractions": "[8.0.0, )",
+          "LiteBus.Messaging": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )",
           "Microsoft.Extensions.Logging.Abstractions": "[10.0.14, )"
         }
       },
       "litebus.inbox.abstractions": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.DurableMessaging.Abstractions": "[7.0.0, )",
-          "LiteBus.Messaging.Abstractions": "[7.0.0, )",
-          "LiteBus.Runtime.Abstractions": "[7.0.0, )"
+          "LiteBus.DurableMessaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )"
         }
       },
       "litebus.inbox.dispatch": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Inbox.Abstractions": "[7.0.0, )",
-          "LiteBus.Messaging": "[7.0.0, )",
-          "LiteBus.Runtime.Abstractions": "[7.0.0, )",
-          "LiteBus.Transport": "[7.0.0, )",
-          "LiteBus.Transport.Abstractions": "[7.0.0, )"
+          "LiteBus.Inbox.Abstractions": "[8.0.0, )",
+          "LiteBus.Messaging": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )",
+          "LiteBus.Transport": "[8.0.0, )",
+          "LiteBus.Transport.Abstractions": "[8.0.0, )"
         }
       },
       "litebus.inbox.dispatch.amqp": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Inbox": "[7.0.0, )",
-          "LiteBus.Inbox.Abstractions": "[7.0.0, )",
-          "LiteBus.Inbox.Dispatch": "[7.0.0, )",
-          "LiteBus.Transport.Amqp": "[7.0.0, )"
+          "LiteBus.Inbox": "[8.0.0, )",
+          "LiteBus.Inbox.Abstractions": "[8.0.0, )",
+          "LiteBus.Inbox.Dispatch": "[8.0.0, )",
+          "LiteBus.Transport.Amqp": "[8.0.0, )"
         }
       },
       "litebus.inbox.dispatch.inprocess": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Commands": "[7.0.0, )",
-          "LiteBus.Commands.Abstractions": "[7.0.0, )",
-          "LiteBus.Inbox": "[7.0.0, )",
-          "LiteBus.Inbox.Abstractions": "[7.0.0, )",
-          "LiteBus.Messaging": "[7.0.0, )",
-          "LiteBus.Runtime.Abstractions": "[7.0.0, )"
+          "LiteBus.Commands": "[8.0.0, )",
+          "LiteBus.Commands.Abstractions": "[8.0.0, )",
+          "LiteBus.Inbox": "[8.0.0, )",
+          "LiteBus.Inbox.Abstractions": "[8.0.0, )",
+          "LiteBus.Messaging": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )"
         }
       },
       "litebus.inbox.ingress": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Inbox.Abstractions": "[7.0.0, )",
-          "LiteBus.Messaging.Abstractions": "[7.0.0, )",
-          "LiteBus.Runtime.Abstractions": "[7.0.0, )",
-          "LiteBus.Transport": "[7.0.0, )",
-          "LiteBus.Transport.Abstractions": "[7.0.0, )",
+          "LiteBus.Inbox.Abstractions": "[8.0.0, )",
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )",
+          "LiteBus.Transport": "[8.0.0, )",
+          "LiteBus.Transport.Abstractions": "[8.0.0, )",
           "Microsoft.Extensions.Logging.Abstractions": "[10.0.14, )"
         }
       },
       "litebus.inbox.ingress.amqp": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Inbox": "[7.0.0, )",
-          "LiteBus.Inbox.Abstractions": "[7.0.0, )",
-          "LiteBus.Inbox.Ingress": "[7.0.0, )",
-          "LiteBus.Messaging.Abstractions": "[7.0.0, )",
-          "LiteBus.Runtime.Abstractions": "[7.0.0, )",
-          "LiteBus.Transport.Amqp": "[7.0.0, )",
+          "LiteBus.Inbox": "[8.0.0, )",
+          "LiteBus.Inbox.Abstractions": "[8.0.0, )",
+          "LiteBus.Inbox.Ingress": "[8.0.0, )",
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )",
+          "LiteBus.Transport.Amqp": "[8.0.0, )",
           "Microsoft.Extensions.Logging.Abstractions": "[10.0.14, )"
         }
       },
       "litebus.inbox.storage.entityframeworkcore": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Inbox": "[7.0.0, )",
-          "LiteBus.Inbox.Abstractions": "[7.0.0, )",
-          "LiteBus.Runtime.Abstractions": "[7.0.0, )",
-          "LiteBus.Storage.EntityFrameworkCore": "[7.0.0, )",
+          "LiteBus.Inbox": "[8.0.0, )",
+          "LiteBus.Inbox.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )",
+          "LiteBus.Storage.EntityFrameworkCore": "[8.0.0, )",
           "Microsoft.EntityFrameworkCore": "[10.0.14, )",
           "Microsoft.EntityFrameworkCore.Relational": "[10.0.14, )"
         }
@@ -1238,98 +1380,101 @@
       "litebus.inbox.storage.inmemory": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Inbox": "[7.0.0, )",
-          "LiteBus.Inbox.Abstractions": "[7.0.0, )",
-          "LiteBus.Runtime.Abstractions": "[7.0.0, )"
+          "LiteBus.Inbox": "[8.0.0, )",
+          "LiteBus.Inbox.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )"
         }
       },
       "litebus.inbox.storage.postgresql": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Inbox": "[7.0.0, )",
-          "LiteBus.Inbox.Abstractions": "[7.0.0, )",
-          "LiteBus.Runtime.Abstractions": "[7.0.0, )",
-          "LiteBus.Storage.PostgreSql": "[7.0.0, )",
+          "LiteBus.Inbox": "[8.0.0, )",
+          "LiteBus.Inbox.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )",
+          "LiteBus.Storage.PostgreSql": "[8.0.0, )",
           "Npgsql": "[9.0.5, )"
         }
       },
       "litebus.messaging": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.DurableMessaging.Abstractions": "[7.0.0, )",
-          "LiteBus.Messaging.Abstractions": "[7.0.0, )",
-          "LiteBus.Runtime.Abstractions": "[7.0.0, )",
+          "LiteBus.DurableMessaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )",
           "Microsoft.Extensions.Logging.Abstractions": "[10.0.14, )"
         }
       },
       "litebus.messaging.abstractions": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Runtime.Abstractions": "[7.0.0, )"
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )"
         }
       },
       "litebus.messaging.extensions.microsoft.dependencyinjection": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Messaging": "[7.0.0, )",
-          "LiteBus.Runtime.Extensions.Microsoft.DependencyInjection": "[7.0.0, )"
+          "LiteBus.Messaging": "[8.0.0, )",
+          "LiteBus.Runtime.Extensions.Microsoft.DependencyInjection": "[8.0.0, )"
         }
       },
       "litebus.outbox": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.DurableMessaging.Abstractions": "[7.0.0, )",
-          "LiteBus.Messaging": "[7.0.0, )",
-          "LiteBus.Outbox.Abstractions": "[7.0.0, )",
-          "LiteBus.Runtime.Abstractions": "[7.0.0, )",
+          "LiteBus.Commands.Abstractions": "[8.0.0, )",
+          "LiteBus.DurableMessaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Events.Abstractions": "[8.0.0, )",
+          "LiteBus.Messaging": "[8.0.0, )",
+          "LiteBus.Outbox.Abstractions": "[8.0.0, )",
+          "LiteBus.Queries.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )",
           "Microsoft.Extensions.Logging.Abstractions": "[10.0.14, )"
         }
       },
       "litebus.outbox.abstractions": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.DurableMessaging.Abstractions": "[7.0.0, )",
-          "LiteBus.Messaging.Abstractions": "[7.0.0, )",
-          "LiteBus.Runtime.Abstractions": "[7.0.0, )"
+          "LiteBus.DurableMessaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )"
         }
       },
       "litebus.outbox.dispatch": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Messaging": "[7.0.0, )",
-          "LiteBus.Outbox.Abstractions": "[7.0.0, )",
-          "LiteBus.Runtime.Abstractions": "[7.0.0, )",
-          "LiteBus.Transport": "[7.0.0, )",
-          "LiteBus.Transport.Abstractions": "[7.0.0, )"
+          "LiteBus.Messaging": "[8.0.0, )",
+          "LiteBus.Outbox.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )",
+          "LiteBus.Transport": "[8.0.0, )",
+          "LiteBus.Transport.Abstractions": "[8.0.0, )"
         }
       },
       "litebus.outbox.dispatch.amqp": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Outbox": "[7.0.0, )",
-          "LiteBus.Outbox.Abstractions": "[7.0.0, )",
-          "LiteBus.Outbox.Dispatch": "[7.0.0, )",
-          "LiteBus.Transport.Amqp": "[7.0.0, )"
+          "LiteBus.Outbox": "[8.0.0, )",
+          "LiteBus.Outbox.Abstractions": "[8.0.0, )",
+          "LiteBus.Outbox.Dispatch": "[8.0.0, )",
+          "LiteBus.Transport.Amqp": "[8.0.0, )"
         }
       },
       "litebus.outbox.dispatch.inprocess": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Events": "[7.0.0, )",
-          "LiteBus.Events.Abstractions": "[7.0.0, )",
-          "LiteBus.Messaging": "[7.0.0, )",
-          "LiteBus.Outbox": "[7.0.0, )",
-          "LiteBus.Outbox.Abstractions": "[7.0.0, )",
-          "LiteBus.Runtime.Abstractions": "[7.0.0, )"
+          "LiteBus.Events": "[8.0.0, )",
+          "LiteBus.Events.Abstractions": "[8.0.0, )",
+          "LiteBus.Messaging": "[8.0.0, )",
+          "LiteBus.Outbox": "[8.0.0, )",
+          "LiteBus.Outbox.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )"
         }
       },
       "litebus.outbox.storage.entityframeworkcore": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Outbox": "[7.0.0, )",
-          "LiteBus.Outbox.Abstractions": "[7.0.0, )",
-          "LiteBus.Runtime.Abstractions": "[7.0.0, )",
-          "LiteBus.Storage.EntityFrameworkCore": "[7.0.0, )",
+          "LiteBus.Outbox": "[8.0.0, )",
+          "LiteBus.Outbox.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )",
+          "LiteBus.Storage.EntityFrameworkCore": "[8.0.0, )",
           "Microsoft.EntityFrameworkCore": "[10.0.14, )",
           "Microsoft.EntityFrameworkCore.Relational": "[10.0.14, )"
         }
@@ -1337,48 +1482,48 @@
       "litebus.outbox.storage.marten": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Outbox": "[7.0.0, )",
-          "LiteBus.Outbox.Abstractions": "[7.0.0, )",
-          "LiteBus.Outbox.Storage.PostgreSql": "[7.0.0, )",
-          "LiteBus.Runtime.Abstractions": "[7.0.0, )",
+          "LiteBus.Outbox": "[8.0.0, )",
+          "LiteBus.Outbox.Abstractions": "[8.0.0, )",
+          "LiteBus.Outbox.Storage.PostgreSql": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )",
           "Marten": "[9.57.0, )"
         }
       },
       "litebus.outbox.storage.postgresql": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Outbox": "[7.0.0, )",
-          "LiteBus.Outbox.Abstractions": "[7.0.0, )",
-          "LiteBus.Runtime.Abstractions": "[7.0.0, )",
-          "LiteBus.Storage.PostgreSql": "[7.0.0, )",
+          "LiteBus.Outbox": "[8.0.0, )",
+          "LiteBus.Outbox.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )",
+          "LiteBus.Storage.PostgreSql": "[8.0.0, )",
           "Npgsql": "[9.0.5, )"
         }
       },
       "litebus.queries": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Messaging": "[7.0.0, )",
-          "LiteBus.Queries.Abstractions": "[7.0.0, )",
-          "LiteBus.Runtime.Abstractions": "[7.0.0, )"
+          "LiteBus.Messaging": "[8.0.0, )",
+          "LiteBus.Queries.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )"
         }
       },
       "litebus.queries.abstractions": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Messaging.Abstractions": "[7.0.0, )"
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )"
         }
       },
       "litebus.queries.extensions.microsoft.dependencyinjection": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Queries": "[7.0.0, )",
-          "LiteBus.Runtime.Extensions.Microsoft.DependencyInjection": "[7.0.0, )"
+          "LiteBus.Queries": "[8.0.0, )",
+          "LiteBus.Runtime.Extensions.Microsoft.DependencyInjection": "[8.0.0, )"
         }
       },
       "litebus.runtime": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Runtime.Abstractions": "[7.0.0, )"
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )"
         }
       },
       "litebus.runtime.abstractions": {
@@ -1387,22 +1532,22 @@
       "litebus.runtime.extensions.hosting": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Runtime.Abstractions": "[7.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )",
           "Microsoft.Extensions.Hosting.Abstractions": "[10.0.14, )"
         }
       },
       "litebus.runtime.extensions.microsoft.dependencyinjection": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Runtime": "[7.0.0, )",
-          "LiteBus.Runtime.Extensions.Microsoft.Hosting": "[7.0.0, )",
+          "LiteBus.Runtime": "[8.0.0, )",
+          "LiteBus.Runtime.Extensions.Microsoft.Hosting": "[8.0.0, )",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.14, )"
         }
       },
       "litebus.runtime.extensions.microsoft.hosting": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Runtime.Extensions.Hosting": "[7.0.0, )",
+          "LiteBus.Runtime.Extensions.Hosting": "[8.0.0, )",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.14, )",
           "Microsoft.Extensions.Hosting.Abstractions": "[10.0.14, )"
         }
@@ -1410,46 +1555,57 @@
       "litebus.saga": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.DurableMessaging.Abstractions": "[7.0.0, )",
-          "LiteBus.Messaging.Abstractions": "[7.0.0, )",
-          "LiteBus.Runtime.Abstractions": "[7.0.0, )",
-          "LiteBus.Saga.Abstractions": "[7.0.0, )"
+          "LiteBus.DurableMessaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )",
+          "LiteBus.Saga.Abstractions": "[8.0.0, )"
         }
       },
       "litebus.saga.abstractions": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Commands.Abstractions": "[7.0.0, )",
-          "LiteBus.Messaging.Abstractions": "[7.0.0, )",
-          "LiteBus.Runtime.Abstractions": "[7.0.0, )"
+          "LiteBus.Commands.Abstractions": "[8.0.0, )",
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )"
         }
       },
       "litebus.saga.inboxintegration": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Commands.Abstractions": "[7.0.0, )",
-          "LiteBus.Inbox": "[7.0.0, )",
-          "LiteBus.Inbox.Abstractions": "[7.0.0, )",
-          "LiteBus.Messaging": "[7.0.0, )",
-          "LiteBus.Saga": "[7.0.0, )"
+          "LiteBus.Commands.Abstractions": "[8.0.0, )",
+          "LiteBus.Inbox": "[8.0.0, )",
+          "LiteBus.Inbox.Abstractions": "[8.0.0, )",
+          "LiteBus.Messaging": "[8.0.0, )",
+          "LiteBus.Saga": "[8.0.0, )"
+        }
+      },
+      "litebus.saga.storage.marten": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )",
+          "LiteBus.Saga": "[8.0.0, )",
+          "LiteBus.Saga.Abstractions": "[8.0.0, )",
+          "Marten": "[9.57.0, )",
+          "Npgsql": "[9.0.5, )"
         }
       },
       "litebus.saga.storage.postgresql": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Messaging.Abstractions": "[7.0.0, )",
-          "LiteBus.Runtime.Abstractions": "[7.0.0, )",
-          "LiteBus.Saga": "[7.0.0, )",
-          "LiteBus.Saga.Abstractions": "[7.0.0, )",
-          "LiteBus.Storage.PostgreSql": "[7.0.0, )",
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )",
+          "LiteBus.Saga": "[8.0.0, )",
+          "LiteBus.Saga.Abstractions": "[8.0.0, )",
+          "LiteBus.Storage.PostgreSql": "[8.0.0, )",
           "Npgsql": "[9.0.5, )"
         }
       },
       "litebus.storage.entityframeworkcore": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.DurableMessaging.Abstractions": "[7.0.0, )",
-          "LiteBus.Messaging.Abstractions": "[7.0.0, )",
+          "LiteBus.DurableMessaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )",
           "Microsoft.EntityFrameworkCore": "[10.0.14, )",
           "Microsoft.EntityFrameworkCore.Relational": "[10.0.14, )"
         }
@@ -1457,8 +1613,8 @@
       "litebus.storage.postgresql": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.DurableMessaging.Abstractions": "[7.0.0, )",
-          "LiteBus.Messaging.Abstractions": "[7.0.0, )",
+          "LiteBus.DurableMessaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )",
           "Npgsql": "[9.0.5, )"
         }
       },
@@ -1466,8 +1622,11 @@
         "type": "Project",
         "dependencies": {
           "AwesomeAssertions": "[9.6.0, )",
-          "LiteBus.Inbox.Abstractions": "[7.0.0, )",
-          "LiteBus.Outbox.Abstractions": "[7.0.0, )",
+          "LiteBus.Auditing": "[8.0.0, )",
+          "LiteBus.Auditing.Abstractions": "[8.0.0, )",
+          "LiteBus.Inbox.Abstractions": "[8.0.0, )",
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Outbox.Abstractions": "[8.0.0, )",
           "Xunit.SkippableFact": "[1.5.85, )",
           "xunit": "[2.9.3, )"
         }
@@ -1478,9 +1637,9 @@
       "litebus.testing.hosting": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Inbox": "[7.0.0, )",
-          "LiteBus.Runtime.Abstractions": "[7.0.0, )",
-          "LiteBus.Runtime.Extensions.Microsoft.Hosting": "[7.0.0, )",
+          "LiteBus.Inbox": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Extensions.Microsoft.Hosting": "[8.0.0, )",
           "Microsoft.Extensions.DependencyInjection": "[10.0.14, )",
           "Microsoft.Extensions.Hosting.Abstractions": "[10.0.14, )"
         }
@@ -1488,8 +1647,8 @@
       "litebus.transport": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Runtime.Abstractions": "[7.0.0, )",
-          "LiteBus.Transport.Abstractions": "[7.0.0, )"
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )",
+          "LiteBus.Transport.Abstractions": "[8.0.0, )"
         }
       },
       "litebus.transport.abstractions": {
@@ -1498,10 +1657,30 @@
       "litebus.transport.amqp": {
         "type": "Project",
         "dependencies": {
-          "LiteBus.Runtime.Abstractions": "[7.0.0, )",
-          "LiteBus.Transport": "[7.0.0, )",
-          "LiteBus.Transport.Abstractions": "[7.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )",
+          "LiteBus.Transport": "[8.0.0, )",
+          "LiteBus.Transport.Abstractions": "[8.0.0, )",
           "RabbitMQ.Client": "[7.2.2, )"
+        }
+      },
+      "AWSSDK.S3": {
+        "type": "CentralTransitive",
+        "requested": "[4.0.104.12, )",
+        "resolved": "4.0.104.12",
+        "contentHash": "z4rPjjQoPDuWtxk2utbO/I+xNEqA+ac7/cDjwd4KvFrYHfwatJ1IVwjQ7ukaSlSnqY5e9+Q6YHtu87LBJNj+SQ==",
+        "dependencies": {
+          "AWSSDK.Core": "[4.0.103, 5.0.0)"
+        }
+      },
+      "Azure.Storage.Blobs": {
+        "type": "CentralTransitive",
+        "requested": "[12.30.1, )",
+        "resolved": "12.30.1",
+        "contentHash": "ywPqtDHLH5MY0Cp/wfLQgqhHOuJmD+bYVJawjXudtaQr9aJB+9orhk8oE6hHPy5s8H5bzq2q/mDkESf8w1rzBg==",
+        "dependencies": {
+          "Apache.Arrow": "22.1.0",
+          "Azure.Core": "1.60.0",
+          "Azure.Storage.Common": "12.29.0"
         }
       },
       "Microsoft.Extensions.DependencyInjection.Abstractions": {
@@ -1549,6 +1728,1576 @@
           "Microsoft.Extensions.DependencyInjection": "10.0.14",
           "Microsoft.Extensions.Logging.Abstractions": "10.0.14",
           "Microsoft.Extensions.Options": "10.0.14"
+        }
+      }
+    },
+    "net11.0": {
+      "AwesomeAssertions": {
+        "type": "Direct",
+        "requested": "[9.6.0, )",
+        "resolved": "9.6.0",
+        "contentHash": "8kdtgI+tZIgP46ncnk650/dU4JSrn+n2Dkic8FvjIFn72P6Nv1Afyr5F8F3PsokHg1GBSBVo1/Z+eZOrU5esSA=="
+      },
+      "coverlet.collector": {
+        "type": "Direct",
+        "requested": "[10.1.0, )",
+        "resolved": "10.1.0",
+        "contentHash": "SlYCIHnBYxINSUpR75SiM5JEmnx11pqT+Ac/C/fUqTTA0dLPl9eYzmFXKKuxmQhL3ZdTQl4PBD3YdAxAauaKLQ=="
+      },
+      "Marten": {
+        "type": "Direct",
+        "requested": "[9.57.0, )",
+        "resolved": "9.57.0",
+        "contentHash": "Pl4mN6l4SwIbxwal57dy3IA+ebHVpZCFwOMWI9Xg6u/Tmper197Qa1/0+tj/2iwC6a2umxunNJ2Na7dSEB/w3A==",
+        "dependencies": {
+          "JasperFx": "2.98.0",
+          "JasperFx.Events": "2.98.0",
+          "Microsoft.IO.RecyclableMemoryStream": "3.0.1",
+          "Weasel.Postgresql": "9.48.0",
+          "Weasel.Storage": "9.48.0"
+        }
+      },
+      "Microsoft.EntityFrameworkCore": {
+        "type": "Direct",
+        "requested": "[11.0.0, )",
+        "resolved": "11.0.0",
+        "contentHash": "1zGKYhZMHG9gIfC89cC2QKM6DpNotDglm+UzYEV9dAWyLwJI8kLx+yfjAQVpC83iUzvr9y+1HJ0HZ8cOaosBXA==",
+        "dependencies": {
+          "Microsoft.EntityFrameworkCore.Abstractions": "[11.0.0, 12.0.0-a)",
+          "Microsoft.EntityFrameworkCore.Analyzers": "[11.0.0, 12.0.0-a)",
+          "Microsoft.Extensions.Caching.Memory": "11.0.0",
+          "Microsoft.Extensions.Logging": "11.0.0"
+        }
+      },
+      "Microsoft.EntityFrameworkCore.Sqlite": {
+        "type": "Direct",
+        "requested": "[11.0.0, )",
+        "resolved": "11.0.0",
+        "contentHash": "12olimxsnuTo+9jsQvbS9fF/FXUhW7AHaXFcK/TgpND3Ki53CBvXnvT+AnPnk6d6f02D5NBdmBcZzfAynBgkRw==",
+        "dependencies": {
+          "Microsoft.EntityFrameworkCore.Sqlite.Core": "[11.0.0, 12.0.0-a)",
+          "Microsoft.Extensions.Caching.Memory": "11.0.0",
+          "Microsoft.Extensions.DependencyModel": "11.0.0",
+          "Microsoft.Extensions.Logging": "11.0.0",
+          "SQLitePCLRaw.bundle_e_sqlite3": "3.0.5",
+          "SQLitePCLRaw.core": "3.0.5"
+        }
+      },
+      "Microsoft.EntityFrameworkCore.SqlServer": {
+        "type": "Direct",
+        "requested": "[11.0.0, )",
+        "resolved": "11.0.0",
+        "contentHash": "jLzDl9VbMRPQGKddrNWCL7xS7S4xjvIwgwI1jQ+qbiDWiKiXXvn4Isj8L1CoiwoNZlKLuxeORj5HfPzn6UJJNw==",
+        "dependencies": {
+          "Microsoft.Data.SqlClient": "7.1.1",
+          "Microsoft.EntityFrameworkCore.Relational": "[11.0.0, 12.0.0-a)",
+          "Microsoft.Extensions.Caching.Memory": "11.0.0",
+          "Microsoft.Extensions.Logging": "11.0.0",
+          "System.Security.Cryptography.Pkcs": "10.0.13"
+        }
+      },
+      "Microsoft.Extensions.DependencyInjection": {
+        "type": "Direct",
+        "requested": "[11.0.0, )",
+        "resolved": "11.0.0",
+        "contentHash": "KygQMITBDDPXw7+AAgdwQvVAaTXuDsc1iCAuvhO73ERxKX+d92cdbgZmpoYF7DIUq2hfs/yO2KD87uIreRy3MA=="
+      },
+      "Microsoft.Extensions.Hosting.Abstractions": {
+        "type": "Direct",
+        "requested": "[11.0.0, )",
+        "resolved": "11.0.0",
+        "contentHash": "n8YORzstMpX1d+Ey1IgXWKqxqGai7YVn18nHiSY19AGlpIXnNxErbtBuUbaMRuUMu1QlplQoB2QHYHRYR7s1Aw=="
+      },
+      "Microsoft.NET.Test.Sdk": {
+        "type": "Direct",
+        "requested": "[18.11.0, )",
+        "resolved": "18.11.0",
+        "contentHash": "xf/bR0LNkhK0SnadDRlZIQmC4sac5Wk0e1WAdiQjRN3MSo6gQ9M2c4c1XRNnVGjfOvckh704W5CJ19AL0/Xsdg==",
+        "dependencies": {
+          "Microsoft.CodeCoverage": "18.11.0",
+          "Microsoft.TestPlatform.TestHost": "18.11.0"
+        }
+      },
+      "MySql.EntityFrameworkCore": {
+        "type": "Direct",
+        "requested": "[11.0.0-preview, )",
+        "resolved": "11.0.0-preview",
+        "contentHash": "4dQQpfntmf4mLv2kikelJ4age0ON9eDwN42Dj4rnfDDiiWx6eH0jUfLcIbEl9/C0pCFFuv7MNOS7r0NU/H3EiQ==",
+        "dependencies": {
+          "Microsoft.EntityFrameworkCore": "11.0.0-preview.7.26381.103",
+          "Microsoft.EntityFrameworkCore.Relational": "11.0.0-preview.7.26381.103",
+          "MySql.Data": "26.10.0"
+        }
+      },
+      "Npgsql": {
+        "type": "Direct",
+        "requested": "[11.0.0, )",
+        "resolved": "11.0.0",
+        "contentHash": "ozQ8GJcEAiW6XSKz2RUpdJDvM4l380BdHx/MRB7QJHL2cTH/0js7f/cisCaYMrZvVUj4/HIW80UjXxI+ikQQzQ=="
+      },
+      "Npgsql.EntityFrameworkCore.PostgreSQL": {
+        "type": "Direct",
+        "requested": "[11.0.0, )",
+        "resolved": "11.0.0",
+        "contentHash": "qis2Q6aRq8AeHhDBqrXialkhpvCS3PgRk3pZFqE4bDFpXa0wFD51pGK95g/9wbZAS2vEJECYR0Txzt+KpfXf4w==",
+        "dependencies": {
+          "Microsoft.EntityFrameworkCore": "[11.0.0, 12.0.0)",
+          "Microsoft.EntityFrameworkCore.Relational": "[11.0.0, 12.0.0)",
+          "Npgsql": "11.0.0"
+        }
+      },
+      "RabbitMQ.Client": {
+        "type": "Direct",
+        "requested": "[7.2.2, )",
+        "resolved": "7.2.2",
+        "contentHash": "k4b6RnTXpLbsF96V93ooNYxgPMnoA2tEm24B6AXNJr1mG8wwNYdA1XJtgU66L5xqeGyveS7SJriRzlX3cbqQNA==",
+        "dependencies": {
+          "System.Threading.RateLimiting": "8.0.0"
+        }
+      },
+      "SQLitePCLRaw.bundle_e_sqlite3": {
+        "type": "Direct",
+        "requested": "[3.0.5, )",
+        "resolved": "3.0.5",
+        "contentHash": "SW8iASIyWMrLzqabUHYQRvALhvD4ylSBsj4PgEVGwc36kQjc9xT5kSV/XQ9rU7nIpBWD+LPyX3Hlw5FzyUzGeQ==",
+        "dependencies": {
+          "SQLite": "3.53.4",
+          "SQLitePCLRaw.config.e_sqlite3": "3.0.5"
+        }
+      },
+      "System.Security.Cryptography.Pkcs": {
+        "type": "Direct",
+        "requested": "[11.0.0, )",
+        "resolved": "11.0.0",
+        "contentHash": "G8mTjSWrwaPJ2bJRbKuI4ZqdKUYcANK0KtNH3s8/va3nXiF/Pk/yhv2R17rv5PBKJO5+ZXDyhTnZXh0W9v0J8w=="
+      },
+      "Testcontainers": {
+        "type": "Direct",
+        "requested": "[4.16.0, )",
+        "resolved": "4.16.0",
+        "contentHash": "JmMUZk6ZXQovbGQjaMB+YxOR0PbJTdYjOYjRcrm5LrA2dhLVMuCbhVGGunzCGIQfFMUB5Lno2LPOHMMuaGmuIg==",
+        "dependencies": {
+          "Docker.DotNet.Enhanced": "4.3.3",
+          "Docker.DotNet.Enhanced.X509": "4.3.3",
+          "SSH.NET": "2026.0.0",
+          "SharpZipLib": "1.4.2"
+        }
+      },
+      "Testcontainers.Azurite": {
+        "type": "Direct",
+        "requested": "[4.16.0, )",
+        "resolved": "4.16.0",
+        "contentHash": "KwR+TJ4knPJnM8Dd8fWaPCA7wp1x+SNnuTITIXY0YtqFH+aeO3zrZCil+juk+HgplFWlXO5b1Na1zdt1qe+EgA==",
+        "dependencies": {
+          "Testcontainers": "4.16.0"
+        }
+      },
+      "Testcontainers.Minio": {
+        "type": "Direct",
+        "requested": "[4.15.0, )",
+        "resolved": "4.15.0",
+        "contentHash": "ta6o0i463GqP/X+J1homJq0p/hGfOiYFoZ+vxAj2y6qDy593DBJIREt33fUaaxpIkDuAmnj+Xa/DKrgTOBHHmg==",
+        "dependencies": {
+          "Testcontainers": "4.15.0"
+        }
+      },
+      "Testcontainers.MsSql": {
+        "type": "Direct",
+        "requested": "[4.16.0, )",
+        "resolved": "4.16.0",
+        "contentHash": "UVLYLyq9CDSfLZUeu+CyDmwV7wo2LMNlpBLP8ZO9HG42WT3KTMI/p7qYesiCAZmo6GUeWH/Z6SOIw66Y4qnWuw==",
+        "dependencies": {
+          "Testcontainers": "4.16.0"
+        }
+      },
+      "Testcontainers.MySql": {
+        "type": "Direct",
+        "requested": "[4.16.0, )",
+        "resolved": "4.16.0",
+        "contentHash": "29DkCw3cK0l1rrViedRflMkQaxEaru9WsGcC6Giqd5+TakbCuOyh7ltmYCjEQvX47C8M2q2l6XJYizwJcPB+vg==",
+        "dependencies": {
+          "Testcontainers": "4.16.0"
+        }
+      },
+      "Testcontainers.PostgreSql": {
+        "type": "Direct",
+        "requested": "[4.16.0, )",
+        "resolved": "4.16.0",
+        "contentHash": "QqvFS8Oj+i6deH3QJOMd7jgFF9P3h7RZ37wOaoR97ZahMcSYMYCb+COR4nUVznT1d7EavEcZdUs1QV0ow69JiA==",
+        "dependencies": {
+          "Testcontainers": "4.16.0"
+        }
+      },
+      "Testcontainers.RabbitMq": {
+        "type": "Direct",
+        "requested": "[4.16.0, )",
+        "resolved": "4.16.0",
+        "contentHash": "aKMDJmB1xXDcspTyohGhe/nSBV/TY0VYN/gsLJyGoGUQGirUDff+wHvEJt+C0w1WIWAwwkLd7GGIQjy3RnowRw==",
+        "dependencies": {
+          "Testcontainers": "4.16.0"
+        }
+      },
+      "xunit": {
+        "type": "Direct",
+        "requested": "[2.9.3, )",
+        "resolved": "2.9.3",
+        "contentHash": "TlXQBinK35LpOPKHAqbLY4xlEen9TBafjs0V5KnA4wZsoQLQJiirCR4CbIXvOH8NzkW4YeJKP5P/Bnrodm0h9Q==",
+        "dependencies": {
+          "xunit.analyzers": "1.18.0",
+          "xunit.assert": "2.9.3",
+          "xunit.core": "[2.9.3]"
+        }
+      },
+      "xunit.runner.visualstudio": {
+        "type": "Direct",
+        "requested": "[4.0.1, )",
+        "resolved": "4.0.1",
+        "contentHash": "8CoAaZkniVekR1ycJyxn+hOz+6ZQCDPcoIsIs6ujd4WyFcBMlxGNU15Qb8Uxd4iO4UmOuETb0M6vzBbwX/mfLA=="
+      },
+      "Xunit.SkippableFact": {
+        "type": "Direct",
+        "requested": "[1.5.85, )",
+        "resolved": "1.5.85",
+        "contentHash": "zI3QsePulfENNjZC+POQYtqt/9HkUfe6qq+waSJ1xGVMU9v8LyWbr695IRAgg+UYDkPUgGnBjyULIVQ9Qdpgsg==",
+        "dependencies": {
+          "Validation": "2.6.68",
+          "xunit.extensibility.execution": "2.4.0"
+        }
+      },
+      "Apache.Arrow": {
+        "type": "Transitive",
+        "resolved": "22.1.0",
+        "contentHash": "mTdHWGsNCWpKyQxqyNcSS+q4BtBTSOUfhdG+Lwo6eAOznCLSwrZQ5VKtDG2G8VrUp1ul4DwWHefoBS1umjO/VQ=="
+      },
+      "AWSSDK.Core": {
+        "type": "Transitive",
+        "resolved": "4.0.103",
+        "contentHash": "DCOotOZU/uuGTJHyhdzDaISArck4hYC6Y9OzZM8/PI+G4AhtNaD1hszFG1Giwdpod0Sn7gxxlx6xUfcPKNeQ8Q=="
+      },
+      "Azure.Core": {
+        "type": "Transitive",
+        "resolved": "1.60.0",
+        "contentHash": "qCa5DLAq0w14aTl9/bvMZNA/QxPzYj1a4zakrpeudxWd4D4YliRHRfccD3yFECeHkMkvQjMmyWLggb8bzhDVKA==",
+        "dependencies": {
+          "Microsoft.Bcl.AsyncInterfaces": "10.0.9",
+          "Microsoft.Identity.Client": "4.84.2",
+          "Microsoft.Identity.Client.Extensions.Msal": "4.84.2",
+          "System.ClientModel": "1.14.0",
+          "System.Memory.Data": "10.0.9"
+        }
+      },
+      "Azure.Storage.Common": {
+        "type": "Transitive",
+        "resolved": "12.29.0",
+        "contentHash": "0VqPcAinzXFJDAELqC+VPFUL6AaU1mmIpDAHarr7DVw3zcJrlo4k3Xc3TCTVBkDgY6YUOjJ00Fd9ZB9En5H2Jg==",
+        "dependencies": {
+          "Azure.Core": "1.60.0",
+          "System.IO.Hashing": "10.0.9"
+        }
+      },
+      "BouncyCastle.Cryptography": {
+        "type": "Transitive",
+        "resolved": "2.7.0",
+        "contentHash": "U+12df8UEWHgBi04YVf/Lgi2dy3SItlIYvHjjEVa/BngCQIzDCDRBk50DDByCfDvSbe5pRNFr3b7UrVK2kMcLw=="
+      },
+      "Docker.DotNet.Enhanced": {
+        "type": "Transitive",
+        "resolved": "4.3.3",
+        "contentHash": "nGicLwvd42FhRk+khY5uS6cx49ErNdwYKnYBg0F4m4BDKLp/R77AVmmN9xAiqI3W/wN5ZCHkdUhgxf5ORkZuFQ==",
+        "dependencies": {
+          "Docker.DotNet.Enhanced.Handler.Abstractions": "4.3.3",
+          "Docker.DotNet.Enhanced.LegacyHttp": "4.3.3",
+          "Docker.DotNet.Enhanced.NPipe": "4.3.3",
+          "Docker.DotNet.Enhanced.NativeHttp": "4.3.3",
+          "Docker.DotNet.Enhanced.Unix": "4.3.3"
+        }
+      },
+      "Docker.DotNet.Enhanced.Handler.Abstractions": {
+        "type": "Transitive",
+        "resolved": "4.3.3",
+        "contentHash": "9Cp8hOgtynixcDoAs9lnEaQosluojSYmiW3fsLsLIVfZjlq/fznSIZNUhnmyT4Xo1Iyuok/y49WL/25O47u0Pw=="
+      },
+      "Docker.DotNet.Enhanced.LegacyHttp": {
+        "type": "Transitive",
+        "resolved": "4.3.3",
+        "contentHash": "7j3M16emv9PAQN7VwFn23xLYNj8GJmwPOcogveHkaWnOCqiC+anRaNKQwqIBNApM1AuwZKivehTKTPmmrjUUnw==",
+        "dependencies": {
+          "Docker.DotNet.Enhanced.Handler.Abstractions": "4.3.3"
+        }
+      },
+      "Docker.DotNet.Enhanced.NativeHttp": {
+        "type": "Transitive",
+        "resolved": "4.3.3",
+        "contentHash": "iNzK+jRFeEMobSA7l/h4ARwCKOOefOWtVN5/RB0ft6/6H6IQXvVUuOgGyZAjYLBT7TsyClRYno2B904f3dtBuQ==",
+        "dependencies": {
+          "Docker.DotNet.Enhanced.Handler.Abstractions": "4.3.3"
+        }
+      },
+      "Docker.DotNet.Enhanced.NPipe": {
+        "type": "Transitive",
+        "resolved": "4.3.3",
+        "contentHash": "ZTLYufuEfY0e6qLOgeH9QgXx2KYuoABRVaY5A8rsggyLgYqbDj9rCRfVAhHPCUv83S7pVxDHy+Tvm/BnxjWVpg==",
+        "dependencies": {
+          "Docker.DotNet.Enhanced.Handler.Abstractions": "4.3.3"
+        }
+      },
+      "Docker.DotNet.Enhanced.Unix": {
+        "type": "Transitive",
+        "resolved": "4.3.3",
+        "contentHash": "ypo8qNbmvHw1t9VfpRTMogCw2vht6VjkXzlGYUUeP2H2bf83USURdla1maW1njn2oq2rfLUFOGMfmt+A37QU2w==",
+        "dependencies": {
+          "Docker.DotNet.Enhanced.Handler.Abstractions": "4.3.3"
+        }
+      },
+      "Docker.DotNet.Enhanced.X509": {
+        "type": "Transitive",
+        "resolved": "4.3.3",
+        "contentHash": "oBDibWezEv4hgj3RIQxI3DVcxkNV1MdrD0d/jhjUu+h3DL+qc0wlkQva15kkwMatXmC/hWp1VP0DMoFXe+BmEw==",
+        "dependencies": {
+          "Docker.DotNet.Enhanced.Handler.Abstractions": "4.3.3"
+        }
+      },
+      "FastExpressionCompiler": {
+        "type": "Transitive",
+        "resolved": "5.4.1",
+        "contentHash": "nqMykMspK5cQd35Y8ulQzAujxCcCwZVUne32pC5xNpXqrbPCuKOPMWkKHJ3LveAZPm6dsVvump0TJ1SZ9RzfTQ=="
+      },
+      "Google.Protobuf": {
+        "type": "Transitive",
+        "resolved": "3.35.0",
+        "contentHash": "OrUZCUzBXqdSmsQSWp/EPeINjOBcMU+PrZEJegw0aLgOGFHZ9ZI37X/SFrIxo8C9ghKynaKpPr3BVPc4EujWYg=="
+      },
+      "ImTools": {
+        "type": "Transitive",
+        "resolved": "4.0.0",
+        "contentHash": "dms0JfLKC9AQbQX/EdpRjn59EjEvaCxIgv1z9YxbEQb5SiOVoo7vlIKdEySeEwUkWhN05rZnNpUpG+aw5VqPVQ=="
+      },
+      "JasperFx": {
+        "type": "Transitive",
+        "resolved": "2.98.0",
+        "contentHash": "jF3asJj/RB2gHBgLgLlilu3buO/TU2FYgJXGr23+J78EQT8hDQz1T5T46jSryA25tTuOPZdwRR/gWAKa1itfjg==",
+        "dependencies": {
+          "FastExpressionCompiler": "5.4.1",
+          "ImTools": "4.0.0",
+          "Microsoft.Bcl.TimeProvider": "10.0.0",
+          "Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions": "10.0.0",
+          "Microsoft.Extensions.Hosting": "10.0.0",
+          "Microsoft.Extensions.ObjectPool": "10.0.0",
+          "Polly.Core": "8.6.5",
+          "Spectre.Console": "0.55.0",
+          "System.Linq.Dynamic.Core": "1.7.4"
+        }
+      },
+      "JasperFx.Events": {
+        "type": "Transitive",
+        "resolved": "2.98.0",
+        "contentHash": "KqpkltTjkG/+U0+E66+o228X7YMBV5re7roOY6QMCZS0C8kFOjszsS9wQ0yoMdr4ra2Ks93bytazdHlR+z3v1w==",
+        "dependencies": {
+          "JasperFx": "2.98.0"
+        }
+      },
+      "K4os.Compression.LZ4": {
+        "type": "Transitive",
+        "resolved": "1.3.8",
+        "contentHash": "LhwlPa7c1zs1OV2XadMtAWdImjLIsqFJPoRcIWAadSRn0Ri1DepK65UbWLPmt4riLqx2d40xjXRk0ogpqNtK7g=="
+      },
+      "K4os.Compression.LZ4.Streams": {
+        "type": "Transitive",
+        "resolved": "1.3.8",
+        "contentHash": "P15qr8dZAeo9GvYbUIPEYFQ0MEJ0i5iqr37wsYeRC3la2uCldOoeCa6to0CZ1taiwxIV+Mk8NGuZi+4iWivK9w==",
+        "dependencies": {
+          "K4os.Compression.LZ4": "1.3.8",
+          "K4os.Hash.xxHash": "1.0.8"
+        }
+      },
+      "K4os.Hash.xxHash": {
+        "type": "Transitive",
+        "resolved": "1.0.8",
+        "contentHash": "Wp2F7BamQ2Q/7Hk834nV9vRQapgcr8kgv9Jvfm8J3D0IhDqZMMl+a2yxUq5ltJitvXvQfB8W6K4F4fCbw/P6YQ=="
+      },
+      "Microsoft.Bcl.AsyncInterfaces": {
+        "type": "Transitive",
+        "resolved": "10.0.9",
+        "contentHash": "Aq7M8lG6BrHeatqKqncVm9m55ec34k6nnfPRLe/PvGg+b/pAsRM2ejofeKmCLjTXMa+5NGXm382f8CG/D5WDow=="
+      },
+      "Microsoft.Bcl.Cryptography": {
+        "type": "Transitive",
+        "resolved": "9.0.18",
+        "contentHash": "42XcqOGj0jTNW6FphUEuhNLCdVQsYbYCf2pPlkWdz1uDyxxirpcxyjg7pWIBgPCjzk6rv/irgLya/2tDJKIpYg=="
+      },
+      "Microsoft.Bcl.TimeProvider": {
+        "type": "Transitive",
+        "resolved": "10.0.0",
+        "contentHash": "bUubrBD6tRJE3V1kvRloYc6NymH3R5oFKjAS9e0ELNx6u0ZR+zjps9dDQyjgqN/rArzl7f+21KGszj3YRN7F2Q=="
+      },
+      "Microsoft.CodeCoverage": {
+        "type": "Transitive",
+        "resolved": "18.11.0",
+        "contentHash": "MhN9wpvL1Es4hfIYslrsVgIsUdDFxuOBTbAl9mGIMvFo8PP5CLf4DrGdNrfwWSyn0lqi6sssm+I/qkkLL3MU+g=="
+      },
+      "Microsoft.Data.SqlClient": {
+        "type": "Transitive",
+        "resolved": "7.1.1",
+        "contentHash": "Moz4+bba/OdEM9I4jXWggduJ4sqoNcgVAQyXG/dNnGGvnS/YDr2fTjP83fg5YX3drgRki6fRAhR94P8dAZgZtQ==",
+        "dependencies": {
+          "Microsoft.Bcl.Cryptography": "9.0.18",
+          "Microsoft.Data.SqlClient.Extensions.Abstractions": "[7.1.1, 8.0.0)",
+          "Microsoft.Data.SqlClient.Internal.Logging": "[7.1.1, 8.0.0)",
+          "Microsoft.Data.SqlClient.SNI.runtime": "[7.1.0, 8.0.0)",
+          "Microsoft.Extensions.Caching.Memory": "9.0.18",
+          "Microsoft.IdentityModel.JsonWebTokens": "8.16.0",
+          "Microsoft.IdentityModel.Protocols.OpenIdConnect": "8.16.0",
+          "Microsoft.SqlServer.Server": "[1.0.0, 2.0.0)",
+          "System.Configuration.ConfigurationManager": "9.0.18",
+          "System.Security.Cryptography.Pkcs": "9.0.18",
+          "System.Threading.RateLimiting": "9.0.18"
+        }
+      },
+      "Microsoft.Data.SqlClient.Extensions.Abstractions": {
+        "type": "Transitive",
+        "resolved": "7.1.1",
+        "contentHash": "qP/zUOCJwfKqWNC9o+TWqltfNbLnZi1APNpJZgj0yeEJhoI+h+eoQLX+331yZHNOlDxdafZLP5arW/yrS1jAAw==",
+        "dependencies": {
+          "Microsoft.Data.SqlClient.Internal.Logging": "[7.1.1, 8.0.0)"
+        }
+      },
+      "Microsoft.Data.SqlClient.Internal.Logging": {
+        "type": "Transitive",
+        "resolved": "7.1.1",
+        "contentHash": "bVqbATLnHQngue7U9K7GRnzvfdDa7IyiBU2vijfU2vBMBSZrAnQp/wXqNSfaVonckSaMXUk07wfujTqy9IVMdw=="
+      },
+      "Microsoft.Data.SqlClient.SNI.runtime": {
+        "type": "Transitive",
+        "resolved": "7.1.0",
+        "contentHash": "rWunOb6Dby0lcI82PohARcRbF+4x4wNKxnKRSHXhuwZMu8/cCS68DCfhceq4bv1gUEfoL5dWXHYnfxVvLQUN+Q=="
+      },
+      "Microsoft.Data.Sqlite.Core": {
+        "type": "Transitive",
+        "resolved": "11.0.0",
+        "contentHash": "aWaF2LDjuFZwE9UsAGRYGNyS48xqaXoKPAjwpJI85fsaM/43s5NTRnl4xtqbTGKq8of2M/W8mo7DJk7v4zzHGQ==",
+        "dependencies": {
+          "SQLitePCLRaw.core": "3.0.5"
+        }
+      },
+      "Microsoft.EntityFrameworkCore.Abstractions": {
+        "type": "Transitive",
+        "resolved": "11.0.0",
+        "contentHash": "iL0D3Dohk6bNYIHSM3VhvDXrJ+WXs7yMBVv+4L1ozxbsDmohG0T3ogd0mLgWBofu49BHGOgfFKgSGLsOirsjoQ=="
+      },
+      "Microsoft.EntityFrameworkCore.Analyzers": {
+        "type": "Transitive",
+        "resolved": "11.0.0",
+        "contentHash": "R7QxcmtQLP5np732En6eyzv2DjKevbrRxUUY9jPRQwuLzOSbyDowE5l0KyqdEEySvdHbrdRILg99FlaJTwcPbQ=="
+      },
+      "Microsoft.EntityFrameworkCore.Relational": {
+        "type": "Transitive",
+        "resolved": "11.0.0",
+        "contentHash": "yGS+J269mYUl8V17rHWaeFDySoUnGdiugIzszlNZr0F2+JirFatQyw2s2He92wyYIuy/Y3Yv3QLdq/HdTSj7cA==",
+        "dependencies": {
+          "Microsoft.EntityFrameworkCore": "[11.0.0, 12.0.0-a)",
+          "Microsoft.Extensions.Caching.Memory": "11.0.0",
+          "Microsoft.Extensions.Logging": "11.0.0"
+        }
+      },
+      "Microsoft.EntityFrameworkCore.Sqlite.Core": {
+        "type": "Transitive",
+        "resolved": "11.0.0",
+        "contentHash": "7u0jhtUY4GXr2MRsvSzemUpgf2znOCf8+3VLYxYNthIU5rIKk5Y+9EvS+yAlLIBL2218LeahsHYKA0MWKBYo5Q==",
+        "dependencies": {
+          "Microsoft.Data.Sqlite.Core": "[11.0.0, 12.0.0-a)",
+          "Microsoft.EntityFrameworkCore.Relational": "[11.0.0, 12.0.0-a)",
+          "Microsoft.Extensions.Caching.Memory": "11.0.0",
+          "Microsoft.Extensions.DependencyModel": "11.0.0",
+          "Microsoft.Extensions.Logging": "11.0.0",
+          "SQLitePCLRaw.core": "3.0.5"
+        }
+      },
+      "Microsoft.Extensions.Caching.Memory": {
+        "type": "Transitive",
+        "resolved": "11.0.0",
+        "contentHash": "w0nn5qRLxZC2T3sSmXj5PhrBFpGFCSFxg7E/zBi4lne0wZcZPY8of3qQDowqGobMZ3PW5qJnM1Q8fmGjL2B6Iw=="
+      },
+      "Microsoft.Extensions.Configuration": {
+        "type": "Transitive",
+        "resolved": "10.0.0",
+        "contentHash": "H4SWETCh/cC5L1WtWchHR6LntGk3rDTTznZMssr4cL8IbDmMWBxY+MOGDc/ASnqNolLKPIWHWeuC1ddiL/iNPw=="
+      },
+      "Microsoft.Extensions.Configuration.Binder": {
+        "type": "Transitive",
+        "resolved": "10.0.0",
+        "contentHash": "tMF9wNh+hlyYDWB8mrFCQHQmWHlRosol1b/N2Jrefy1bFLnuTlgSYmPyHNmz8xVQgs7DpXytBRWxGhG+mSTp0g==",
+        "dependencies": {
+          "Microsoft.Extensions.Configuration": "10.0.0"
+        }
+      },
+      "Microsoft.Extensions.Configuration.CommandLine": {
+        "type": "Transitive",
+        "resolved": "10.0.0",
+        "contentHash": "CRj5clwZciVs46GMhAthkFq3+JiNM15Bz9CRlCZLBmRdggD6RwoBphRJ+EUDK2f+cZZ1L2zqVaQrn1KueoU5Kg==",
+        "dependencies": {
+          "Microsoft.Extensions.Configuration": "10.0.0"
+        }
+      },
+      "Microsoft.Extensions.Configuration.EnvironmentVariables": {
+        "type": "Transitive",
+        "resolved": "10.0.0",
+        "contentHash": "TmFegsI/uCdwMBD4yKpmO+OkjVNHQL49Dh/ep83NI5rPUEoBK9OdsJo1zURc1A2FuS/R/Pos3wsTjlyLnguBLA==",
+        "dependencies": {
+          "Microsoft.Extensions.Configuration": "10.0.0"
+        }
+      },
+      "Microsoft.Extensions.Configuration.FileExtensions": {
+        "type": "Transitive",
+        "resolved": "10.0.0",
+        "contentHash": "LqCTyF0twrG4tyEN6PpSC5ewRBDwCBazRUfCOdRddwaQ3n2S57GDDeYOlTLcbV/V2dxSSZWg5Ofr48h6BsBmxw==",
+        "dependencies": {
+          "Microsoft.Extensions.Configuration": "10.0.0",
+          "Microsoft.Extensions.FileProviders.Physical": "10.0.0"
+        }
+      },
+      "Microsoft.Extensions.Configuration.Json": {
+        "type": "Transitive",
+        "resolved": "10.0.0",
+        "contentHash": "BIOPTEAZoeWbHlDT9Zudu+rpecZizFwhdIFRiyZKDml7JbayXmfTXKUt+ezifsSXfBkWDdJM10oDOxo8pufEng==",
+        "dependencies": {
+          "Microsoft.Extensions.Configuration": "10.0.0",
+          "Microsoft.Extensions.Configuration.FileExtensions": "10.0.0"
+        }
+      },
+      "Microsoft.Extensions.Configuration.UserSecrets": {
+        "type": "Transitive",
+        "resolved": "10.0.0",
+        "contentHash": "B4qHB6gQ2B3I52YRohSV7wetp01BQzi8jDmrtiVm6e4l8vH5vjqwxWcR5wumGWjdBkj1asJLLsDIocdyTQSP0A==",
+        "dependencies": {
+          "Microsoft.Extensions.Configuration.Json": "10.0.0",
+          "Microsoft.Extensions.FileProviders.Physical": "10.0.0"
+        }
+      },
+      "Microsoft.Extensions.DependencyModel": {
+        "type": "Transitive",
+        "resolved": "11.0.0",
+        "contentHash": "K6M9zulTQ3OU0myKAcBb/Gbfw/aTKa3wlxyDhwfOmT7Wavoxe0lzAkeDjS5+/1dqcgGDUZtIykJIo3T4W7zKbQ=="
+      },
+      "Microsoft.Extensions.Diagnostics": {
+        "type": "Transitive",
+        "resolved": "10.0.0",
+        "contentHash": "xjkxIPgrT0mKTfBwb+CVqZnRchyZgzKIfDQOp8z+WUC6vPe3WokIf71z+hJPkH0YBUYJwa7Z/al1R087ib9oiw==",
+        "dependencies": {
+          "Microsoft.Extensions.Configuration": "10.0.0",
+          "Microsoft.Extensions.Options.ConfigurationExtensions": "10.0.0"
+        }
+      },
+      "Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions": {
+        "type": "Transitive",
+        "resolved": "10.0.0",
+        "contentHash": "jAhZbzDa117otUBMuQQ6JzSfuDbBBrfOs5jw5l7l9hKpzt+LjYKVjSauXG2yV9u7BqUSLUtKLwcerDQDeQ+0Xw=="
+      },
+      "Microsoft.Extensions.FileProviders.Physical": {
+        "type": "Transitive",
+        "resolved": "10.0.0",
+        "contentHash": "UZUQ74lQMmvcprlG8w+XpxBbyRDQqfb7GAnccITw32hdkUBlmm9yNC4xl4aR9YjgV3ounZcub194sdmLSfBmPA==",
+        "dependencies": {
+          "Microsoft.Extensions.FileSystemGlobbing": "10.0.0"
+        }
+      },
+      "Microsoft.Extensions.FileSystemGlobbing": {
+        "type": "Transitive",
+        "resolved": "10.0.0",
+        "contentHash": "5hfVl/e+bx1px2UkN+1xXhd3hu7Ui6ENItBzckFaRDQXfr+SHT/7qrCDrlQekCF/PBtEu2vtk87U2+gDEF8EhQ=="
+      },
+      "Microsoft.Extensions.Logging.Configuration": {
+        "type": "Transitive",
+        "resolved": "10.0.0",
+        "contentHash": "j8zcwhS6bYB6FEfaY3nYSgHdpiL2T+/V3xjpHtslVAegyI1JUbB9yAt/BFdvZdsNbY0Udm4xFtvfT/hUwcOOOg==",
+        "dependencies": {
+          "Microsoft.Extensions.Configuration": "10.0.0",
+          "Microsoft.Extensions.Configuration.Binder": "10.0.0",
+          "Microsoft.Extensions.Logging": "10.0.0",
+          "Microsoft.Extensions.Options.ConfigurationExtensions": "10.0.0"
+        }
+      },
+      "Microsoft.Extensions.Logging.Console": {
+        "type": "Transitive",
+        "resolved": "10.0.0",
+        "contentHash": "treWetuksp8LVb09fCJ5zNhNJjyDkqzVm83XxcrlWQnAdXznR140UUXo8PyEPBvFlHhjKhFQZEOP3Sk/ByCvEw==",
+        "dependencies": {
+          "Microsoft.Extensions.Logging": "10.0.0",
+          "Microsoft.Extensions.Logging.Configuration": "10.0.0"
+        }
+      },
+      "Microsoft.Extensions.Logging.Debug": {
+        "type": "Transitive",
+        "resolved": "10.0.0",
+        "contentHash": "A/4vBtVaySLBGj4qluye+KSbeVCCMa6GcTbxf2YgnSDHs9b9105+VojBJ1eJPel8F1ny0JOh+Ci3vgCKn69tNQ==",
+        "dependencies": {
+          "Microsoft.Extensions.Logging": "10.0.0"
+        }
+      },
+      "Microsoft.Extensions.Logging.EventLog": {
+        "type": "Transitive",
+        "resolved": "10.0.0",
+        "contentHash": "EWda5nSXhzQZr3yJ3+XgIApOek+Hm+txhWCEzWNVPp/OfimL4qmvctgXu87m+S2RXw/AoUP8aLMNicJ2KWblVA==",
+        "dependencies": {
+          "Microsoft.Extensions.Logging": "10.0.0",
+          "System.Diagnostics.EventLog": "10.0.0"
+        }
+      },
+      "Microsoft.Extensions.Logging.EventSource": {
+        "type": "Transitive",
+        "resolved": "10.0.0",
+        "contentHash": "+Qc+kgoJi1w2A/Jm+7h04LcK2JoJkwAxKg7kBakkNRcemTmRGocqPa7rVNVGorTYruFrUS25GwkFNtOECnjhXg==",
+        "dependencies": {
+          "Microsoft.Extensions.Logging": "10.0.0"
+        }
+      },
+      "Microsoft.Extensions.ObjectPool": {
+        "type": "Transitive",
+        "resolved": "10.0.0",
+        "contentHash": "bpeCq0IYmVLACyEUMzFIOQX+zZUElG1t+nu1lSxthe7B+1oNYking7b91305+jNB6iwojp9fqTY9O+Nh7ULQxg=="
+      },
+      "Microsoft.Extensions.Options.ConfigurationExtensions": {
+        "type": "Transitive",
+        "resolved": "10.0.0",
+        "contentHash": "tL9cSl3maS5FPzp/3MtlZI21ExWhni0nnUCF8HY4npTsINw45n9SNDbkKXBMtFyUFGSsQep25fHIDN4f/Vp3AQ==",
+        "dependencies": {
+          "Microsoft.Extensions.Configuration.Binder": "10.0.0"
+        }
+      },
+      "Microsoft.Identity.Client": {
+        "type": "Transitive",
+        "resolved": "4.84.2",
+        "contentHash": "Va9FjmABSgj/lcUfHH0pBNQkmS7SNyepz2ERV7Yynp6QgEYpFdSqR6Vzy1WWipN8GS5pBHuXoZbqaDWuARCrHQ==",
+        "dependencies": {
+          "Microsoft.IdentityModel.Abstractions": "8.14.0"
+        }
+      },
+      "Microsoft.Identity.Client.Extensions.Msal": {
+        "type": "Transitive",
+        "resolved": "4.84.2",
+        "contentHash": "+D98LaU3dOu/Nzs6kgbBJapMvH7iwYcAeC99XwSkpmEadsPv6rozecOl9P6m4A3RfpOuPt9e6J6TwwUUp3+M4w==",
+        "dependencies": {
+          "Microsoft.Identity.Client": "4.84.2",
+          "System.Security.Cryptography.ProtectedData": "4.5.0"
+        }
+      },
+      "Microsoft.IdentityModel.Abstractions": {
+        "type": "Transitive",
+        "resolved": "8.16.0",
+        "contentHash": "gSxKLWRZzBpIsEoeUPkxfywNCCvRvl7hkq146XHPk5vOQc9izSf1I+uL1vh4y2U19QPxd9Z8K/8AdWyxYz2lSg=="
+      },
+      "Microsoft.IdentityModel.JsonWebTokens": {
+        "type": "Transitive",
+        "resolved": "8.16.0",
+        "contentHash": "prBU72cIP4V8E9fhN+o/YdskTsLeIcnKPbhZf0X6mD7fdxoZqnS/NdEkSr+9Zp+2q7OZBOMfNBKGbTbhXODO4w==",
+        "dependencies": {
+          "Microsoft.IdentityModel.Tokens": "8.16.0"
+        }
+      },
+      "Microsoft.IdentityModel.Logging": {
+        "type": "Transitive",
+        "resolved": "8.16.0",
+        "contentHash": "MTzXmETkNQPACR7/XCXM1OGM6oU9RkyibqeJRtO9Ndew2LnGjMf9Atqj2VSf4XC27X0FQycUAlzxxEgQMWn2xQ==",
+        "dependencies": {
+          "Microsoft.IdentityModel.Abstractions": "8.16.0"
+        }
+      },
+      "Microsoft.IdentityModel.Protocols": {
+        "type": "Transitive",
+        "resolved": "8.16.0",
+        "contentHash": "UFrU7d46UTsPQTa2HIEIpB9H1uJe1BW9FLw5uhEJ2ZuKdur8bcUA/bO5caq5dlBt5gNJeRIB3QQXYNs5fCQCZA==",
+        "dependencies": {
+          "Microsoft.IdentityModel.Tokens": "8.16.0"
+        }
+      },
+      "Microsoft.IdentityModel.Protocols.OpenIdConnect": {
+        "type": "Transitive",
+        "resolved": "8.16.0",
+        "contentHash": "h4yVXyJsEBBX5lg2G5ftMsi5JzcNEGAzrNphA6DQ6eOd8P0s+cDCOyPwVTYLePZvJL5unbPvYIvzrbTXzFjXnQ==",
+        "dependencies": {
+          "Microsoft.IdentityModel.Protocols": "8.16.0",
+          "System.IdentityModel.Tokens.Jwt": "8.16.0"
+        }
+      },
+      "Microsoft.IdentityModel.Tokens": {
+        "type": "Transitive",
+        "resolved": "8.16.0",
+        "contentHash": "rtViGJcGsN7WcfUNErwNeQgjuU5cJNl6FDQsfi9TncwO+Epzn0FTfBsg3YuFW1Q0Ch/KPxaVdjLw3/+5Z5ceFQ==",
+        "dependencies": {
+          "Microsoft.IdentityModel.Logging": "8.16.0"
+        }
+      },
+      "Microsoft.IO.RecyclableMemoryStream": {
+        "type": "Transitive",
+        "resolved": "3.0.1",
+        "contentHash": "s/s20YTVY9r9TPfTrN5g8zPF1YhwxyqO6PxUkrYTGI2B+OGPe9AdajWZrLhFqXIvqIW23fnUE4+ztrUWNU1+9g=="
+      },
+      "Microsoft.SqlServer.Server": {
+        "type": "Transitive",
+        "resolved": "1.0.0",
+        "contentHash": "N4KeF3cpcm1PUHym1RmakkzfkEv3GRMyofVv40uXsQhCQeglr2OHNcUk2WOG51AKpGO8ynGpo9M/kFXSzghwug=="
+      },
+      "Microsoft.TestPlatform.ObjectModel": {
+        "type": "Transitive",
+        "resolved": "18.11.0",
+        "contentHash": "BXBHYnwSOljKute8UYCMXOLAdB7awxEMppPSpqOF1ZxLD/W/OH+vTBgFaXA7q0aditJTVXSMVenel+wOkEIyNg=="
+      },
+      "Microsoft.TestPlatform.TestHost": {
+        "type": "Transitive",
+        "resolved": "18.11.0",
+        "contentHash": "AKjwKpyRBwoQFQmpcchtoYlfJEBlaY/40uxBRi+qXP4NR7xT8t+XTJtOyEyumfvfJcH5pASs75LwNdXYRr4XNA==",
+        "dependencies": {
+          "Microsoft.TestPlatform.ObjectModel": "18.11.0"
+        }
+      },
+      "MySql.Data": {
+        "type": "Transitive",
+        "resolved": "26.10.0",
+        "contentHash": "2mhCTH+6kqDvGRlaQ+2GGa+42TPGygcIwXulLwmAMNdTNUhL2dZ/LXMOmMZcJg88CAlBwkBtzOzDrUwq1InkZw==",
+        "dependencies": {
+          "BouncyCastle.Cryptography": "2.6.2",
+          "Google.Protobuf": "3.35.0",
+          "K4os.Compression.LZ4.Streams": "1.3.8",
+          "System.Configuration.ConfigurationManager": "10.0.8",
+          "System.Security.Permissions": "10.0.8",
+          "ZstdSharp.Port": "0.8.8"
+        }
+      },
+      "NetTopologySuite": {
+        "type": "Transitive",
+        "resolved": "2.5.0",
+        "contentHash": "5/+2O2ADomEdUn09mlSigACdqvAf0m/pVPGtIPEPQWnyrVykYY0NlfXLIdkMgi41kvH9kNrPqYaFBTZtHYH7Xw=="
+      },
+      "NetTopologySuite.IO.PostGis": {
+        "type": "Transitive",
+        "resolved": "2.1.0",
+        "contentHash": "3W8XTFz8iP6GQ5jDXK1/LANHiU+988k1kmmuPWNKcJLpmSg6CvFpbTpz+s4+LBzkAp64wHGOldSlkSuzYfrIKA==",
+        "dependencies": {
+          "NetTopologySuite": "[2.0.0, 3.0.0-A)"
+        }
+      },
+      "Npgsql.NetTopologySuite": {
+        "type": "Transitive",
+        "resolved": "9.0.4",
+        "contentHash": "7AwBLPz8EPmgAXveZ55K0Tz/9bNb8j4VI4pkTOQjyHrce8wWfAA9pefm3REidy+Kt2UFiAWef34YVi7sb/kB4A==",
+        "dependencies": {
+          "NetTopologySuite": "2.5.0",
+          "NetTopologySuite.IO.PostGIS": "2.1.0",
+          "Npgsql": "9.0.4"
+        }
+      },
+      "Patched.DistributedLock.Core": {
+        "type": "Transitive",
+        "resolved": "1.0.11",
+        "contentHash": "JUDAhM5ca24AxE+3OGFYGQoPszKkEOLX7jykJgglJxam668Cf5aHmB/MOJR7/fWZPWFC0egwQ9S9yQyzrFaECA=="
+      },
+      "Patched.DistributedLock.Postgres": {
+        "type": "Transitive",
+        "resolved": "1.3.3",
+        "contentHash": "dCk328m177iENwX1TpUhoYapIAncPwYbeahz8YPb3IXMalteLl6p2w+cSmhDMptlu9zesjUGBYLmHi4Mu3X5fw==",
+        "dependencies": {
+          "Npgsql": "8.0.6",
+          "Patched.DistributedLock.Core": "[1.0.11, 1.1.0)"
+        }
+      },
+      "Polly.Core": {
+        "type": "Transitive",
+        "resolved": "8.6.5",
+        "contentHash": "t+sUVrIwvo7UmsgHGgOG9F0GDZSRIm47u2ylH17Gvcv1q5hNEwgD5GoBlFyc0kh/pebmPyrAgvGsR/65ZBaXlg=="
+      },
+      "SharpZipLib": {
+        "type": "Transitive",
+        "resolved": "1.4.2",
+        "contentHash": "yjj+3zgz8zgXpiiC3ZdF/iyTBbz2fFvMxZFEBPUcwZjIvXOf37Ylm+K58hqMfIBt5JgU/Z2uoUS67JmTLe973A=="
+      },
+      "Spectre.Console": {
+        "type": "Transitive",
+        "resolved": "0.55.0",
+        "contentHash": "2TVhUHFsDux0Z+y2Hv4bFsOMuON4SuotEEKkMparFkp5Rm259naaaEQrN4Sv6C1cbsiGKPjfkJDGgUp+hZPjTw==",
+        "dependencies": {
+          "Spectre.Console.Ansi": "0.55.0"
+        }
+      },
+      "Spectre.Console.Ansi": {
+        "type": "Transitive",
+        "resolved": "0.55.0",
+        "contentHash": "GIfgOvuF8MpU52bprhwtDEtx0gmVIGOepM8bw0lH/TSMD0rg1Xp+5Y53kPG8rFVdcpbNANlhDQ5mEVVPO3/2Tg=="
+      },
+      "SQLite": {
+        "type": "Transitive",
+        "resolved": "3.53.4",
+        "contentHash": "KN7jeWqgUPeBRe1FlcpZURzxomuKKEKHmBBQfg+Nx7NkY1LjKhzHvH+3ASkNvhayESE34nMBinL9CV21JfPRJw=="
+      },
+      "SQLitePCLRaw.config.e_sqlite3": {
+        "type": "Transitive",
+        "resolved": "3.0.5",
+        "contentHash": "aSk8WE5tF2MybESMgtZAEyMVCAWA0nBqOMc48HFoa9UoSdtm3goDXVzNRnefeKIwE6bV9NaNXptn1F9ReMQI0Q==",
+        "dependencies": {
+          "SQLitePCLRaw.provider.e_sqlite3": "3.0.5"
+        }
+      },
+      "SQLitePCLRaw.core": {
+        "type": "Transitive",
+        "resolved": "3.0.5",
+        "contentHash": "k81AYXXRCw3Zj8rOhyBoCsx/U97KYDFI2CSKr/ijl5BwpsW/hX/4kBiDmerFaoust8nxBwa0IHQFw8MmSHRtnQ=="
+      },
+      "SQLitePCLRaw.provider.e_sqlite3": {
+        "type": "Transitive",
+        "resolved": "3.0.5",
+        "contentHash": "um8YSWduhhuskTG2bHfZrBqMNQOydfU8pcseT+cu5RivOGyoUbCrGXxgoRNTmRYw2VbMWnEZVVFcneZT/5dsBg==",
+        "dependencies": {
+          "SQLitePCLRaw.core": "3.0.5"
+        }
+      },
+      "SSH.NET": {
+        "type": "Transitive",
+        "resolved": "2026.0.0",
+        "contentHash": "Yu9dirPq8l3oaat0+OQ7K0nUf5MmYltpia5UGqsApTG4zTPvBC1cxbNnC3NERij26dUST0A3Ef1QdHSn5ArbWQ==",
+        "dependencies": {
+          "BouncyCastle.Cryptography": "2.7.0"
+        }
+      },
+      "System.ClientModel": {
+        "type": "Transitive",
+        "resolved": "1.14.0",
+        "contentHash": "yhIJHDW3Hh5kcvhHv3ww1T8qvya06Nlwo/SR/rke4/fHXtyKiqQV/9b/VDhnVI7QUcMnpfvh4pIEFhNsTDLeKQ==",
+        "dependencies": {
+          "System.Memory.Data": "10.0.3"
+        }
+      },
+      "System.Configuration.ConfigurationManager": {
+        "type": "Transitive",
+        "resolved": "10.0.8",
+        "contentHash": "QG+HHwJjLyUiRuA9axr5pDqHAxboo7FXCTRakxMABE9CUAUij/tsd/MsgQPJUEppkf+YBLT+F/P/wKIVCAIcNg==",
+        "dependencies": {
+          "System.Diagnostics.EventLog": "10.0.8",
+          "System.Security.Cryptography.ProtectedData": "10.0.8"
+        }
+      },
+      "System.Diagnostics.EventLog": {
+        "type": "Transitive",
+        "resolved": "10.0.8",
+        "contentHash": "+Ro7WgIom+BDNH+YhTuZKL6QJ0ctfOpTyfUG/h3aU5KwXt3OaNf0wYWrTvoBUj+34Dy5V8dN9yCco1hAJQ4txw=="
+      },
+      "System.IdentityModel.Tokens.Jwt": {
+        "type": "Transitive",
+        "resolved": "8.16.0",
+        "contentHash": "rrs2u7DRMXQG2yh0oVyF/vLwosfRv20Ld2iEpYcKwQWXHjfV+gFXNQsQ9p008kR9Ou4pxBs68Q6/9zC8Gi1wjg==",
+        "dependencies": {
+          "Microsoft.IdentityModel.JsonWebTokens": "8.16.0",
+          "Microsoft.IdentityModel.Tokens": "8.16.0"
+        }
+      },
+      "System.IO.Hashing": {
+        "type": "Transitive",
+        "resolved": "10.0.9",
+        "contentHash": "vixglGnKEexAJDeIRhyayZYzxyrgK1K9GU3K/zRZVwDbaDcMkSqj4WDHoVmQMNfsdUtLALfNSJw6mBIpdxie4A=="
+      },
+      "System.Linq.Dynamic.Core": {
+        "type": "Transitive",
+        "resolved": "1.7.4",
+        "contentHash": "2VJGKUdPjA59aqv/ehvBS+oVoFQqqsiVZlbcyDmuwypgy96Ss1/b8U13Yufk0TXtzveMWAPQAfnZzH+bs1r7Vw=="
+      },
+      "System.Memory.Data": {
+        "type": "Transitive",
+        "resolved": "10.0.9",
+        "contentHash": "YweovHiLUoEdbr2Xv8eRqCSkTu1vMms4a6xBHaQiMSFVy32PL+hXv6Vhol2NWOmLHjaVgTyhJ3R52U6JxS6w3Q=="
+      },
+      "System.Security.Cryptography.ProtectedData": {
+        "type": "Transitive",
+        "resolved": "10.0.8",
+        "contentHash": "/ldVgSfImIBp6fLWS7sLH0BnmtFj0ZwGlZo4Xx2q0K3ZhJNDbW45kj2f6zPoC+L+BTINuHdMzTsopuwmkbgcNA=="
+      },
+      "System.Security.Permissions": {
+        "type": "Transitive",
+        "resolved": "10.0.8",
+        "contentHash": "nIA3VtrHAVbx6v3UbTBkB7yb3ShjVS+A0BpdfXaYLnJP0anIfE9Z9s+kXIDlv82FxEaOoL32866N8p7KsydwdA==",
+        "dependencies": {
+          "System.Windows.Extensions": "10.0.8"
+        }
+      },
+      "System.Threading.RateLimiting": {
+        "type": "Transitive",
+        "resolved": "9.0.18",
+        "contentHash": "pxuHw/tQXaHMRXEaKzzgpoGO8VeTPIzHbnp0KclXp6js5wPHn7VaqSCa8yRTAsZDcZ2XuIEnXGM2MbRDJFLBog=="
+      },
+      "System.Windows.Extensions": {
+        "type": "Transitive",
+        "resolved": "10.0.8",
+        "contentHash": "4hnHSbtc1FP91qiOsweSa/3My/tkKAU9WcUyCZNSUPhfNyFtIhTl9qEPaSK2g4XzTMaq4huRerF6tSV9q44Cnw=="
+      },
+      "Validation": {
+        "type": "Transitive",
+        "resolved": "2.6.68",
+        "contentHash": "5mZ+aXsYQnr3Wxz5O2tmbgPaa5kn9R+ZlfnPyGBogXI2sh4uTiHtvU++N4bURtn9vmDYIu2Zu323K9hFz9poXQ=="
+      },
+      "Weasel.Core": {
+        "type": "Transitive",
+        "resolved": "9.48.0",
+        "contentHash": "suTq5XYRdh1uNSJUaOXMRonVdh1BW/o2d0DWbovmd9LSxTKU5g+AlkyiOAzewdGh8w9mWG6HBw0MIRj3wgR8Bw==",
+        "dependencies": {
+          "JasperFx": "2.98.0"
+        }
+      },
+      "Weasel.Postgresql": {
+        "type": "Transitive",
+        "resolved": "9.48.0",
+        "contentHash": "jcFbO05Vt8kC8GGtKDXa7OVFoMHbrd7Lwyqkan3TjUHOvVeeWe0nBZzp8fTW+qIxHcMcWpFRA6lqvemEff/zBQ==",
+        "dependencies": {
+          "JasperFx.Events": "2.98.0",
+          "Npgsql": "9.0.4",
+          "Npgsql.NetTopologySuite": "9.0.4",
+          "Patched.DistributedLock.Postgres": "1.3.3",
+          "Weasel.Core": "9.48.0"
+        }
+      },
+      "Weasel.Storage": {
+        "type": "Transitive",
+        "resolved": "9.48.0",
+        "contentHash": "+PR0kmu8bJG/Yd6J4BkRKLBUHKLAuQx99aYFwOA5cjk5S/i2+DImObyJjPARqj5eyoKdc8ayXiulGsZOkRzo8A==",
+        "dependencies": {
+          "JasperFx.Events": "2.98.0",
+          "Weasel.Core": "9.48.0"
+        }
+      },
+      "xunit.abstractions": {
+        "type": "Transitive",
+        "resolved": "2.0.3",
+        "contentHash": "pot1I4YOxlWjIb5jmwvvQNbTrZ3lJQ+jUGkGjWE3hEFM0l5gOnBWS+H3qsex68s5cO52g+44vpGzhAt+42vwKg=="
+      },
+      "xunit.analyzers": {
+        "type": "Transitive",
+        "resolved": "1.18.0",
+        "contentHash": "OtFMHN8yqIcYP9wcVIgJrq01AfTxijjAqVDy/WeQVSyrDC1RzBWeQPztL49DN2syXRah8TYnfvk035s7L95EZQ=="
+      },
+      "xunit.assert": {
+        "type": "Transitive",
+        "resolved": "2.9.3",
+        "contentHash": "/Kq28fCE7MjOV42YLVRAJzRF0WmEqsmflm0cfpMjGtzQ2lR5mYVj1/i0Y8uDAOLczkL3/jArrwehfMD0YogMAA=="
+      },
+      "xunit.core": {
+        "type": "Transitive",
+        "resolved": "2.9.3",
+        "contentHash": "BiAEvqGvyme19wE0wTKdADH+NloYqikiU0mcnmiNyXaF9HyHmE6sr/3DC5vnBkgsWaE6yPyWszKSPSApWdRVeQ==",
+        "dependencies": {
+          "xunit.extensibility.core": "[2.9.3]",
+          "xunit.extensibility.execution": "[2.9.3]"
+        }
+      },
+      "xunit.extensibility.core": {
+        "type": "Transitive",
+        "resolved": "2.9.3",
+        "contentHash": "kf3si0YTn2a8J8eZNb+zFpwfoyvIrQ7ivNk5ZYA5yuYk1bEtMe4DxJ2CF/qsRgmEnDr7MnW1mxylBaHTZ4qErA==",
+        "dependencies": {
+          "xunit.abstractions": "2.0.3"
+        }
+      },
+      "xunit.extensibility.execution": {
+        "type": "Transitive",
+        "resolved": "2.9.3",
+        "contentHash": "yMb6vMESlSrE3Wfj7V6cjQ3S4TXdXpRqYeNEI3zsX31uTsGMJjEw6oD5F5u1cHnMptjhEECnmZSsPxB6ChZHDQ==",
+        "dependencies": {
+          "xunit.extensibility.core": "[2.9.3]"
+        }
+      },
+      "ZstdSharp.Port": {
+        "type": "Transitive",
+        "resolved": "0.8.8",
+        "contentHash": "UIDFkA5DC3en3tOJ3Mof11yBx9kUQLsaeo/oFdvN6Bbkr9E9+VCqfIadHci8cu+I51K2Sl7XYWVl2R/mA75NBQ=="
+      },
+      "litebus.auditing": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Auditing.Abstractions": "[8.0.0, )",
+          "LiteBus.Commands.Abstractions": "[8.0.0, )",
+          "LiteBus.DurableMessaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Events.Abstractions": "[8.0.0, )",
+          "LiteBus.Messaging": "[8.0.0, )",
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Outbox.Abstractions": "[8.0.0, )",
+          "LiteBus.Queries.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )"
+        }
+      },
+      "litebus.auditing.abstractions": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )"
+        }
+      },
+      "litebus.auditing.anchors.azureblob": {
+        "type": "Project",
+        "dependencies": {
+          "Azure.Storage.Blobs": "[12.30.1, )",
+          "LiteBus.Auditing": "[8.0.0, )",
+          "LiteBus.Auditing.Abstractions": "[8.0.0, )",
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )"
+        }
+      },
+      "litebus.auditing.anchors.s3": {
+        "type": "Project",
+        "dependencies": {
+          "AWSSDK.S3": "[4.0.104.12, )",
+          "LiteBus.Auditing": "[8.0.0, )",
+          "LiteBus.Auditing.Abstractions": "[8.0.0, )",
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )"
+        }
+      },
+      "litebus.auditing.anchors.timestamping": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Auditing": "[8.0.0, )",
+          "LiteBus.Auditing.Abstractions": "[8.0.0, )",
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )",
+          "System.Security.Cryptography.Pkcs": "[11.0.0, )"
+        }
+      },
+      "litebus.auditing.storage.entityframeworkcore": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Auditing": "[8.0.0, )",
+          "LiteBus.Auditing.Abstractions": "[8.0.0, )",
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )",
+          "LiteBus.Storage.EntityFrameworkCore": "[8.0.0, )",
+          "Microsoft.EntityFrameworkCore": "[11.0.0, )",
+          "Microsoft.EntityFrameworkCore.Relational": "[11.0.0, )"
+        }
+      },
+      "litebus.auditing.storage.marten": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Auditing": "[8.0.0, )",
+          "LiteBus.Auditing.Abstractions": "[8.0.0, )",
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )",
+          "Marten": "[9.57.0, )",
+          "Npgsql": "[9.0.5, )"
+        }
+      },
+      "litebus.auditing.storage.postgresql": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Auditing": "[8.0.0, )",
+          "LiteBus.Auditing.Abstractions": "[8.0.0, )",
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )",
+          "LiteBus.Storage.PostgreSql": "[8.0.0, )",
+          "Npgsql": "[9.0.5, )"
+        }
+      },
+      "litebus.commands": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Commands.Abstractions": "[8.0.0, )",
+          "LiteBus.Messaging": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )"
+        }
+      },
+      "litebus.commands.abstractions": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )"
+        }
+      },
+      "litebus.commands.extensions.microsoft.dependencyinjection": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Commands": "[8.0.0, )",
+          "LiteBus.Runtime.Extensions.Microsoft.DependencyInjection": "[8.0.0, )"
+        }
+      },
+      "litebus.commands.recurring": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Commands": "[8.0.0, )",
+          "LiteBus.Commands.Abstractions": "[8.0.0, )",
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )"
+        }
+      },
+      "litebus.commands.recurring.storage.postgresql": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Commands": "[8.0.0, )",
+          "LiteBus.Commands.Recurring": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )",
+          "LiteBus.Storage.PostgreSql": "[8.0.0, )",
+          "Npgsql": "[9.0.5, )"
+        }
+      },
+      "litebus.commands.storage.marten": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Commands": "[8.0.0, )",
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )",
+          "Marten": "[9.57.0, )",
+          "Npgsql": "[9.0.5, )"
+        }
+      },
+      "litebus.commands.storage.postgresql": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Commands": "[8.0.0, )",
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )",
+          "LiteBus.Storage.PostgreSql": "[8.0.0, )",
+          "Npgsql": "[9.0.5, )"
+        }
+      },
+      "litebus.durablemessaging.abstractions": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )"
+        }
+      },
+      "litebus.events": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Events.Abstractions": "[8.0.0, )",
+          "LiteBus.Messaging": "[8.0.0, )",
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )"
+        }
+      },
+      "litebus.events.abstractions": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )"
+        }
+      },
+      "litebus.events.extensions.microsoft.dependencyinjection": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Events": "[8.0.0, )",
+          "LiteBus.Runtime.Extensions.Microsoft.DependencyInjection": "[8.0.0, )"
+        }
+      },
+      "litebus.extensions.microsoft.dependencyinjection": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Commands.Extensions.Microsoft.DependencyInjection": "[8.0.0, )",
+          "LiteBus.Events.Extensions.Microsoft.DependencyInjection": "[8.0.0, )",
+          "LiteBus.Messaging.Extensions.Microsoft.DependencyInjection": "[8.0.0, )",
+          "LiteBus.Queries.Extensions.Microsoft.DependencyInjection": "[8.0.0, )"
+        }
+      },
+      "litebus.inbox": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.DurableMessaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Inbox.Abstractions": "[8.0.0, )",
+          "LiteBus.Messaging": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )"
+        }
+      },
+      "litebus.inbox.abstractions": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.DurableMessaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )"
+        }
+      },
+      "litebus.inbox.dispatch": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Inbox.Abstractions": "[8.0.0, )",
+          "LiteBus.Messaging": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )",
+          "LiteBus.Transport": "[8.0.0, )",
+          "LiteBus.Transport.Abstractions": "[8.0.0, )"
+        }
+      },
+      "litebus.inbox.dispatch.amqp": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Inbox": "[8.0.0, )",
+          "LiteBus.Inbox.Abstractions": "[8.0.0, )",
+          "LiteBus.Inbox.Dispatch": "[8.0.0, )",
+          "LiteBus.Transport.Amqp": "[8.0.0, )"
+        }
+      },
+      "litebus.inbox.dispatch.inprocess": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Commands": "[8.0.0, )",
+          "LiteBus.Commands.Abstractions": "[8.0.0, )",
+          "LiteBus.Inbox": "[8.0.0, )",
+          "LiteBus.Inbox.Abstractions": "[8.0.0, )",
+          "LiteBus.Messaging": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )"
+        }
+      },
+      "litebus.inbox.ingress": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Inbox.Abstractions": "[8.0.0, )",
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )",
+          "LiteBus.Transport": "[8.0.0, )",
+          "LiteBus.Transport.Abstractions": "[8.0.0, )"
+        }
+      },
+      "litebus.inbox.ingress.amqp": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Inbox": "[8.0.0, )",
+          "LiteBus.Inbox.Abstractions": "[8.0.0, )",
+          "LiteBus.Inbox.Ingress": "[8.0.0, )",
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )",
+          "LiteBus.Transport.Amqp": "[8.0.0, )"
+        }
+      },
+      "litebus.inbox.storage.entityframeworkcore": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Inbox": "[8.0.0, )",
+          "LiteBus.Inbox.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )",
+          "LiteBus.Storage.EntityFrameworkCore": "[8.0.0, )",
+          "Microsoft.EntityFrameworkCore": "[11.0.0, )",
+          "Microsoft.EntityFrameworkCore.Relational": "[11.0.0, )"
+        }
+      },
+      "litebus.inbox.storage.inmemory": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Inbox": "[8.0.0, )",
+          "LiteBus.Inbox.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )"
+        }
+      },
+      "litebus.inbox.storage.postgresql": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Inbox": "[8.0.0, )",
+          "LiteBus.Inbox.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )",
+          "LiteBus.Storage.PostgreSql": "[8.0.0, )",
+          "Npgsql": "[9.0.5, )"
+        }
+      },
+      "litebus.messaging": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.DurableMessaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )"
+        }
+      },
+      "litebus.messaging.abstractions": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )"
+        }
+      },
+      "litebus.messaging.extensions.microsoft.dependencyinjection": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Messaging": "[8.0.0, )",
+          "LiteBus.Runtime.Extensions.Microsoft.DependencyInjection": "[8.0.0, )"
+        }
+      },
+      "litebus.outbox": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Commands.Abstractions": "[8.0.0, )",
+          "LiteBus.DurableMessaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Events.Abstractions": "[8.0.0, )",
+          "LiteBus.Messaging": "[8.0.0, )",
+          "LiteBus.Outbox.Abstractions": "[8.0.0, )",
+          "LiteBus.Queries.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )"
+        }
+      },
+      "litebus.outbox.abstractions": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.DurableMessaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )"
+        }
+      },
+      "litebus.outbox.dispatch": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Messaging": "[8.0.0, )",
+          "LiteBus.Outbox.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )",
+          "LiteBus.Transport": "[8.0.0, )",
+          "LiteBus.Transport.Abstractions": "[8.0.0, )"
+        }
+      },
+      "litebus.outbox.dispatch.amqp": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Outbox": "[8.0.0, )",
+          "LiteBus.Outbox.Abstractions": "[8.0.0, )",
+          "LiteBus.Outbox.Dispatch": "[8.0.0, )",
+          "LiteBus.Transport.Amqp": "[8.0.0, )"
+        }
+      },
+      "litebus.outbox.dispatch.inprocess": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Events": "[8.0.0, )",
+          "LiteBus.Events.Abstractions": "[8.0.0, )",
+          "LiteBus.Messaging": "[8.0.0, )",
+          "LiteBus.Outbox": "[8.0.0, )",
+          "LiteBus.Outbox.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )"
+        }
+      },
+      "litebus.outbox.storage.entityframeworkcore": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Outbox": "[8.0.0, )",
+          "LiteBus.Outbox.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )",
+          "LiteBus.Storage.EntityFrameworkCore": "[8.0.0, )",
+          "Microsoft.EntityFrameworkCore": "[11.0.0, )",
+          "Microsoft.EntityFrameworkCore.Relational": "[11.0.0, )"
+        }
+      },
+      "litebus.outbox.storage.marten": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Outbox": "[8.0.0, )",
+          "LiteBus.Outbox.Abstractions": "[8.0.0, )",
+          "LiteBus.Outbox.Storage.PostgreSql": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )",
+          "Marten": "[9.57.0, )"
+        }
+      },
+      "litebus.outbox.storage.postgresql": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Outbox": "[8.0.0, )",
+          "LiteBus.Outbox.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )",
+          "LiteBus.Storage.PostgreSql": "[8.0.0, )",
+          "Npgsql": "[9.0.5, )"
+        }
+      },
+      "litebus.queries": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Messaging": "[8.0.0, )",
+          "LiteBus.Queries.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )"
+        }
+      },
+      "litebus.queries.abstractions": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )"
+        }
+      },
+      "litebus.queries.extensions.microsoft.dependencyinjection": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Queries": "[8.0.0, )",
+          "LiteBus.Runtime.Extensions.Microsoft.DependencyInjection": "[8.0.0, )"
+        }
+      },
+      "litebus.runtime": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )"
+        }
+      },
+      "litebus.runtime.abstractions": {
+        "type": "Project"
+      },
+      "litebus.runtime.extensions.hosting": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )"
+        }
+      },
+      "litebus.runtime.extensions.microsoft.dependencyinjection": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Runtime": "[8.0.0, )",
+          "LiteBus.Runtime.Extensions.Microsoft.Hosting": "[8.0.0, )"
+        }
+      },
+      "litebus.runtime.extensions.microsoft.hosting": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Runtime.Extensions.Hosting": "[8.0.0, )"
+        }
+      },
+      "litebus.saga": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.DurableMessaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )",
+          "LiteBus.Saga.Abstractions": "[8.0.0, )"
+        }
+      },
+      "litebus.saga.abstractions": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Commands.Abstractions": "[8.0.0, )",
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )"
+        }
+      },
+      "litebus.saga.inboxintegration": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Commands.Abstractions": "[8.0.0, )",
+          "LiteBus.Inbox": "[8.0.0, )",
+          "LiteBus.Inbox.Abstractions": "[8.0.0, )",
+          "LiteBus.Messaging": "[8.0.0, )",
+          "LiteBus.Saga": "[8.0.0, )"
+        }
+      },
+      "litebus.saga.storage.marten": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )",
+          "LiteBus.Saga": "[8.0.0, )",
+          "LiteBus.Saga.Abstractions": "[8.0.0, )",
+          "Marten": "[9.57.0, )",
+          "Npgsql": "[9.0.5, )"
+        }
+      },
+      "litebus.saga.storage.postgresql": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )",
+          "LiteBus.Saga": "[8.0.0, )",
+          "LiteBus.Saga.Abstractions": "[8.0.0, )",
+          "LiteBus.Storage.PostgreSql": "[8.0.0, )",
+          "Npgsql": "[9.0.5, )"
+        }
+      },
+      "litebus.storage.entityframeworkcore": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.DurableMessaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )",
+          "Microsoft.EntityFrameworkCore": "[11.0.0, )",
+          "Microsoft.EntityFrameworkCore.Relational": "[11.0.0, )"
+        }
+      },
+      "litebus.storage.postgresql": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.DurableMessaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )",
+          "Npgsql": "[9.0.5, )"
+        }
+      },
+      "litebus.storage.testing": {
+        "type": "Project",
+        "dependencies": {
+          "AwesomeAssertions": "[9.6.0, )",
+          "LiteBus.Auditing": "[8.0.0, )",
+          "LiteBus.Auditing.Abstractions": "[8.0.0, )",
+          "LiteBus.Inbox.Abstractions": "[8.0.0, )",
+          "LiteBus.Messaging.Abstractions": "[8.0.0, )",
+          "LiteBus.Outbox.Abstractions": "[8.0.0, )",
+          "Xunit.SkippableFact": "[1.5.85, )",
+          "xunit": "[2.9.3, )"
+        }
+      },
+      "litebus.testing": {
+        "type": "Project"
+      },
+      "litebus.testing.hosting": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Inbox": "[8.0.0, )",
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )",
+          "LiteBus.Runtime.Extensions.Microsoft.Hosting": "[8.0.0, )",
+          "Microsoft.Extensions.DependencyInjection": "[11.0.0, )"
+        }
+      },
+      "litebus.transport": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )",
+          "LiteBus.Transport.Abstractions": "[8.0.0, )"
+        }
+      },
+      "litebus.transport.abstractions": {
+        "type": "Project"
+      },
+      "litebus.transport.amqp": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )",
+          "LiteBus.Transport": "[8.0.0, )",
+          "LiteBus.Transport.Abstractions": "[8.0.0, )",
+          "RabbitMQ.Client": "[7.2.2, )"
+        }
+      },
+      "AWSSDK.S3": {
+        "type": "CentralTransitive",
+        "requested": "[4.0.104.12, )",
+        "resolved": "4.0.104.12",
+        "contentHash": "z4rPjjQoPDuWtxk2utbO/I+xNEqA+ac7/cDjwd4KvFrYHfwatJ1IVwjQ7ukaSlSnqY5e9+Q6YHtu87LBJNj+SQ==",
+        "dependencies": {
+          "AWSSDK.Core": "[4.0.103, 5.0.0)"
+        }
+      },
+      "Azure.Storage.Blobs": {
+        "type": "CentralTransitive",
+        "requested": "[12.30.1, )",
+        "resolved": "12.30.1",
+        "contentHash": "ywPqtDHLH5MY0Cp/wfLQgqhHOuJmD+bYVJawjXudtaQr9aJB+9orhk8oE6hHPy5s8H5bzq2q/mDkESf8w1rzBg==",
+        "dependencies": {
+          "Apache.Arrow": "22.1.0",
+          "Azure.Core": "1.60.0",
+          "Azure.Storage.Common": "12.29.0"
+        }
+      },
+      "Microsoft.Extensions.Hosting": {
+        "type": "CentralTransitive",
+        "requested": "[11.0.0, )",
+        "resolved": "10.0.0",
+        "contentHash": "yKJiVdXkSfe9foojGpBRbuDPQI8YD71IO/aE8ehGjRHE0VkEF/YWkW6StthwuFF146pc2lypZrpk/Tks6Plwhw==",
+        "dependencies": {
+          "Microsoft.Extensions.Configuration": "10.0.0",
+          "Microsoft.Extensions.Configuration.Binder": "10.0.0",
+          "Microsoft.Extensions.Configuration.CommandLine": "10.0.0",
+          "Microsoft.Extensions.Configuration.EnvironmentVariables": "10.0.0",
+          "Microsoft.Extensions.Configuration.FileExtensions": "10.0.0",
+          "Microsoft.Extensions.Configuration.Json": "10.0.0",
+          "Microsoft.Extensions.Configuration.UserSecrets": "10.0.0",
+          "Microsoft.Extensions.DependencyInjection": "10.0.0",
+          "Microsoft.Extensions.Diagnostics": "10.0.0",
+          "Microsoft.Extensions.FileProviders.Physical": "10.0.0",
+          "Microsoft.Extensions.Logging": "10.0.0",
+          "Microsoft.Extensions.Logging.Configuration": "10.0.0",
+          "Microsoft.Extensions.Logging.Console": "10.0.0",
+          "Microsoft.Extensions.Logging.Debug": "10.0.0",
+          "Microsoft.Extensions.Logging.EventLog": "10.0.0",
+          "Microsoft.Extensions.Logging.EventSource": "10.0.0"
+        }
+      },
+      "Microsoft.Extensions.Logging": {
+        "type": "CentralTransitive",
+        "requested": "[11.0.0, )",
+        "resolved": "11.0.0",
+        "contentHash": "zsse8MOgo0bj2KAEsSkg9WtNAfZbHbTlGeqfhy5PGozomM3zQM0XzumSQzQ0451IWNSJWLqYaSIQEpCi2j1sCA==",
+        "dependencies": {
+          "Microsoft.Extensions.DependencyInjection": "11.0.0"
         }
       }
     }

@@ -25,7 +25,7 @@ public static class DiagnosticDescriptors
     internal static readonly DiagnosticDescriptor QueryHandlerImpurity = new(
         DiagnosticIds.QueryHandlerImpurity,
         "Query handler impurity",
-        "Query handler '{0}' depends on '{1}'. Query handlers should be side-effect free and must not use command, event, query, inbox, outbox, or transport publisher APIs.",
+        "Query handler '{0}' depends on '{1}'. Query handlers should be side-effect free and must not use command, event, inbox, outbox, or transport publisher APIs.",
         "LiteBus.Handlers",
         DiagnosticSeverity.Warning,
         true);
@@ -219,7 +219,7 @@ public static class DiagnosticDescriptors
         "LiteBus.Declarations",
         DiagnosticSeverity.Warning,
         true,
-        description: "A name that does not resolve would silently disable the requirement it configures, so it is reported rather than skipped.",
+        description: "In a project that references the LiteBus message contracts, a name that does not resolve is reported rather than skipped, because skipping it would silently disable the requirement it configures.",
         customTags: WellKnownDiagnosticTags.CompilationEnd);
 
     /// <summary>
@@ -252,8 +252,8 @@ public static class DiagnosticDescriptors
     ///     A command handler sends or publishes another message through a mediator inside its handle method.
     /// </summary>
     /// <remarks>
-    ///     Disabled by default. Enable with <c>dotnet_diagnostic.LB1023.severity = warning</c> once the codebase is
-    ///     ready to keep nested units of work out of command handlers.
+    ///     Set <c>litebus_forbid_nested_commands = true</c> in <c>.editorconfig</c> to report this rule at warning.
+    ///     Without the option the rule reports nothing.
     /// </remarks>
     internal static readonly DiagnosticDescriptor NestedMediationInCommandHandler = new(
         DiagnosticIds.NestedMediationInCommandHandler,
@@ -261,8 +261,8 @@ public static class DiagnosticDescriptors
         "Command handler '{0}' calls '{1}' inside its handle method. Mediating another message nests a second unit of work inside the first; stage follow-up work through the domain event collector or the transactional outbox instead.",
         "LiteBus.Handlers",
         DiagnosticSeverity.Warning,
-        false,
-        description: "Reads through IQueryMediator are not reported: queries are side-effect free by contract, so nesting a read nests no unit of work. EvaluateAsync guard checks are not reported either, because they decide without acting.");
+        true,
+        description: "Reads through IQueryMediator are not reported: queries are side-effect free by contract, so nesting a read nests no unit of work. EvaluateAsync guard checks are not reported either, because they decide without acting. The runtime counterpart is CommandModuleBuilder.ForbidNestedCommands(), which throws NestedMediationException before the inner pipeline starts. Set litebus_forbid_nested_commands = true in .editorconfig to report this rule at warning; without the option it reports nothing. An analyzer cannot see a ForbidNestedCommands() call made in another compilation, so the option pairs the build check with the runtime guarantee.");
 
     /// <summary>
     ///     A command handler injects an external side-effect type through its constructor.
@@ -279,4 +279,82 @@ public static class DiagnosticDescriptors
         DiagnosticSeverity.Warning,
         false,
         description: "The default forbidden types are System.Net.Http.HttpClient and System.Net.Http.IHttpClientFactory. Set litebus.LB1024.forbidden_types in .editorconfig to a comma-separated list of metadata names to replace them.");
+
+    /// <summary>
+    ///     Reports a command handler that injects <c>IOutbox</c> in a compilation that configures the transactional
+    ///     outbox, where the enqueue commits in its own transaction instead of with the domain write.
+    /// </summary>
+    internal static readonly DiagnosticDescriptor NonTransactionalOutboxInCommandHandler = new(
+        DiagnosticIds.NonTransactionalOutboxInCommandHandler,
+        "Non-transactional outbox in command handler",
+        "Command handler '{0}' injects IOutbox, which commits the outbox row in its own transaction. Inject {1} so the row commits with the domain write.",
+        "LiteBus.Outbox",
+        DiagnosticSeverity.Warning,
+        true,
+        description: "Inside a unit of work, IOutbox.EnqueueAsync writes and commits the envelope at once, so a later rollback of the domain write still leaves a published event. ITransactionalOutbox<TContext> stages the envelope in the same DbContext transaction when the Entity Framework Core outbox storage resolves; ITransactionalOutbox stages it in the ambient session when the Marten or PostgreSQL outbox storage resolves.");
+
+    /// <summary>
+    ///     Reports a transactional outbox injected for a context that no outbox storage call in the compilation configures.
+    /// </summary>
+    internal static readonly DiagnosticDescriptor TransactionalOutboxContextNotConfigured = new(
+        DiagnosticIds.TransactionalOutboxContextNotConfigured,
+        "Transactional outbox context not configured",
+        "'{0}' injects ITransactionalOutbox<{1}>, but no UseDbContext<{1}>() call in this compilation configures that context",
+        "LiteBus.Outbox",
+        DiagnosticSeverity.Warning,
+        true,
+        description: "The rule runs only when the compilation contains at least one UseDbContext<TContext>() call, because the configuring call may otherwise live in another assembly. Resolving the outbox for an unconfigured context fails on the first enqueue.",
+        customTags: WellKnownDiagnosticTags.CompilationEnd);
+
+    /// <summary>
+    ///     Reports two handlers of different messages that share one subscriber name.
+    /// </summary>
+    internal static readonly DiagnosticDescriptor SubscriberNameReused = new(
+        DiagnosticIds.SubscriberNameReused,
+        "Subscriber name reused",
+        "Subscriber name '{0}' is used by '{1}' and by '{2}'; give each reaction its own name, such as <module>.<event>.<reaction>",
+        "LiteBus.Outbox",
+        DiagnosticSeverity.Warning,
+        true,
+        description: "Per-handler outbox rows record the subscriber name. A name shared by reactions to different events makes rows hard to read in operations tooling and makes renaming one handler change the other's recorded identity.",
+        customTags: WellKnownDiagnosticTags.CompilationEnd);
+
+    /// <summary>
+    ///     Reports a definition class that implements more than one message definition concern.
+    /// </summary>
+    internal static readonly DiagnosticDescriptor DefinitionMixesConcerns = new(
+        DiagnosticIds.DefinitionMixesConcerns,
+        "Definition mixes concerns",
+        "Definition '{0}' declares {1}; keep one definition class per concern, such as {2}",
+        "LiteBus.Declarations",
+        DiagnosticSeverity.Info,
+        true,
+        description: "Authorization, audit, tenancy and idempotency are unrelated concerns. The registry accepts one class implementing several definitions, but one class per concern keeps each decision readable and reviewable on its own.");
+
+    /// <summary>
+    ///     Reports a durable message type without <c>[MessageContract]</c> in an assembly that carries
+    ///     <c>[assembly: MessageContractsRegisteredIn]</c>.
+    /// </summary>
+    internal static readonly DiagnosticDescriptor UnattributedContractInRegisteredAssembly = new(
+        DiagnosticIds.UnattributedContractInRegisteredAssembly,
+        "Durable message type has no contract attribute",
+        "Durable message type '{0}' carries no [MessageContract], but this assembly declares that its contracts are registered in '{1}'; add [MessageContract(\"name\", version)] so the registering assembly is checked against it",
+        "LiteBus.Contracts",
+        DiagnosticSeverity.Warning,
+        true,
+        description: "MessageContractsRegisteredIn makes consuming compilations trust the named assembly for every type here, and LB1017 checks only attributed types. An unattributed durable message type would therefore never be checked anywhere. Attributing every durable type keeps the registration verifiable.",
+        customTags: WellKnownDiagnosticTags.CompilationEnd);
+
+    /// <summary>
+    ///     Reports a contract registration whose name or version disagrees with the message type's
+    ///     <c>[MessageContract]</c>.
+    /// </summary>
+    internal static readonly DiagnosticDescriptor ContractRegistrationMismatch = new(
+        DiagnosticIds.ContractRegistrationMismatch,
+        "Contract registration disagrees with [MessageContract]",
+        "Contract registration for '{0}' uses name '{1}' version {2}, but its [MessageContract] declares name '{3}' version {4}. Make the registration and the attribute agree.",
+        "LiteBus.Contracts",
+        DiagnosticSeverity.Warning,
+        true,
+        description: "When an explicit registration and [MessageContract] disagree, the runtime rejects the registration with MessageContractMismatchException while the host composes, so only a running host finds the mistake. Make the two agree so the mismatch is caught at build time.");
 }

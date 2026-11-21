@@ -58,8 +58,10 @@ public sealed class MissingDeclarationAnalyzer : DiagnosticAnalyzer
     /// </summary>
     /// <param name="context">The compilation start analysis context.</param>
     /// <remarks>
-    ///     The syntax tree and compilation-end actions are always registered: an unresolvable configured name is
-    ///     reported even when the compilation references no LiteBus contracts at all.
+    ///     The syntax tree and compilation-end actions are always registered so configured names are collected in any
+    ///     project. LB1021 is reported only when the compilation references the LiteBus message markers, the same
+    ///     condition the analyzer uses to look for messages. A project with no LiteBus messaging references has no
+    ///     messages to check, so a typo in a shared configuration stays silent there.
     /// </remarks>
     private static void AnalyzeCompilationStart(CompilationStartAnalysisContext context)
     {
@@ -121,12 +123,17 @@ public sealed class MissingDeclarationAnalyzer : DiagnosticAnalyzer
 
             if (valueType is null)
             {
-                // Skipping an unresolvable name would disable the requirement it configures, and a typo in
-                // .editorconfig is exactly how that happens.
-                context.ReportDiagnostic(Diagnostic.Create(
-                    DiagnosticDescriptors.UnresolvedRequiredDeclaration,
-                    Location.None,
-                    name));
+                // A project with no message markers has no messages to check, so a typo in a shared
+                // .editorconfig stays silent there. Report it where messages are present: skipping an
+                // unresolvable name would disable the requirement it configures.
+                if (symbols.HasMessageMarkers)
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(
+                        DiagnosticDescriptors.UnresolvedRequiredDeclaration,
+                        Location.None,
+                        name));
+                }
+
                 continue;
             }
 

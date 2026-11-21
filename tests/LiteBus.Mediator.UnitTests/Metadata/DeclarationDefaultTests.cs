@@ -56,6 +56,21 @@ public sealed class DeclarationDefaultTests : LiteBusTestBase
     }
 
     [Fact]
+    public void A_default_for_an_interface_scope_keys_a_concrete_command()
+    {
+        var accessor = BuildWithKeyedCommand(messaging => messaging
+                .DeclareDefault<IHasIdempotencyKey, IdempotencyDeclaration>(
+                    IdempotencyDeclaration.KeyedBy<IHasIdempotencyKey>(message => message.IdempotencyKey)))
+            .GetRequiredService<IMessageMetadataAccessor>();
+
+        // The default is declared against the interface, but the key selector runs against the concrete command, so
+        // the cast inside has to hold for the message the declaration reaches.
+        accessor.TryGet<KeyedTransferCommand, IdempotencyDeclaration>(out var declaration).Should().BeTrue();
+        declaration!.KeySelector.Should().NotBeNull();
+        declaration.KeySelector!(new KeyedTransferCommand { IdempotencyKey = "key-1" }).Should().Be("key-1");
+    }
+
+    [Fact]
     public void A_default_declared_before_the_messages_are_registered_still_reaches_them()
     {
         // The messaging module builds before the axis modules, so a default is declared while the registry holds no
@@ -147,6 +162,27 @@ public sealed class DeclarationDefaultTests : LiteBusTestBase
                     builder.Register<UnattributedTransferCommandHandler>();
                     builder.Register<SweepStaleLocksCommand>();
                     builder.Register<SweepStaleLocksCommandHandler>();
+                });
+            })
+            .BuildServiceProvider();
+    }
+
+    /// <summary>
+    ///     Builds a provider over the keyed command with the given messaging configuration.
+    /// </summary>
+    /// <param name="messaging">The messaging configuration under test.</param>
+    /// <returns>The configured service provider.</returns>
+    private static ServiceProvider BuildWithKeyedCommand(Action<MessageModuleBuilder> messaging)
+    {
+        return new ServiceCollection()
+            .AddLiteBus(registry =>
+            {
+                registry.AddMessaging(messaging);
+
+                registry.AddCommands(builder =>
+                {
+                    builder.Register<KeyedTransferCommand>();
+                    builder.Register<KeyedTransferCommandHandler>();
                 });
             })
             .BuildServiceProvider();

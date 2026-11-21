@@ -549,11 +549,13 @@ public static class MessageContextExtensions
     ///         an audit trail while the caller received a different one.
     ///     </para>
     ///     <para>
-    ///         A fault that escapes the completion stage is offered to the registered refusal classifiers before it
-    ///         supersedes the mediation ending. A recognized fault, such as a duplicate key raised by a unit-of-work
-    ///         commit, reaches the caller as the refusal exception instead of the raw fault, and a <c>Try</c> call
-    ///         reports it as a value. Handlers that already ran keep the outcome they observed; only what the caller
-    ///         receives changes. With no classifier registered the fault propagates exactly as before.
+    ///         A fault that escapes the completion stage is offered to the registered refusal classifiers and then to
+    ///         the registered exception translators before it supersedes the mediation ending. A recognized fault, such
+    ///         as a duplicate key raised by a unit-of-work commit, reaches the caller as the refusal exception instead
+    ///         of the raw fault, and a <c>Try</c> call reports it as a value. Handlers that already ran keep the outcome
+    ///         they observed; only what the caller receives changes. With no classifier or translator registered the
+    ///         fault propagates exactly as before. A message fault always propagates, because a configuration failure
+    ///         is never a refusal.
     ///     </para>
     /// </remarks>
     /// <exception cref="ArgumentNullException">
@@ -583,6 +585,7 @@ public static class MessageContextExtensions
         var context = new MessageCompletionContext
         {
             Message = message,
+            Identity = executionContext.Identity,
             Outcome = outcome,
 
             // A post-handler may have replaced what the caller receives, and the completion stage should see what the
@@ -604,6 +607,13 @@ public static class MessageContextExtensions
             catch (Exception completionFault)
 #pragma warning restore CA1031
             {
+                if (completionFault is MessageFaultException)
+                {
+                    // A configuration or dependency failure is never a refusal, so it is offered to neither the
+                    // classifiers nor the translators.
+                    throw;
+                }
+
                 // Cancellation and an already-refused ending are never classified, so the only thing offered here is
                 // a genuine fault from a completion handler on a mediation no exception had ended yet.
                 if (!MediationExceptionFilters.TryClassifyRefusal(
@@ -611,7 +621,17 @@ public static class MessageContextExtensions
                         completionFault,
                         out var refusal))
                 {
-                    throw;
+                    var translated = await RefusalExceptionTranslation.TryTranslateAsync(
+                        messageDependencies.RefusalExceptionTranslators,
+                        completionFault,
+                        executionContext.CancellationToken).ConfigureAwait(false);
+
+                    if (!translated.HasValue)
+                    {
+                        throw;
+                    }
+
+                    refusal = translated.Value;
                 }
 
                 MediationEndingCapture.Record(executionContext, refusal);

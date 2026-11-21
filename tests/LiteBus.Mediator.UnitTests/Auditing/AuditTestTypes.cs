@@ -2,6 +2,8 @@ using System.Collections.Concurrent;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Queries.Abstractions;
+using LiteBus.Auditing;
+using LiteBus.Auditing.Abstractions;
 
 namespace LiteBus.Mediator.UnitTests.Auditing;
 
@@ -51,7 +53,7 @@ internal sealed class TestAuditOutcomeMapper : IAuditOutcomeMapper
 
         return context.Exception is ForbiddenException
             ? AuditOutcome.Denied
-            : LiteBus.Messaging.Audit.DefaultAuditOutcomeMapper.MapByOutcome(context);
+            : DefaultAuditOutcomeMapper.MapByOutcome(context);
     }
 }
 

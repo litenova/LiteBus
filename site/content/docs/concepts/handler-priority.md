@@ -96,7 +96,7 @@ See the [Event Module](events.md) for details.
 
 ## The Reserved Framework Window
 
-LiteBus ships pipeline handlers of its own, such as the audit record writer registered by `EnableAuditing()`. Those handlers need a documented position so that ordering against them is a guarantee rather than something each application rediscovers by experiment.
+LiteBus ships pipeline handlers of its own, such as the audit record writers registered by the auditing module for each axis it audits. Those handlers need a documented position so that ordering against them is a guarantee rather than something each application rediscovers by experiment.
 
 `HandlerPriorities` names the window and the two application bands around it:
 

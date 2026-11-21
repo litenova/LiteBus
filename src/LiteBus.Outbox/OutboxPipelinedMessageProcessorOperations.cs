@@ -134,7 +134,8 @@ internal sealed class OutboxPipelinedMessageProcessorOperations : IPipelinedMess
             LeaseOwner = leaseOwner,
             Now = now,
             LeaseDuration = options.LeaseDuration,
-            TenantId = options.TenantId
+            TenantId = options.TenantId,
+            MaxPerTenant = options.MaxLeasedPerTenant
         }, cancellationToken);
     }
 

@@ -6,11 +6,11 @@ namespace LiteBus.Analyzers.UnitTests;
 public sealed class QueryHandlerImpurityAnalyzerRegressionTests
 {
     /// <summary>
-    ///     Verifies that a query handler depending on <c>IQueryMediator</c> produces LB1003.
+    ///     Verifies that a query handler depending on <c>IQueryMediator</c> produces no diagnostic.
     /// </summary>
     /// <returns>A task that completes when verification finishes.</returns>
     [Fact]
-    public Task QueryHandlerWithQueryMediator_ProducesDiagnostic()
+    public Task QueryHandlerWithQueryMediator_ProducesNoDiagnostic()
     {
         const string source = """
                               using System.Threading;
@@ -21,7 +21,7 @@ public sealed class QueryHandlerImpurityAnalyzerRegressionTests
 
                               public sealed class GetUserQueryHandler : IQueryHandler<GetUserQuery, string>
                               {
-                                  public GetUserQueryHandler(IQueryMediator {|#0:queryMediator|})
+                                  public GetUserQueryHandler(IQueryMediator queryMediator)
                                   {
                                   }
 
@@ -30,12 +30,7 @@ public sealed class QueryHandlerImpurityAnalyzerRegressionTests
                               }
                               """;
 
-        return AnalyzerTest.VerifyDiagnosticAsync<QueryHandlerImpurityAnalyzer>(
-            source,
-            DiagnosticDescriptors.QueryHandlerImpurity,
-            0,
-            "GetUserQueryHandler",
-            "LiteBus.Queries.Abstractions.IQueryMediator");
+        return AnalyzerTest.VerifyNoDiagnosticsAsync<QueryHandlerImpurityAnalyzer>(source);
     }
 
     /// <summary>

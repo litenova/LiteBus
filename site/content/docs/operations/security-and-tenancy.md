@@ -101,13 +101,74 @@ Validate the tenant at the API edge and audit the `tenant_id` column. Isolation 
 
 Tenant lease isolation is separate from publish routing. `ITenantRoutingStrategy.ResolveRoute(tenantId, contractName, topic)` computes the transport route for one envelope at dispatch time. When tenants publish to different destinations, configure it through `TransportOutboxDispatcherOptions.TenantRoutingStrategy`.
 
+## Tenant Identifier Validation
+
+Lease isolation assumes every envelope carries the right tenant. When tenant identifiers follow a stricter shape, such as workspace GUIDs, register the shape once with `ValidateTenant` on the tenancy options:
+
+```csharp
+registry.AddMessaging(messaging => messaging
+    .UseTenancy(tenancy => tenancy
+        .ValidateTenant(tenantId => Guid.TryParse(tenantId, out _))));
+```
+
+The tenancy guard, the `Tenant()` authorization policy, and tenant sources all consult the one registered validator. A mediation running in a malformed tenant is denied with `tenancy.invalid`, distinct from `tenancy.required`, and an HTTP boundary answers it as an invalid request. With no validator configured, a tenant is accepted when it is not blank. Validation complements edge checks: validate the tenant at the API edge, audit the `tenant_id` column, and register the validator so a malformed value that reaches mediation is denied there too. See [Tenancy](../concepts/tenancy.md#validating-tenant-identifiers).
+
+## Tenant Metadata Probe
+
+`UseTenancy` registers a default tenant metadata provider that answers every tenant with unknown metadata until the application registers its own `ITenantMetadataProvider` over its tenant records. The `litebus.tenancy.metadata` diagnostic probe reports which provider answers: unhealthy when none is registered, degraded while the default answers, and healthy for an application provider. A degraded probe means schedules read occurrences in UTC and per-tenant zones, cultures, and attributes stay unknown. See [Tenancy](../concepts/tenancy.md#reading-tenant-metadata).
+
+## Outbox Per-Tenant Lease Fairness
+
+One processor that leases for all tenants can be filled by one busy tenant. `OutboxProcessorOptions.MaxLeasedPerTenant` caps how many envelopes of one tenant a single lease call returns, so every batch leaves room for the tenants behind the busy one:
+
+```csharp
+outbox.UseProcessorOptions(new OutboxProcessorOptions { MaxLeasedPerTenant = 25 });
+```
+
+The default is `null`, which leases without a cap. Unscoped envelopes count as one tenant. The processor carries the value to the store as `OutboxLeaseRequest.MaxPerTenant`, and every outbox store honors it. Envelopes past the cap stay pending and are leased by a later call, in the store's usual order, so a cap delays a busy tenant rather than dropping its work.
+
+Use the cap together with per-tenant processors or instead of them. One processor per tenant isolates pace completely but multiplies connections and pollers. One processor with a cap keeps a single poller while no tenant starves. Either way, the tenant on the envelope decides whose budget the envelope spends, so the same edge validation and `tenant_id` auditing apply.
+
+## Mediation Guard Order
+
+The authorization guard runs before the tenancy guard. `PolicyAuthorizationGuard<TMessage>` carries the `HandlerPriorities.Authorization` priority (`ReservedFloor + 10`) and `TenancyGuard<TMessage>` carries `HandlerPriorities.Tenancy` (`ReservedFloor + 20`), both stable across releases, so the order does not depend on which call was registered first. A signed-out caller on a tenant route sees the authorization refusal before the tenancy one.
+
+That order is what lets a boundary answer the two denials differently. A signed-out caller is asked to authenticate (401); a signed-in caller without a tenant is refused (403):
+
+```csharp
+registry.AddMessaging(messaging => messaging
+    .UseTenancy()
+    .AddAuthorizationPolicies(policies => policies
+        .Add("vaults.post", MessagePolicy.All(
+            MessagePolicy.SignedIn(),
+            MessagePolicy.Tenant(),
+            MessagePolicy.Permission("vaults.post")))));
+```
+
+`MessagePolicy.Tenant()` denies with the `tenancy.required` code when the mediation identity carries no tenant, and with `tenancy.invalid` when the tenant is malformed under the registered validator. Putting it inside the policy keeps the full check order in one place: sign-in first, then tenant, then permission. The sign-in check decides 401 versus 403, so it always comes first; the tenant check inside the policy decides before the permission check, so a tenant-less caller sees the tenant refusal rather than a permission one.
+
+A policy evaluation that cannot be made is a fault, not a refusal: a missing permission lookup, an unknown sign-in instant, a missing decision point, an unregistered condition or window, or an unknown policy name raises `MessageFaultException`, ends the mediation as failed, and maps to a server error (500). Application refusal codes never mask one. See [Authorization Policies](../concepts/authorization-policies.md#allow-deny-and-fault).
+
+System work inside a tenant passes both guards together. `ExecutionIdentity.For(null, tenantId)` carries no principal and one tenant: it passes `MessagePolicy.System()` and the tenancy position at once. Pair it with `TenancyDeclaration.Required()` on the message and a `System()` policy, and the mediation runs scoped to that tenant with no caller to authorize. A blank tenant maps to the anonymous identity, so only a real tenant scopes the run.
+
+```csharp
+var settings = new CommandMediationSettings
+{
+    Identity = ExecutionIdentity.For(principal: null, tenantId: "tenant-a")
+};
+```
+
 ## Guarantees and Non-Guarantees
 
 | Guaranteed | Not guaranteed |
 | --- | --- |
 | Encrypted payloads stored as opaque bytes at rest | Key rotation or recovery without application key management |
 | Tenant filter applied in lease SQL when `TenantId` is set on processor options | Cross-tenant isolation when an envelope or a lease request carries the wrong tenant |
+| At most `MaxLeasedPerTenant` envelopes of one tenant per outbox lease when set | Per-tenant pace when the cap is unset and one tenant fills every batch |
 | Contract names stay plaintext for routing and diagnostics | Payload confidentiality before `UsePayloadEncryption` is registered |
+| Authorization refusal reported before the tenancy refusal for a signed-out caller | Tenant-before-permission order without `Tenant()` inside the policy |
+| Malformed tenant denied with `tenancy.invalid` when a validator is registered | Tenant format checking without a registered validator |
+| `litebus.tenancy.metadata` probe reporting which metadata provider answers | Per-tenant zones while the default provider answers |
 
 ## Operations
 
@@ -115,6 +176,7 @@ Tenant lease isolation is separate from publish routing. `ITenantRoutingStrategy
 | --- | --- |
 | Key loss | Backup keys. Document rotation and restore procedures |
 | Wrong tenant on accept | Validate tenant at API edge. Audit `tenant_id` column |
+| Malformed tenant reaching mediation | Register the shape with `ValidateTenant` so the guard denies it with `tenancy.invalid` |
 | Cleartext in logs | Do not log decrypted payloads. Use correlation IDs |
 
 ## Tests
@@ -127,5 +189,7 @@ Tenant lease isolation is separate from publish routing. `ITenantRoutingStrategy
 ## Related Pages
 
 * [Inbox](../reliable-messaging/inbox.md), [Outbox](../reliable-messaging/outbox.md)
+* [Tenancy](../concepts/tenancy.md), [Execution Context](../concepts/execution-context.md)
+* [Authorization Policies](../concepts/authorization-policies.md), [Authorization Declarations](../concepts/authorization-declarations.md)
 * [Production Runbook](runbook.md)
 * [Management Endpoints](management-endpoints.md)

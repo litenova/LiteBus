@@ -63,6 +63,21 @@ public sealed record MessageMediationRequest<TMessage, TMessageResult> where TMe
     public IDictionary<string, object> Items { get; init; } = new Dictionary<string, object>();
 
     /// <summary>
+    ///     Gets the identity the mediation runs for, or <see langword="null" /> to let the mediator resolve it from an
+    ///     enclosing mediation or the registered <see cref="IExecutionIdentityProvider" />.
+    /// </summary>
+    public ExecutionIdentity? Identity { get; init; }
+
+    /// <summary>
+    ///     Gets the committed fact that caused this mediation, or <see langword="null" /> for an application-started or nested mediation.
+    /// </summary>
+    /// <remarks>
+    ///     Leave it <see langword="null" /> when the application starts the mediation. Dispatchers set it from envelope
+    ///     fields when a boundary starts a root mediation, and the mediator copies it into the created execution context.
+    /// </remarks>
+    public MediationCause? Cause { get; init; }
+
+    /// <summary>
     ///     Gets or initializes a predicate function used to filter event handlers by their descriptor.
     /// </summary>
     /// <remarks>

@@ -7,7 +7,7 @@
 
 ## What It Does
 
-`LiteBus.Storage.EntityFrameworkCore` supplies cross-axis EF primitives: provider detection (`EfCoreStorageProvider`), provider-specific lease SQL (PostgreSQL `FOR UPDATE SKIP LOCKED`, SQL Server, MySQL through Pomelo or Oracle's provider), serializable SQLite lease transactions, SQLite UTC-tick timestamp mapping, relational table qualification, JSON text normalization, bulk update capability probes, and shared durable store operation helpers. Inbox and outbox EF adapters use these types internally. Applications typically interact through axis-specific model extensions and store options.
+`LiteBus.Storage.EntityFrameworkCore` supplies cross-axis EF primitives: provider detection (`EfCoreStorageProvider`), provider-specific lease SQL (PostgreSQL `FOR UPDATE SKIP LOCKED`, SQL Server, MySQL through Oracle's `MySql.EntityFrameworkCore`; Pomelo is recognized but untested, because it has no release for EF Core 10 or later), serializable SQLite lease transactions, SQLite UTC-tick timestamp mapping, relational table qualification, JSON text normalization, bulk update capability probes, and shared durable store operation helpers. Inbox and outbox EF adapters use these types internally. Applications typically interact through axis-specific model extensions and store options.
 
 ## Public Surface
 
@@ -42,7 +42,7 @@
 
 | Option surface | Purpose |
 | --- | --- |
-| EF provider package | Determines lease SQL and column types (Npgsql, SQL Server, Pomelo or `MySql.EntityFrameworkCore`) |
+| EF provider package | Determines lease SQL and column types (Npgsql, SQL Server, `MySql.EntityFrameworkCore`, or Pomelo once it ships for EF Core 10 or later) |
 | Store options `SchemaName` / `TableName` | Must match fluent model configuration |
 | Provider hint on model extensions | Selects text storage for payload and provider-specific storage for trace context |
 

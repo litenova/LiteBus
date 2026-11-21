@@ -33,4 +33,13 @@ public sealed record OutboxLeaseRequest
     ///     compare through <see cref="LiteBus.Messaging.Abstractions.DurableMessaging.DurableTenantId" /> normalization.
     /// </summary>
     public string? TenantId { get; init; }
+
+    /// <summary>
+    ///     Gets the most envelopes of one tenant a single lease call returns, or <see langword="null" /> for no cap.
+    /// </summary>
+    /// <remarks>
+    ///     Unscoped envelopes count as one tenant. With a cap, one busy tenant cannot fill every batch while other
+    ///     tenants wait. Envelopes past the cap stay pending and are leased by a later call, in the store's usual order.
+    /// </remarks>
+    public int? MaxPerTenant { get; init; }
 }

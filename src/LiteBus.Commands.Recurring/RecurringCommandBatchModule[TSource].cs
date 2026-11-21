@@ -50,6 +50,11 @@ public sealed class RecurringCommandBatchModule<TSource> : IModule, IRequires<Co
             configuration.RegisterCompositionValidation(() => ThrowIfLeaseMissing(configuration));
         }
 
+        configuration.DependencyRegistry.Register(DependencyDescriptor.ForDefaultPort(
+            typeof(IRecurringOccurrenceStore),
+            typeof(InMemoryRecurringOccurrenceStore),
+            InstanceLifetime.Singleton));
+
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(TSource),
             typeof(TSource),

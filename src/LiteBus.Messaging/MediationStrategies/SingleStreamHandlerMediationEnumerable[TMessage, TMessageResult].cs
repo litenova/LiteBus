@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Messaging.Abstractions;
@@ -125,39 +126,70 @@ internal sealed class SingleStreamHandlerMediationEnumerable<TMessage, TMessageR
 
             // Records a fault and offers it to the error stage. Every fault path in this method goes through here, and it
             // is a local function so it can record into the locals the enclosing iterator owns. A fault a classifier
-            // recognizes ends the enumeration as that refusal instead: items may already have been yielded, so no
-            // mapper applies and the refusal exception surfaces from the enumerator.
+            // or a translator recognizes ends the enumeration as that refusal instead: items may already have been
+            // yielded, so no mapper applies and the refusal exception surfaces from the enumerator. A message fault is
+            // recorded as a failure with its fault code and never becomes a refusal.
             async Task RouteFaultAsync(Exception fault, object? observedResult)
             {
-                if (MediationExceptionFilters.TryClassifyRefusal(
+                if (fault is MessageFaultException messageFault)
+                {
+                    // A configuration or dependency failure is recorded with its fault code and propagates. It is
+                    // never a refusal, so it is offered to neither the classifiers nor the translators, and the
+                    // error handlers do not see a fault no message recovery can fix.
+                    outcome = MediationOutcome.Failed;
+                    reason = messageFault.Reason ?? messageFault.Message;
+                    code = messageFault.Code;
+                    failure = messageFault;
+
+                    // This local function receives the fault as a parameter rather than catching it, so a throw
+                    // statement would reset its stack. Capturing it keeps the original throw site.
+                    ExceptionDispatchInfo.Capture(messageFault).Throw();
+                }
+
+                if (!MediationExceptionFilters.TryClassifyRefusal(
                         messageDependencies.FaultRefusalClassifiers,
                         fault,
                         out var refusal))
                 {
-                    outcome = refusal.Outcome;
-                    reason = refusal.Reason;
-                    code = refusal.Code;
+                    // Translators run after the classifiers, so a fault the synchronous seam already recognizes
+                    // keeps the refusal it always had. With no translator registered this is a pass over an empty
+                    // list.
+                    var translated = await RefusalExceptionTranslation.TryTranslateAsync(
+                        messageDependencies.RefusalExceptionTranslators,
+                        fault,
+                        linkedToken).ConfigureAwait(false);
 
-                    // Only a Try call installs a capture, so this is a dictionary miss on every ordinary mediation.
-                    MediationEndingCapture.Record(executionContext, refusal);
+                    if (!translated.HasValue)
+                    {
+                        outcome = MediationOutcome.Failed;
+                        failure = fault;
 
-                    var refusalException = refusal.CreateException(message.GetType(), fault);
-                    failure = refusalException;
-                    throw refusalException;
+                        await messageDependencies
+                            .RunAsyncErrorHandlers(message, observedResult, fault, executionContext)
+                            .ConfigureAwait(false);
+
+                        // Reaching here means an error handler recovered: the stage rethrows otherwise. The outcome
+                        // stays Failed so the audit trail still records that a fault occurred, but no exception is
+                        // recorded, which is what distinguishes a recovered fault from one that propagated and what
+                        // lets a completion-handler fault propagate instead of being suppressed into an exception
+                        // nobody receives.
+                        failure = null;
+                        return;
+                    }
+
+                    refusal = translated.Value;
                 }
 
-                outcome = MediationOutcome.Failed;
-                failure = fault;
+                outcome = refusal.Outcome;
+                reason = refusal.Reason;
+                code = refusal.Code;
 
-                await messageDependencies
-                    .RunAsyncErrorHandlers(message, observedResult, fault, executionContext)
-                    .ConfigureAwait(false);
+                // Only a Try call installs a capture, so this is a dictionary miss on every ordinary mediation.
+                MediationEndingCapture.Record(executionContext, refusal);
 
-                // Reaching here means an error handler recovered: the stage rethrows otherwise. The outcome stays
-                // Failed so the audit trail still records that a fault occurred, but no exception is recorded, which
-                // is what distinguishes a recovered fault from one that propagated and what lets a completion-handler
-                // fault propagate instead of being suppressed into an exception nobody receives.
-                failure = null;
+                var refusalException = refusal.CreateException(message.GetType(), fault);
+                failure = refusalException;
+                throw refusalException;
             }
 
             // Records a fault the recoverable filter excludes, such as a resolution failure or a cancellation during

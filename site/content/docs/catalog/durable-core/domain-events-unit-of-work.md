@@ -7,7 +7,7 @@
 
 Aggregates record application-owned domain events during business operations. At the transaction boundary, the application drains those events and maps them to integration contracts. It then stages them through `ITransactionalOutbox` before committing domain state.
 
-The guide [Domain Events and Unit of Work](../../reliable-messaging/domain-events-and-unit-of-work.md) describes the collector shape, the transaction boundary steps, the timing choices, and the pipeline guidance. This page lists the public surface, package mapping, invariants, observability, and test coverage behind that guide.
+The guide [Domain Events and Unit of Work](../../reliable-messaging/domain-events-and-unit-of-work.md) describes the collector shape, the transaction boundary steps, the timing choices, the pipeline guidance, and harvesting from tracked aggregates. This page lists the public surface, package mapping, invariants, observability, and test coverage behind that guide.
 
 ## Mapping
 
@@ -42,6 +42,14 @@ Staging runs only when the outcome is `MediationOutcome.Succeeded`. A failed med
 
 The application must register a scoped non-generic `ITransactionalOutbox` (the ambient PostgreSQL provider, the Entity Framework Core interceptor adapter, or the Marten writer). Collecting events without one fails staging with a descriptive error. Entity Framework Core registers the non-generic adapter over `ITransactionalOutbox<TContext>` only when `EnableSaveChangesInterceptor()` is set. When `UseAmbientTrace` is also enabled, staged envelopes stamp ambient trace.
 
+## Harvesting from Tracked Aggregates
+
+Before draining, the staging handler runs every registered `IDomainEventHarvester` against the collector, so domain events buffered on tracked aggregates move into the collector and stage with the same unit of work. Without a registered harvester, the collector drains as before. Harvesters run only on `MediationOutcome.Succeeded`; a failed mediation runs no harvester and stages nothing.
+
+Aggregates that implement `IHasDomainEvents` are harvested by default once a storage harvester is registered. Aggregates with their own event storage configure accessor pairs with `OutboxModuleBuilder.HarvestDomainEvents<TAggregate>(Func<TAggregate, IEnumerable<object>> events, Action<TAggregate> clear)`. A configured accessor wins over the default for its aggregate type, applies to derived types and proxies through the configured base type, and replaces the previous pair when the same aggregate type is registered twice. A harvester collects each entity's events before clearing them, so a failure leaves the buffered events on the entity, and clearing keeps nested mediations safe: a child mediation harvests and clears first, and the parent finds nothing left.
+
+The Marten harvester reads the pending inserts, updates, and deletions of the scoped `IDocumentSession`. A deletion harvests only when it carries a document, as with `session.Delete(entity)`; `DeleteWhere` carries no document, so flows that delete by predicate collect their events on `IDomainEventCollector` by hand. The Entity Framework Core harvester reads the `ChangeTracker` entries of the configured `DbContext` in every state: a loaded aggregate that raises an event without touching a mapped property stays `Unchanged`, and its events still harvest. Each storage builder registers its harvester through its own `HarvestDomainEvents()` method.
+
 ## Public Surface
 
 | Surface | Role |
@@ -50,6 +58,12 @@ The application must register a scoped non-generic `ITransactionalOutbox` (the a
 | `ITransactionalOutbox<TContext>` | Stages envelopes through an existing EF Core context |
 | `IDomainEventCollector` | Scoped per mediation. `Collect` records a domain event, and `Drain` returns every collected event destructively |
 | `OutboxModuleBuilder.StageCollectedEvents()` | Registers the collector and the staging completion handler at `HandlerPriorities.Persistence` |
+| `IDomainEventHarvester` | Moves the domain events of tracked entities into the collector through `HarvestInto` |
+| `IHasDomainEvents` | Optional entity contract harvested by default: `DomainEvents` plus `ClearDomainEvents` |
+| `OutboxModuleBuilder.HarvestDomainEvents<TAggregate>` | Configures the read and clear accessors for one aggregate type with its own event storage |
+| `DomainEventAccessors` | Applies configured accessors with an `IHasDomainEvents` fallback, and clears what it moved |
+| `PostgreSqlOutboxModuleBuilder.HarvestDomainEvents()` | Registers the Marten harvester over the scoped `IDocumentSession` pending inserts, updates, and deletions |
+| `EfCoreOutboxStorageModuleBuilder.HarvestDomainEvents()` | Registers the harvester over the configured `DbContext` change tracker entries |
 | `OutboxEnqueueItem<TEvent>` | Carries one typed integration event and its durable metadata |
 | `OutboxEnqueueMetadata` | Defines identity, idempotency, visibility, trace, tenant, and publication target |
 | `IEventMediator` | Publishes non-durable in-process events after commit |
@@ -61,7 +75,8 @@ The application must register a scoped non-generic `ITransactionalOutbox` (the a
 | Application domain | Aggregate and domain event types |
 | Application layer | Collector, mapper, and unit-of-work orchestration |
 | `LiteBus.Outbox.Abstractions` | Transactional writer and enqueue contracts |
-| `LiteBus.Outbox.Storage.EntityFrameworkCore` | EF Core transactional staging |
+| `LiteBus.Outbox.Storage.EntityFrameworkCore` | EF Core transactional staging and change tracker harvesting |
+| `LiteBus.Outbox.Storage.Marten` | Marten session harvesting through the PostgreSQL storage builder |
 | `LiteBus.Outbox.Storage.PostgreSql` | Bound or ambient PostgreSQL transactional staging |
 | `LiteBus.Events` | Optional after-commit in-process mediation |
 
@@ -71,12 +86,15 @@ The application must register a scoped non-generic `ITransactionalOutbox` (the a
 - The application maps domain events to registered integration contracts before enqueue.
 - The outbox row must join the same transaction as the aggregate write when atomicity is required.
 - Drained events are cleared once they have been staged in the current unit of work.
+- Harvesters run before the drain on success only. Harvested events stage with the same unit of work as collected events.
+- A harvester clears the events it moved from each entity, so each event stages once per unit of work.
+- A configured accessor wins over the `IHasDomainEvents` default for its aggregate type.
 - Outbox publication is asynchronous and at-least-once, so downstream handlers must be idempotent.
 - Query handlers do not mutate aggregates, drain events, or enqueue messages.
 
 ## Non-Goals
 
-- LiteBus does not scan aggregates automatically across persistence frameworks.
+- LiteBus does not harvest from stores without a registered storage harvester. Only the Marten and Entity Framework Core adapters ship one.
 - LiteBus does not generate mappings from domain events to integration contracts.
 - LiteBus does not provide event sourcing storage.
 - LiteBus does not publish to the broker synchronously inside the domain transaction.
@@ -90,6 +108,10 @@ Domain event collection has no LiteBus meter because it is application-owned. Af
 - `DomainEventOutboxPatternTests.HandleAsync_WithRecordedDomainEvent_ShouldDrainMapAndEnqueueIntegrationEvent` defines an aggregate buffer, an explicit collector, an explicit mapper, a handler, and a bound transactional writer. It verifies the aggregate buffer is cleared and the stored envelope carries the registered contract, the topic, a deterministic idempotency key, and the mapped payload.
 - `DomainEventStagingTests.PublishAsync_should_stage_collected_events_on_success` verifies collected events drain into `ITransactionalOutbox` when the mediation succeeds. `PublishAsync_should_stage_nothing_on_failure` verifies a failed mediation stages nothing.
 - `DomainEventStagingTests.Staging_should_run_before_the_unit_of_work_band` verifies the staging completion handler runs at `HandlerPriorities.Persistence`, ahead of the application commit.
+- `DomainEventHarvestTests.PublishAsync_should_stage_harvested_events_on_success` verifies harvested events stage when the mediation succeeds. `PublishAsync_should_run_every_registered_harvester` verifies every registered harvester runs. `PublishAsync_should_stage_collected_and_harvested_events_together` verifies collected and harvested events stage in one unit of work. `PublishAsync_should_not_run_harvesters_on_failure` verifies a failed mediation runs no harvester.
+- `DomainEventHarvestTests.Harvest_should_read_configured_accessors_and_clear_the_aggregate` verifies configured accessors are read and the aggregate is cleared. `Harvest_should_harvest_contract_aggregates_by_default_without_configuration` verifies the `IHasDomainEvents` default. `Harvest_should_prefer_the_configured_accessor_over_the_default_contract` verifies the configured pair wins. `Harvest_should_ignore_entities_without_accessors_or_contract` verifies unknown entities are ignored. `Harvest_should_match_derived_aggregates_through_the_configured_base_type` verifies derived types harvest through the base registration. `HarvestDomainEvents_should_replace_the_accessor_on_repeat_registration` verifies repeat registration replaces the pair.
+- `MartenDomainEventHarvestTests` verifies inserted and updated documents stage and clear, through the contract and through configured accessors. `MartenDomainEventHarvestDeletionTests` verifies a deleted document that carries an instance stages and clears, through the contract and through configured accessors, and that a `DeleteWhere` deletion harvests nothing.
+- `EfCoreDomainEventHarvestTests` verifies added, modified, unchanged, and deleted entities stage through the contract and through configured accessors.
 - `DomainEventStagingTests.PublishAsync_without_collected_events_should_not_require_a_transactional_outbox` verifies an empty drain never touches the outbox. `PublishAsync_with_collected_events_but_no_transactional_outbox_should_throw` verifies collected events without a registered outbox fail with an error naming `StageCollectedEvents`.
 - `EfCoreOutboxTransactionalIntegrationTests` verifies aggregate data and outbox rows commit or roll back together through one EF Core context.
 - `PostgreSqlOutboxTransactionalIntegrationTests` verifies domain writes and outbox rows share one PostgreSQL transaction.

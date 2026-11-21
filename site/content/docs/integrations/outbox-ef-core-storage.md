@@ -12,21 +12,7 @@ For Npgsql outbox storage and shared PostgreSQL schema helpers, see [PostgreSQL 
 
 ## Registration
 
-```csharp
-services.AddDbContextFactory<AppDbContext>(options => options.UseNpgsql(connectionString));
-
-builder.Services.AddLiteBus(builder =>
-{
-    builder.AddMessaging(_ => { });
-    builder.AddOutbox(outbox =>
-    {
-        outbox.Contracts.Register<OrderSubmitted>("orders.events.submitted", 1);
-        outbox.UseEntityFrameworkCoreStorage(options => options.UseDbContext<AppDbContext>());
-        outbox.UseInProcessDispatch();
-        outbox.EnableOutboxProcessor(host => host.PollInterval = TimeSpan.FromSeconds(1));
-    });
-});
-```
+Register with the complete file on [ASP.NET Core with EF Core Outbox Registration](../getting-started/aspnetcore-efcore-outbox.md), which marks every statement required or optional with the failure mode of omitting it. The complete file registers the context once with `AddDbContextFactory`, with the outbox interceptor attached. That call also registers the scoped context `ITransactionalOutbox<TContext>` resolves from the current scope. An application that also calls `AddDbContext` passes `optionsLifetime: ServiceLifetime.Singleton`.
 
 `AppDbContext` must implement `IOutboxDbContext` and expose `DbSet<OutboxMessageEntity> OutboxMessages`. The adapter requires `IDbContextFactory<AppDbContext>` and owns one context per store operation.
 
@@ -48,22 +34,7 @@ await appDbContext.SaveChangesAsync(cancellationToken);
 
 ### `SaveChanges` Interceptor
 
-Register the interceptor in LiteBus and on your `DbContext` options:
-
-```csharp
-builder.AddOutbox(outbox =>
-{
-    outbox.UseEntityFrameworkCoreStorage(storage =>
-    {
-        storage.UseDbContext<AppDbContext>();
-        storage.EnableSaveChangesInterceptor();
-    });
-});
-
-// In AddDbContext / OnConfiguring:
-options.AddLiteBusOutboxInterceptor(
-    serviceProvider.GetRequiredService<LiteBusOutboxSaveChangesInterceptor>());
-```
+Register the interceptor in LiteBus with `EnableSaveChangesInterceptor()` and on your `DbContext` options with `AddLiteBusOutboxInterceptor`, on both `AddDbContext` and `AddDbContextFactory`. The complete file on [ASP.NET Core with EF Core Outbox Registration](../getting-started/aspnetcore-efcore-outbox.md) shows both attachments. `EnforceTransactionalSetup()` fails module build when `EnableSaveChangesInterceptor()` was not called.
 
 Queue envelopes before `SaveChanges`:
 
@@ -75,6 +46,23 @@ await appDbContext.SaveChangesAsync(cancellationToken);
 `LiteBusOutboxSaveChangesInterceptor` copies queued envelopes into `IOutboxDbContext.OutboxMessages` during `SavingChanges`, so domain entities and outbox rows share one EF transaction. The flushed rows carry the full staged envelope, including the per-handler delivery target, so targeted envelopes keep their addressing through the interceptor path.
 
 When `EnableSaveChangesInterceptor()` is set, the module also registers the non-generic `ITransactionalOutbox` over `ITransactionalOutbox<TContext>`, so `StageCollectedEvents()` drains collected domain events into the ambient EF transaction.
+
+## Harvesting Domain Events
+
+`HarvestDomainEvents()` on the Entity Framework Core storage builder registers `EfCoreDomainEventHarvester<TContext>` as the harvester for the configured `DbContext`. The staging completion handler runs the harvester before it drains the collector, so domain events buffered on tracked entities stage with the same `SaveChanges` call:
+
+```csharp
+builder.AddOutbox(outbox =>
+{
+    outbox.StageCollectedEvents();
+    outbox.UseEntityFrameworkCoreStorage(ef => ef
+        .UseDbContext<AppDbContext>()
+        .EnableSaveChangesInterceptor()
+        .HarvestDomainEvents());
+});
+```
+
+The harvester reads the `ChangeTracker` entries of the scoped context in every state: a loaded aggregate that raises an event without touching a mapped property stays `Unchanged`, and its events still harvest. Entities implementing `IHasDomainEvents` harvest by default; entities with their own event storage configure accessor pairs with `OutboxModuleBuilder.HarvestDomainEvents<TAggregate>`. The harvester clears the events it moved from each entity, so each event stages once. Harvesters run only when the mediation completed with `MediationOutcome.Succeeded`. See [Domain Events and Unit of Work](../reliable-messaging/domain-events-and-unit-of-work.md) for the harvesting contract.
 
 ## Default Table and Columns
 
@@ -128,7 +116,7 @@ protected override void OnModelCreating(ModelBuilder modelBuilder)
 
 See [Inbox Entity Framework Core Storage](inbox-ef-core-storage.md) for the full provider column-type table. SQL Server applications should set `SchemaName = "dbo"` in store options so raw lease SQL matches your migrations.
 
-Supported leasing providers match inbox EF storage: PostgreSQL, SQL Server, MySQL (`MySql.EntityFrameworkCore` or Pomelo), SQLite, and the in-memory provider for tests. MySQL uses `READ COMMITTED`, `FOR UPDATE SKIP LOCKED`, and `IX_LiteBus_Outbox_CreatedAt` for ordered concurrent claims. SQLite stores durable timestamps as UTC ticks and serializes lease writers through its database transaction. The inbox storage page lists the full provider table and the SQLite throughput constraint.
+Supported leasing providers match inbox EF storage: PostgreSQL, SQL Server, MySQL (`MySql.EntityFrameworkCore`; Pomelo is recognized but untested until it ships for EF Core 10 or later), SQLite, and the in-memory provider for tests. MySQL uses `READ COMMITTED`, `FOR UPDATE SKIP LOCKED`, and `IX_LiteBus_Outbox_CreatedAt` for ordered concurrent claims. SQLite stores durable timestamps as UTC ticks and serializes lease writers through its database transaction. The inbox storage page lists the full provider table and the SQLite throughput constraint.
 
 ## Align Store Options with Your EF Model
 

@@ -1,13 +1,13 @@
 # Nested Mediation in Command Handler
 
-A command handler runs inside a unit of work that ends at the commit. LB1023 reports command handlers that send or publish another message through a mediator inside the handle method, which nests a second unit of work inside the first.
+A command handler runs inside a unit of work that ends at the commit. LB1023 reports command handlers, pre-handlers, and post-handlers that send or publish another message through a mediator inside the handle method, which nests a second unit of work inside the first.
 
 ## Header
 
 - **ID**: `analyzers.nested-mediation-in-command-handler`
-- **Diagnostic**: `LB1023` (Warning, off by default)
+- **Diagnostic**: `LB1023` (Warning, reports only when `litebus_forbid_nested_commands` is `true`)
 - **Maturity**: GA
-- **Summary**: Reports command handlers that send, publish, or mediate another message inside `HandleAsync` or `Handle`.
+- **Summary**: Reports command handlers, pre-handlers, and post-handlers that send, publish, or mediate another message inside `HandleAsync`, `Handle`, `PreHandleAsync`, or `PostHandleAsync`.
 
 ## Trigger Conditions
 
@@ -15,22 +15,38 @@ A command handler runs inside a unit of work that ends at the commit. LB1023 rep
 
 - `ICommandHandler<TCommand>`
 - `ICommandHandler<TCommand, TResult>`
+- `ICommandPreHandler`, `ICommandPreHandler<TCommand>`
+- `ICommandPostHandler`, `ICommandPostHandler<TCommand>`, `ICommandPostHandler<TCommand, TResult>`
 - `IAsyncMessageHandler<TMessage>`, `IAsyncMessageHandler<TMessage, TResult>`, or `IMessageHandler<TMessage, TResult>` whose message type is a command
+- `IMessagePreHandler<TMessage>` or `IMessagePostHandler<TMessage, TResult>` whose message type is a command
 
-It reports an invocation inside `HandleAsync` or `Handle` when the call goes through one of the mediators:
+It reports an invocation inside `HandleAsync`, `Handle`, `PreHandleAsync`, or `PostHandleAsync` when the call goes through one of the mediators:
 
 - `ICommandMediator.SendAsync` or `TrySendAsync` (including the extension-method overloads)
 - `ICommandBatchMediator.SendManyAsync` or `TrySendManyAsync`
 - `IEventMediator.PublishAsync`
 - `IMessageMediator.Mediate`, unless the mediated message is a query
 
+Pre-handlers and post-handlers are covered because their `PreHandleAsync` and `PostHandleAsync` methods run inside the same unit of work as the main handler, so a send from any of them nests a second unit of work.
+
 Reads through `IQueryMediator` are not reported. Queries are side-effect free by contract, so nesting a read nests no unit of work. `EvaluateAsync` guard checks are not reported either, because they decide without acting.
 
-Enable the rule with `dotnet_diagnostic.LB1023.severity = warning` in `.editorconfig`.
+The runtime counterpart is `CommandModuleBuilder.ForbidNestedCommands()`, which throws `NestedMediationException` naming both message types before the inner pipeline starts. The analyzer reports the same nesting at build time.
+
+Set `litebus_forbid_nested_commands` to `true` in `.editorconfig` to report this rule at warning. Without the option the rule reports nothing. The analyzer reads both `.editorconfig` and `.globalconfig` entries, and a per-file section overrides the project-wide value.
+
+```ini
+# .editorconfig
+[*.cs]
+litebus_forbid_nested_commands = true
+```
+
+An analyzer cannot see a `ForbidNestedCommands()` call made in another compilation, so the option pairs the build check with the runtime guarantee instead of detecting the call. The runtime stays the guarantee.
 
 ## Bad Example
 
 ```csharp
+// The compilation sets litebus_forbid_nested_commands = true.
 using System.Threading;
 using System.Threading.Tasks;
 using LiteBus.Commands.Abstractions;
@@ -104,4 +120,14 @@ Source: `tests/LiteBus.Analyzers.UnitTests/NestedMediationInCommandHandlerAnalyz
 | `CommandHandlerTryingManyCommands_ProducesDiagnostic` | `ICommandBatchMediator.TrySendManyAsync` reports `LB1023` |
 | `BatchSendOutsideCommandHandler_ProducesNoDiagnostic` | `ICommandBatchMediator.SendManyAsync` outside a command handler is accepted |
 | `BatchTrySendOutsideCommandHandler_ProducesNoDiagnostic` | `ICommandBatchMediator.TrySendManyAsync` outside a command handler is accepted |
-| `Descriptor_IsWarningInHandlersCategoryAndDisabledByDefault` | Rule is a warning in `LiteBus.Handlers`, off by default |
+| `CommandPreHandlerSendingCommand_ProducesDiagnostic` | `PreHandleAsync` sending a command reports `LB1023` |
+| `CommandPostHandlerSendingCommand_ProducesDiagnostic` | `PostHandleAsync` sending a command reports `LB1023` |
+| `MessagingPreHandlerForCommand_ProducesDiagnostic` | Messaging-level pre-handler for a command is covered |
+| `MessagingPreHandlerForQuery_ProducesNoDiagnostic` | Messaging-level pre-handler for a query is out of scope |
+| `CommandPreHandlerQuerying_ProducesNoDiagnostic` | `IQueryMediator` reads in a pre-handler are accepted |
+| `NestingWithoutOption_ProducesNoDiagnostic` | Nesting without the option is accepted |
+| `NestingWithOptionFalse_ProducesNoDiagnostic` | Nesting with the option set to `false` is accepted |
+| `PerTreeConfiguration_Applies` | A per-file `.editorconfig` section reports `LB1023` |
+| `Descriptor_IsWarningInHandlersCategoryAndEnabledByDefault` | Rule is a warning in `LiteBus.Handlers`, enabled by default |
+| `Descriptor_DescriptionNamesForbidNestedCommands` | The description names `ForbidNestedCommands()` as the runtime counterpart |
+| `Descriptor_DescriptionNamesForbidNestedCommandsOption` | The description names `litebus_forbid_nested_commands` as the reporting option |

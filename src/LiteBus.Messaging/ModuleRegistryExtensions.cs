@@ -26,7 +26,7 @@ public static class ModuleRegistryExtensions
     }
 
     /// <summary>
-    ///     Registers a message module with the specified configuration.
+    ///     Registers a message module with the specified configuration, or configures the registered one again.
     /// </summary>
     /// <param name="moduleRegistry">The module registry to register the message module with.</param>
     /// <param name="builderAction">An action to configure the message module builder.</param>
@@ -36,7 +36,9 @@ public static class ModuleRegistryExtensions
     /// </exception>
     /// <remarks>
     ///     The message module provides core messaging infrastructure. Dependent modules declare that relationship through
-    ///     <see cref="IRequires{TModule}" />, so callback order does not affect graph validation.
+    ///     <see cref="IRequires{TModule}" />, so callback order does not affect graph validation. Calling this twice
+    ///     configures one module instead of registering a second one, so several application modules can add to one
+    ///     composition.
     /// </remarks>
     /// <example>
     ///     <code>
@@ -55,6 +57,14 @@ public static class ModuleRegistryExtensions
     {
         ArgumentNullException.ThrowIfNull(moduleRegistry);
         ArgumentNullException.ThrowIfNull(builderAction);
+
+        var existing = moduleRegistry.Find<MessageModule>();
+
+        if (existing is not null)
+        {
+            existing.Configure(builderAction, child => moduleRegistry.Register(child));
+            return moduleRegistry;
+        }
 
         moduleRegistry.Register(new MessageModule(builderAction));
         return moduleRegistry;

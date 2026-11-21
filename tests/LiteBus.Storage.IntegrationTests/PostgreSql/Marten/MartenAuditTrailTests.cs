@@ -1,11 +1,14 @@
 using LiteBus.Commands;
 using System.Data;
+using LiteBus.Auditing;
+using LiteBus.Auditing.Storage.Marten;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Commands.Storage.Marten;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Storage.IntegrationTests.PostgreSql;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
+using LiteBus.Auditing.Abstractions;
 
 namespace LiteBus.Storage.IntegrationTests.PostgreSql.Marten;
 
@@ -37,7 +40,7 @@ public sealed class MartenAuditTrailTests : IClassFixture<PostgreSqlFixture>
         var session = documentStore.LightweightSession(IsolationLevel.ReadCommitted);
         await using (session.ConfigureAwait(false))
         {
-            var trail = new MartenAuditTrail(session, documentStore);
+            var trail = CreateTrail(documentStore, session);
             await trail.WriteAsync(SuccessRecord(action)).ConfigureAwait(false);
             session.Store(new OrderDocument { Id = orderId, Total = 7m });
             await session.SaveChangesAsync().ConfigureAwait(false);
@@ -62,7 +65,7 @@ public sealed class MartenAuditTrailTests : IClassFixture<PostgreSqlFixture>
         var session = documentStore.LightweightSession(IsolationLevel.ReadCommitted);
         await using (session.ConfigureAwait(false))
         {
-            var trail = new MartenAuditTrail(session, documentStore);
+            var trail = CreateTrail(documentStore, session);
             await trail.WriteAsync(SuccessRecord(action)).ConfigureAwait(false);
         }
 
@@ -82,9 +85,9 @@ public sealed class MartenAuditTrailTests : IClassFixture<PostgreSqlFixture>
         await using (session.ConfigureAwait(false))
         {
             session.Store(new OrderDocument { Id = orderId, Total = 7m });
-            var trail = new MartenAuditTrail(session, documentStore);
+            var trail = CreateTrail(documentStore, session);
             await trail
-                .WriteAsync(new AuditRecord { Action = action, Outcome = AuditOutcome.Failed, OccurredAt = DateTimeOffset.UtcNow })
+                .WriteAsync(new AuditRecord { Id = Guid.NewGuid(), Action = action, Outcome = AuditOutcome.Failed, OccurredAt = DateTimeOffset.UtcNow })
                 .ConfigureAwait(false);
         }
 
@@ -159,7 +162,8 @@ public sealed class MartenAuditTrailTests : IClassFixture<PostgreSqlFixture>
 
         services.AddLiteBus(registry =>
         {
-            registry.AddMessaging(messaging => messaging.UseAuditTrail<MartenAuditTrail>());
+            registry.AddMessaging(_ => { });
+            registry.Modules.AddAuditing(auditing => auditing.ForCommands().UseMartenStore());
 
             registry.AddCommands(commands =>
             {
@@ -168,7 +172,6 @@ public sealed class MartenAuditTrailTests : IClassFixture<PostgreSqlFixture>
                 commands.Register<AuditedBlockedOrderCommand>();
                 commands.Register<AuditedBlockedOrderCommandHandler>();
                 commands.Register<AuditedBlockedOrderGuard>();
-                commands.EnableAuditing();
                 commands.UseMartenUnitOfWork();
             });
         });
@@ -178,7 +181,16 @@ public sealed class MartenAuditTrailTests : IClassFixture<PostgreSqlFixture>
 
     private static AuditRecord SuccessRecord(string action)
     {
-        return new AuditRecord { Action = action, Outcome = AuditOutcome.Succeeded, OccurredAt = DateTimeOffset.UtcNow };
+        return new AuditRecord { Id = Guid.NewGuid(), Action = action, Outcome = AuditOutcome.Succeeded, OccurredAt = DateTimeOffset.UtcNow };
+    }
+
+    private static MartenAuditTrail<MartenAuditRecord> CreateTrail(IDocumentStore documentStore, IDocumentSession session)
+    {
+        return new MartenAuditTrail<MartenAuditRecord>(
+            new MartenAuditChainStore<MartenAuditRecord>(documentStore),
+            session,
+            new MartenAuditRecordMapper(),
+            new MartenAuditRecordSegmenter());
     }
 
     private static async Task<OrderDocument?> LoadAsync(IDocumentStore documentStore, Guid orderId)

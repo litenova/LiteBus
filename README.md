@@ -5,7 +5,7 @@
 [![CI status](https://github.com/litenova/LiteBus/actions/workflows/ci.yml/badge.svg)](https://github.com/litenova/LiteBus/actions/workflows/ci.yml)
 [![NuGet version](https://img.shields.io/nuget/v/LiteBus.svg)](https://www.nuget.org/packages/LiteBus)
 [![NuGet downloads](https://img.shields.io/nuget/dt/LiteBus.svg)](https://www.nuget.org/packages/LiteBus)
-[![.NET 10](https://img.shields.io/badge/.NET-10.0-512BD4)](https://dotnet.microsoft.com/download/dotnet/10.0)
+[![.NET 10 | 11](https://img.shields.io/badge/.NET-10.0%20%7C%2011.0-512BD4)](https://dotnet.microsoft.com/download/dotnet)
 [![MIT license](https://img.shields.io/github/license/litenova/LiteBus)](https://github.com/litenova/LiteBus/blob/main/LICENSE)
 
 Commands, queries, and events for .NET, with a full handler pipeline and an optional inbox, outbox, and sagas. LiteBus is MIT licensed, free for commercial use, and will stay free.
@@ -43,7 +43,7 @@ Full documentation: [litebus.io/docs](https://litebus.io/docs)
 
 ## Installation
 
-LiteBus targets .NET 10. For commands, queries, and events on Microsoft dependency injection, install one package:
+LiteBus targets .NET 10 and .NET 11. For commands, queries, and events on Microsoft dependency injection, install one package:
 
 ```bash
 dotnet add package LiteBus.Extensions.Microsoft.DependencyInjection
@@ -306,7 +306,7 @@ Packages follow the pattern `LiteBus.Transport.Kafka`, `LiteBus.Outbox.Dispatch.
 
 ### Observability
 
-`LiteBus.Messaging.Extensions.OpenTelemetry`, `LiteBus.Inbox.Extensions.OpenTelemetry`, `LiteBus.Outbox.Extensions.OpenTelemetry`, `LiteBus.Transport.Extensions.OpenTelemetry`, and `LiteBus.Transport.Amqp.Extensions.OpenTelemetry` register traces and metrics for mediation, processors, and brokers.
+`LiteBus.Messaging.Extensions.OpenTelemetry`, `LiteBus.Inbox.Extensions.OpenTelemetry`, `LiteBus.Outbox.Extensions.OpenTelemetry`, `LiteBus.Auditing.Extensions.OpenTelemetry`, `LiteBus.Transport.Extensions.OpenTelemetry`, and `LiteBus.Transport.Amqp.Extensions.OpenTelemetry` register traces and metrics for mediation, processors, and brokers.
 
 ### Tooling
 

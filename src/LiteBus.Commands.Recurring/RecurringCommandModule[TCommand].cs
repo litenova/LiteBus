@@ -1,5 +1,7 @@
 using System;
 using System.Linq;
+using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Abstractions.Tenancy;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Exceptions;
 
@@ -11,7 +13,7 @@ namespace LiteBus.Commands.Recurring;
 /// <typeparam name="TCommand">The command type sent on each pass.</typeparam>
 /// <remarks>
 ///     Declared as a child of <see cref="CommandModule" /> through
-///     <see cref="CommandModuleBuilderRecurringExtensions.AddRecurring{TCommand}(CommandModuleBuilder, System.Func{TCommand}, System.Action{RecurringCommandHostOptions})" />, so the loop is composed inside
+///     <see cref="CommandModuleBuilderRecurringExtensions.AddRecurring{TCommand}(CommandModuleBuilder, System.Func{TCommand}, System.Action{RecurringCommandHostOptions}, System.Func{TCommand, LiteBus.Messaging.Abstractions.ExecutionIdentity})" />, so the loop is composed inside
 ///     <c>AddCommands</c> and cannot be registered without the axis that mediates it.
 /// </remarks>
 public sealed class RecurringCommandModule<TCommand> : IModule, IRequires<CommandModule>
@@ -40,6 +42,8 @@ public sealed class RecurringCommandModule<TCommand> : IModule, IRequires<Comman
 
         _declaration.HostOptions.Validate();
 
+        ThrowIfTenantRequiredWithoutIdentity(configuration);
+
         if (_declaration.HostOptions.RequireLease)
         {
             // The lease registers through a sibling child module that may build after this one, so the check is
@@ -47,6 +51,11 @@ public sealed class RecurringCommandModule<TCommand> : IModule, IRequires<Comman
             // every instance after asking for single-flight would be worse than a boot failure.
             configuration.RegisterCompositionValidation(() => ThrowIfLeaseMissing(configuration));
         }
+
+        configuration.DependencyRegistry.Register(DependencyDescriptor.ForDefaultPort(
+            typeof(IRecurringOccurrenceStore),
+            typeof(InMemoryRecurringOccurrenceStore),
+            InstanceLifetime.Singleton));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(RecurringCommandDeclaration<TCommand>),
@@ -57,6 +66,54 @@ public sealed class RecurringCommandModule<TCommand> : IModule, IRequires<Comman
             typeof(RecurringCommandBackgroundService<TCommand>)));
 
         configuration.RegisterBackgroundService(typeof(RecurringCommandBackgroundService<TCommand>));
+    }
+
+    /// <summary>
+    ///     Throws when the command requires a tenant but the registration supplies no identity to send with.
+    /// </summary>
+    /// <param name="configuration">The module configuration holding the message registry.</param>
+    /// <exception cref="LiteBusConfigurationException">
+    ///     <typeparamref name="TCommand" /> declares <see cref="TenantRequiredDeclaration" /> and the registration
+    ///     supplies no identity factory.
+    /// </exception>
+    /// <remarks>
+    ///     The command module builds before this child module, so its registrations are already applied and the
+    ///     declaration reads from committed metadata. A command the registry does not hold yet cannot be judged
+    ///     here; its missing registration fails elsewhere.
+    /// </remarks>
+    private void ThrowIfTenantRequiredWithoutIdentity(IModuleConfiguration configuration)
+    {
+        if (_declaration.IdentityOf is not null)
+        {
+            return;
+        }
+
+        if (!configuration.TryGetContext<IMessageRegistry>(out var registry) || registry is null)
+        {
+            return;
+        }
+
+        var descriptor = registry.Find(typeof(TCommand));
+
+        if (descriptor is null)
+        {
+            return;
+        }
+
+        if (!descriptor.Metadata.TryGet<TenancyDeclaration>(out var tenancy))
+        {
+            return;
+        }
+
+        if (tenancy is not TenantRequiredDeclaration)
+        {
+            return;
+        }
+
+        throw new LiteBusConfigurationException(
+            $"The recurring command '{typeof(TCommand).FullName}' requires a tenant (TenantRequiredDeclaration) "
+            + $"but the recurring registration '{typeof(RecurringCommandModule<TCommand>).FullName}' supplies no identity. "
+            + "Pass an identity factory to AddRecurring, or use AddRecurringForEachTenant so every send carries a tenant.");
     }
 
     /// <summary>

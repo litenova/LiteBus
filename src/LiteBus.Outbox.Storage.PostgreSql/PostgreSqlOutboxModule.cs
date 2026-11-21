@@ -1,4 +1,5 @@
 using System;
+using LiteBus.Messaging.Abstractions;
 using LiteBus.Outbox;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Outbox.Storage.PostgreSql.Exceptions;
@@ -125,6 +126,14 @@ public sealed class PostgreSqlOutboxModule : IOutboxStorageModule, IRequires<Out
             configuration.DependencyRegistry.Register(new DependencyDescriptor(
                 typeof(ITransactionalOutbox),
                 transactionalOutboxFactory,
+                InstanceLifetime.Scoped));
+        }
+
+        if (moduleBuilder.DomainEventHarvesterFactory is { } domainEventHarvesterFactory)
+        {
+            configuration.DependencyRegistry.RegisterCollection(DependencyDescriptor.ForCollection(
+                typeof(IDomainEventHarvester),
+                domainEventHarvesterFactory,
                 InstanceLifetime.Scoped));
         }
     }

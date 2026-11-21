@@ -4,7 +4,7 @@ using System.Linq;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Audit;
+
 using LiteBus.Messaging.Registry;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Exceptions;
@@ -22,18 +22,9 @@ public sealed class MessageModuleBuilder
     private readonly IMessageRegistry _messageRegistry;
 
     /// <summary>
-    ///     The default audit action format: a category, a dot, and a kebab-case action.
-    /// </summary>
-    /// <remarks>
-    ///     The convention every example in the LiteBus documentation uses, such as <c>orders.place-order</c>. It is
-    ///     the default rather than a rule, because an application that already has an action taxonomy should keep it.
-    /// </remarks>
-    public const string DefaultAuditActionPattern = @"^[a-z0-9]+(?:-[a-z0-9]+)*\.[a-z0-9]+(?:-[a-z0-9]+)*$";
-
-    /// <summary>
     ///     The application composition checks to run once every module has been built.
     /// </summary>
-    private readonly List<Action<IMessageCatalog>> _compositionChecks = [];
+    private readonly List<Action<ICompositionModel>> _compositionChecks = [];
 
     /// <summary>
     ///     The declaration requirements collected from this builder, in the order they were added.
@@ -41,9 +32,42 @@ public sealed class MessageModuleBuilder
     private readonly List<DeclarationRequirement> _requiredDeclarations = [];
 
     /// <summary>
+    ///     The metadata conventions collected from this builder, in the order they were added.
+    /// </summary>
+    private readonly List<MessageDeclarationConvention> _conventions = [];
+
+    /// <summary>
+    ///     Whether the convention build step was registered; <see cref="DeclareConvention{TValue}" /> registers it once
+    ///     for every convention.
+    /// </summary>
+    private bool _conventionsRegistered;
+
+    /// <summary>
+    ///     Whether the declaration report build step was registered; the first report-mode requirement registers it once
+    ///     for every report-mode requirement.
+    /// </summary>
+    private bool _reportRegistered;
+
+    /// <summary>
     ///     The fault refusal classifier implementation types and pre-created instances, in registration order.
     /// </summary>
     private readonly List<object> _faultRefusalClassifiers = [];
+
+    /// <summary>
+    ///     The refusal exception translator implementation types and pre-created instances, in registration order.
+    /// </summary>
+    private readonly List<object> _refusalExceptionTranslators = [];
+
+    /// <summary>
+    ///     Whether the translator build step was registered; the first translator registration registers it once
+    ///     for every translator.
+    /// </summary>
+    private bool _refusalExceptionTranslatorsRegistered;
+
+    /// <summary>
+    ///     The registration steps that features in this assembly add to the module build, in the order they were added.
+    /// </summary>
+    private readonly List<Action<IModuleConfiguration>> _buildSteps = [];
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="MessageModuleBuilder" /> class.
@@ -74,7 +98,29 @@ public sealed class MessageModuleBuilder
     /// <summary>
     ///     Gets the application composition checks to run once every module has been built.
     /// </summary>
-    internal IReadOnlyList<Action<IMessageCatalog>> CompositionChecks => _compositionChecks;
+    internal IReadOnlyList<Action<ICompositionModel>> CompositionChecks => _compositionChecks;
+
+    /// <summary>
+    ///     Gets the registration steps that features in this assembly add to the module build.
+    /// </summary>
+    internal IReadOnlyList<Action<IModuleConfiguration>> BuildSteps => _buildSteps;
+
+    /// <summary>
+    ///     Adds a registration step that runs when the message module builds, after the core messaging services and the
+    ///     scanned handlers are registered.
+    /// </summary>
+    /// <param name="step">The step, which registers services, handlers or composition validations.</param>
+    /// <returns>The current builder.</returns>
+    /// <remarks>
+    ///     Feature extensions in this assembly, such as tenancy and authorization policies, use it so they do not edit
+    ///     this builder for every feature.
+    /// </remarks>
+    internal MessageModuleBuilder AddBuildStep(Action<IModuleConfiguration> step)
+    {
+        ArgumentNullException.ThrowIfNull(step);
+        _buildSteps.Add(step);
+        return this;
+    }
 
     /// <summary>
     ///     Gets a value indicating whether an open generic pipeline handler must be named rather than scanned.
@@ -91,6 +137,11 @@ public sealed class MessageModuleBuilder
     ///     exemption from it.
     /// </summary>
     /// <typeparam name="TValue">The metadata value type each message must state a position on.</typeparam>
+    /// <param name="enforcement">
+    ///     <see cref="DeclarationEnforcement.Fail" /> fails composition, naming every offender.
+    ///     <see cref="DeclarationEnforcement.Report" /> lets composition succeed and lists the offenders through the
+    ///     <c>litebus.declarations</c> probe instead, so positions are adopted message by message.
+    /// </param>
     /// <returns>The current builder.</returns>
     /// <remarks>
     ///     <para>
@@ -121,10 +172,15 @@ public sealed class MessageModuleBuilder
     ///         registered from an assembly the analyzer never saw.
     ///     </para>
     /// </remarks>
-    public MessageModuleBuilder RequireDeclaration<TValue>()
+    public MessageModuleBuilder RequireDeclaration<TValue>(
+        DeclarationEnforcement enforcement = DeclarationEnforcement.Fail)
         where TValue : notnull
     {
-        return AddRequirement(new DeclarationRequirement(typeof(TValue), Scope: null, "every registered message"));
+        return AddRequirement(new DeclarationRequirement(
+            typeof(TValue),
+            Scope: null,
+            "every registered message",
+            enforcement));
     }
 
     /// <summary>
@@ -136,6 +192,11 @@ public sealed class MessageModuleBuilder
     ///     The axis contract or marker interface that decides the scope, such as <c>ICommand</c> or an application's
     ///     own <c>IActingAccountCommand</c>.
     /// </typeparam>
+    /// <param name="enforcement">
+    ///     <see cref="DeclarationEnforcement.Fail" /> fails composition, naming every offender.
+    ///     <see cref="DeclarationEnforcement.Report" /> lets composition succeed and lists the offenders through the
+    ///     <c>litebus.declarations</c> probe instead, so positions are adopted message by message.
+    /// </param>
     /// <returns>The current builder.</returns>
     /// <remarks>
     ///     <para>
@@ -156,13 +217,15 @@ public sealed class MessageModuleBuilder
     ///         makes a half-configured policy possible.
     ///     </para>
     /// </remarks>
-    public MessageModuleBuilder RequireDeclaration<TValue, TScope>()
+    public MessageModuleBuilder RequireDeclaration<TValue, TScope>(
+        DeclarationEnforcement enforcement = DeclarationEnforcement.Fail)
         where TValue : notnull
     {
         return AddRequirement(new DeclarationRequirement(
             typeof(TValue),
             static messageType => typeof(TScope).IsAssignableFrom(messageType),
-            $"every {typeof(TScope).Name}"));
+            $"every {typeof(TScope).Name}",
+            enforcement));
     }
 
     /// <summary>
@@ -176,6 +239,11 @@ public sealed class MessageModuleBuilder
     ///     module</c>. A predicate cannot describe itself, and an error that cannot name the policy it enforces is one
     ///     nobody can act on.
     /// </param>
+    /// <param name="enforcement">
+    ///     <see cref="DeclarationEnforcement.Fail" /> fails composition, naming every offender.
+    ///     <see cref="DeclarationEnforcement.Report" /> lets composition succeed and lists the offenders through the
+    ///     <c>litebus.declarations</c> probe instead, so positions are adopted message by message.
+    /// </param>
     /// <returns>The current builder.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="scope" /> is <see langword="null" />.</exception>
     /// <exception cref="ArgumentException"><paramref name="scopeDescription" /> is null, empty, or whitespace.</exception>
@@ -184,13 +252,16 @@ public sealed class MessageModuleBuilder
     ///     the compiler then tracks membership. Use this for a rule no type captures, such as one keyed on an attribute
     ///     the application defines.
     /// </remarks>
-    public MessageModuleBuilder RequireDeclaration<TValue>(Func<Type, bool> scope, string scopeDescription)
+    public MessageModuleBuilder RequireDeclaration<TValue>(
+        Func<Type, bool> scope,
+        string scopeDescription,
+        DeclarationEnforcement enforcement = DeclarationEnforcement.Fail)
         where TValue : notnull
     {
         ArgumentNullException.ThrowIfNull(scope);
         ArgumentException.ThrowIfNullOrWhiteSpace(scopeDescription);
 
-        return AddRequirement(new DeclarationRequirement(typeof(TValue), scope, scopeDescription));
+        return AddRequirement(new DeclarationRequirement(typeof(TValue), scope, scopeDescription, enforcement));
     }
 
     /// <summary>
@@ -210,14 +281,45 @@ public sealed class MessageModuleBuilder
             _requiredDeclarations.Add(requirement);
         }
 
+        if (requirement.Enforcement == DeclarationEnforcement.Report && !_reportRegistered)
+        {
+            _reportRegistered = true;
+            AddBuildStep(RegisterDeclarationReport);
+        }
+
         return this;
     }
 
     /// <summary>
-    ///     Runs an application composition check over every registered message, after every module has been built.
+    ///     Registers the declaration report and its diagnostic probe for report-mode requirements.
+    /// </summary>
+    /// <param name="configuration">The module configuration receiving the registration.</param>
+    /// <remarks>
+    ///     The report holds the requirements; the probe reads the message catalog at check time, so the list reflects
+    ///     every message the host composed rather than only the ones registered before this call. Registered once for
+    ///     every report-mode requirement, because one probe lists every requirement's offenders.
+    /// </remarks>
+    private void RegisterDeclarationReport(IModuleConfiguration configuration)
+    {
+        var reported = _requiredDeclarations
+            .Where(requirement => requirement.Enforcement == DeclarationEnforcement.Report)
+            .ToList();
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(DeclarationReport),
+            new DeclarationReport(reported)));
+        configuration.RegisterDiagnosticCheck(
+            typeof(DeclarationReportDiagnosticCheck),
+            DeclarationReportDiagnosticCheck.CheckName);
+    }
+
+    /// <summary>
+    ///     Runs an application composition check over everything the host composed, after every module has been built.
     /// </summary>
     /// <param name="validate">
-    ///     The check. It receives the catalog of registered messages and their declarations, and throws to fail
+    ///     The check. It receives the composition model: the catalog of registered messages and their declarations,
+    ///     the declaration provenance per message, the declared and registered policy names, the contract
+    ///     registrations, the resolved port implementations, and the contributed feature sections. It throws to fail
     ///     composition.
     /// </param>
     /// <returns>The current builder.</returns>
@@ -225,12 +327,15 @@ public sealed class MessageModuleBuilder
     /// <remarks>
     ///     <para>
     ///         This is where an application's own conventions become startup failures. Unique audit action codes, a
-    ///         house naming rule for them, a family of commands that all have to declare the same value: each is a
-    ///         pure function of the declarations, and each is otherwise enforced by code review.
+    ///         house naming rule for them, a family of commands that all have to declare the same value, a message
+    ///         declaring a policy name nothing registered: each is a pure function of the composition, and each is
+    ///         otherwise enforced by code review.
     ///     </para>
     ///     <para>
-    ///         It runs at the same point <c>RequireDeclaration</c> does, after every module has built, so the catalog
-    ///         holds every message the host composed rather than only the ones registered before this call.
+    ///         It runs at the same point <c>RequireDeclaration</c> does, after every module has built, so the model
+    ///         holds everything the host composed rather than only what was registered before this call. Ports are
+    ///         reported as LiteBus composed them; a replacement the application registers directly with its own
+    ///         container afterwards is visible on the model resolved from the container instead.
     ///     </para>
     ///     <para>
     ///         Throw from the callback to fail composition. Prefer naming every offender in one message: a check that
@@ -239,10 +344,10 @@ public sealed class MessageModuleBuilder
     /// </remarks>
     /// <example>
     ///     <code><![CDATA[
-    /// messaging.ValidateComposition(catalog =>
+    /// messaging.ValidateComposition(model =>
     /// {
-    ///     var wrong = catalog.Audited()
-    ///         .Where(entry => !ActionCodePattern.IsMatch(entry.Audit!.Action))
+    ///     var wrong = model.Messages.Audited()
+    ///         .Where(entry => !ActionCodePattern.IsMatch(entry.GetAudit()!.Action))
     ///         .Select(entry => entry.MessageType.Name)
     ///         .ToList();
     ///
@@ -250,93 +355,16 @@ public sealed class MessageModuleBuilder
     ///     {
     ///         throw new InvalidOperationException($"Audit actions must be category.kebab-action: {string.Join(", ", wrong)}");
     ///     }
+    ///
+    ///     UnknownPolicyCheck.ThrowIfUnknown(model.Messages, model.RegisteredPolicyNames);
     /// });
     /// ]]></code>
     /// </example>
-    public MessageModuleBuilder ValidateComposition(Action<IMessageCatalog> validate)
+    public MessageModuleBuilder ValidateComposition(Action<ICompositionModel> validate)
     {
         ArgumentNullException.ThrowIfNull(validate);
         _compositionChecks.Add(validate);
         return this;
-    }
-
-    /// <summary>
-    ///     Requires every audited message to declare an action code no other message declares.
-    /// </summary>
-    /// <returns>The current builder.</returns>
-    /// <remarks>
-    ///     Two messages sharing an action code make the trail unqueryable by use case, which is the one thing an action
-    ///     code exists for. It is also the mistake copying a definition produces, and nothing else reports it: the
-    ///     records are written, the column is populated, and the defect only surfaces when someone reads the trail and
-    ///     finds two different operations under one name.
-    /// </remarks>
-    public MessageModuleBuilder RequireUniqueAuditActions()
-    {
-        return ValidateComposition(static catalog =>
-        {
-            var byAction = new Dictionary<string, List<string>>(StringComparer.Ordinal);
-
-            foreach (var entry in catalog.Audited())
-            {
-                if (!byAction.TryGetValue(entry.Audit!.Action, out var messages))
-                {
-                    messages = [];
-                    byAction[entry.Audit.Action] = messages;
-                }
-
-                messages.Add(entry.MessageType.Name);
-            }
-
-            var duplicates = byAction
-                .Where(static pair => pair.Value.Count > 1)
-                .OrderBy(static pair => pair.Key, StringComparer.Ordinal)
-                .Select(static pair => $"  '{pair.Key}' is declared by: {string.Join(", ", pair.Value)}")
-                .ToList();
-
-            if (duplicates.Count > 0)
-            {
-                throw new AuditConfigurationException(
-                    "Two or more audited messages declare the same audit action, so the trail cannot be queried by use case:"
-                    + Environment.NewLine + string.Join(Environment.NewLine, duplicates));
-            }
-        });
-    }
-
-    /// <summary>
-    ///     Requires every audited action code to match a pattern.
-    /// </summary>
-    /// <param name="pattern">
-    ///     The regular expression every action must match. Defaults to <c>category.kebab-action</c>, the convention the
-    ///     LiteBus documentation uses throughout.
-    /// </param>
-    /// <returns>The current builder.</returns>
-    /// <exception cref="ArgumentException"><paramref name="pattern" /> is null, empty, or whitespace.</exception>
-    /// <remarks>
-    ///     An action code is read by whoever queries the trail years later, so a convention that holds is worth more
-    ///     than one that mostly holds. Nothing else enforces it: an inconsistent code is written and stored exactly like
-    ///     a consistent one.
-    /// </remarks>
-    public MessageModuleBuilder RequireAuditActionFormat(string pattern = DefaultAuditActionPattern)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(pattern);
-
-        var expression = new Regex(pattern, RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
-
-        return ValidateComposition(catalog =>
-        {
-            var wrong = catalog.Audited()
-                .Where(entry => !expression.IsMatch(entry.Audit!.Action))
-                .Select(static entry => $"  {entry.MessageType.Name} declares '{entry.Audit!.Action}'")
-                .OrderBy(static line => line, StringComparer.Ordinal)
-                .ToList();
-
-            if (wrong.Count > 0)
-            {
-                throw new AuditConfigurationException(
-                    $"One or more audit actions do not match the required format '{pattern}':"
-                    + Environment.NewLine + string.Join(Environment.NewLine, wrong));
-            }
-        });
     }
 
     /// <summary>
@@ -394,6 +422,155 @@ public sealed class MessageModuleBuilder
     }
 
     /// <summary>
+    ///     Produces a metadata value from the message type itself, for every message that states no value of type
+    ///     <typeparamref name="TValue" /> through a definition, an attribute, or a default.
+    /// </summary>
+    /// <typeparam name="TValue">The metadata value type the convention produces.</typeparam>
+    /// <param name="convention">
+    ///     Produces the value for a message type, or <see langword="null" /> when the convention does not apply to
+    ///     it.
+    /// </param>
+    /// <returns>The current builder.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="convention" /> is <see langword="null" />.</exception>
+    /// <exception cref="PipelineContractException">
+    ///     A convention for <typeparamref name="TValue" /> is already declared. One value type has one convention.
+    /// </exception>
+    /// <remarks>
+    ///     <para>
+    ///         A default says what a family declares; a convention says how a value is derived. An idempotency key
+    ///         read from an interface every command implements, or an audit action derived from the type name, is
+    ///         stated once here instead of repeated on every message, and a message that states its own position keeps
+    ///         it: precedence stays definition, then attribute, then default, then convention.
+    ///     </para>
+    ///     <para>
+    ///         A message that records an exemption from <typeparamref name="TValue" /> is left alone. An exemption is
+    ///         a decision that the message deliberately states nothing, and a derived value would silently overturn it.
+    ///     </para>
+    ///     <para>
+    ///         The function observes the message type only. It runs once per registered message at composition, after
+    ///         every module has registered its messages and before the declaration requirements are checked, so a
+    ///         convention value satisfies a requirement. Keep it a pure function of the type: it cannot resolve
+    ///         services, and a function that throws fails composition.
+    ///     </para>
+    /// </remarks>
+    /// <example>
+    ///     <code><![CDATA[
+    /// registry.AddMessaging(messaging => messaging
+    ///     .DeclareConvention<IdempotencyDeclaration>(messageType =>
+    ///         typeof(IHasIdempotencyKey).IsAssignableFrom(messageType)
+    ///             ? IdempotencyDeclaration.KeyedBy<IHasIdempotencyKey>(message => message.IdempotencyKey)
+    ///             : null)
+    ///     .DeclareConvention<AuditDeclaration>(messageType =>
+    ///         AuditDeclaration.Audited("commands." + messageType.Name)));
+    /// ]]></code>
+    /// </example>
+    public MessageModuleBuilder DeclareConvention<TValue>(Func<Type, TValue?> convention)
+        where TValue : class
+    {
+        ArgumentNullException.ThrowIfNull(convention);
+
+        foreach (var existing in _conventions)
+        {
+            if (existing.ValueType == typeof(TValue))
+            {
+                throw new PipelineContractException(
+                    $"A convention for '{typeof(TValue).Name}' is already declared. One value type has one "
+                    + "convention, because two functions producing the value would leave nothing saying which one "
+                    + "applies; combine them into one function that returns the value or null.");
+            }
+        }
+
+        _conventions.Add(new MessageDeclarationConvention(typeof(TValue), type => convention(type)));
+
+        if (!_conventionsRegistered)
+        {
+            _conventionsRegistered = true;
+            AddBuildStep(ApplyConventions);
+        }
+
+        return this;
+    }
+
+    /// <summary>
+    ///     Registers the composition validation that applies conventions to messages stating no value of their type.
+    /// </summary>
+    /// <param name="configuration">The module configuration receiving the validation.</param>
+    /// <remarks>
+    ///     Registered as a build step rather than applied here because the axis modules register their messages after
+    ///     the messaging module builds. Build steps run before the requirement validation is registered, so the
+    ///     conventions land before the requirements are checked.
+    /// </remarks>
+    private void ApplyConventions(IModuleConfiguration configuration)
+    {
+        var registry = configuration.GetContext<IMessageRegistry>();
+        var conventions = _conventions.ToList();
+
+        configuration.RegisterCompositionValidation(() => ApplyConventions(registry, conventions));
+    }
+
+    /// <summary>
+    ///     Applies every convention to every concrete message that states no value of the convention's type and
+    ///     records no exemption from it.
+    /// </summary>
+    /// <param name="reader">The registry holding every registered message descriptor.</param>
+    /// <param name="conventions">The conventions to apply, in registration order.</param>
+    private static void ApplyConventions(IMessageReader reader, IReadOnlyList<MessageDeclarationConvention> conventions)
+    {
+        foreach (var descriptor in reader)
+        {
+            if (descriptor.MessageType.IsAbstract || descriptor.MessageType.IsInterface)
+            {
+                continue;
+            }
+
+            foreach (var convention in conventions)
+            {
+                if (StatesValue(descriptor.Metadata, convention.ValueType)
+                    || IsExempt(descriptor.Metadata, convention.ValueType))
+                {
+                    continue;
+                }
+
+                var value = convention.Convention(descriptor.MessageType);
+
+                if (value is null)
+                {
+                    continue;
+                }
+
+                // The messaging module always pairs this builder with MessageRegistry, whose descriptors carry
+                // MessageMetadata, so the cast holds for every descriptor this validation sees.
+                ((MessageMetadata) descriptor.Metadata).TryApplyConvention(
+                    convention.ValueType,
+                    value,
+                    descriptor.MessageType);
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Determines whether the metadata holds a value of the convention's type.
+    /// </summary>
+    /// <param name="metadata">The metadata resolved for one message.</param>
+    /// <param name="valueType">The metadata value type the convention produces.</param>
+    /// <returns><see langword="true" /> when a value of that type is present.</returns>
+    private static bool StatesValue(IMessageMetadata metadata, Type valueType)
+    {
+        return metadata.Values.Any(valueType.IsInstanceOfType);
+    }
+
+    /// <summary>
+    ///     Determines whether the message deliberately states nothing for the convention's type.
+    /// </summary>
+    /// <param name="metadata">The metadata resolved for one message.</param>
+    /// <param name="valueType">The metadata value type the convention produces.</param>
+    /// <returns><see langword="true" /> when an exemption covers that type.</returns>
+    private static bool IsExempt(IMessageMetadata metadata, Type valueType)
+    {
+        return metadata.TryGet<DeclarationExemptions>(out var exemptions) && exemptions.Covers(valueType);
+    }
+
+    /// <summary>
     ///     Declares a metadata value for every message assignable to <typeparamref name="TScope" />, unless the
     ///     message states its own position.
     /// </summary>
@@ -421,6 +598,10 @@ public sealed class MessageModuleBuilder
     ///         string a refactoring tool moves without telling anyone, so a default keyed on one silently stops
     ///         applying when a folder is renamed. For an authorization default, that failure is a command that used to
     ///         be guarded and now is not.
+    ///     </para>
+    ///     <para>
+    ///         A default applies only to messages assignable to its scope and never satisfies another scope's
+    ///         requirement.
     ///     </para>
     ///     <para>
     ///         Two defaults for the same scope and value type are a configuration error, because one of them would
@@ -453,7 +634,8 @@ public sealed class MessageModuleBuilder
     /// <exception cref="ArgumentNullException"><paramref name="declaration" /> is <see langword="null" />.</exception>
     /// <remarks>
     ///     The generic overload is the one to reach for. This exists for composition code that builds its declarations
-    ///     from configuration, where the types are values rather than something the call site can name.
+    ///     from configuration, where the types are values rather than something the call site can name. A default
+    ///     applies only to messages assignable to its scope and never satisfies another scope's requirement.
     /// </remarks>
     public MessageModuleBuilder DeclareDefault(MessageDeclarationItem declaration)
     {
@@ -539,342 +721,6 @@ public sealed class MessageModuleBuilder
     }
 
     /// <summary>
-    ///     Gets the optional audit outcome mapper exposed through dependency injection.
-    /// </summary>
-    internal IAuditOutcomeMapper? AuditOutcomeMapper { get; private set; }
-
-    /// <summary>
-    ///     Gets the audit trail the module registers, as an instance or an implementation type.
-    /// </summary>
-    /// <value>
-    ///     The instance passed to <see cref="UseAuditTrailInstance" />, the type passed to
-    ///     <see cref="UseAuditTrail{TAuditTrail}" />, or <see langword="null" /> when the application registers the trail
-    ///     with its own container instead.
-    /// </value>
-    internal object? AuditTrail { get; private set; }
-
-    /// <summary>
-    ///     Gets the lifetime the trail implementation type is registered with.
-    /// </summary>
-    internal InstanceLifetime AuditTrailLifetime { get; private set; } = InstanceLifetime.Scoped;
-
-    /// <summary>
-    ///     Registers the <see cref="IAuditTrail" /> type that receives audit records, constructed by the container.
-    /// </summary>
-    /// <typeparam name="TAuditTrail">The trail implementation.</typeparam>
-    /// <param name="lifetime">
-    ///     The lifetime the trail is resolved with. Defaults to <see cref="InstanceLifetime.Scoped" />, which is what a
-    ///     trail taking a database session needs.
-    /// </param>
-    /// <returns>The current builder.</returns>
-    /// <remarks>
-    ///     <para>
-    ///         This is the one place the audit feature is plumbed: the trail here, the optional mapper through
-    ///         <see cref="UseAuditOutcomeMapper" />, and the per-axis switch through <c>EnableAuditing</c> on the command
-    ///         or query module, which decides which messages produce records.
-    ///     </para>
-    ///     <para>
-    ///         The lifetime is a parameter rather than a consequence of which overload was reached for. A trail wrapping
-    ///         a scoped database session is correct as <see cref="InstanceLifetime.Scoped" /> and captures one session
-    ///         for the life of the process as a singleton, and nothing about the call site used to say which one you
-    ///         were choosing.
-    ///     </para>
-    ///     <para>
-    ///         Registering the trail with the application container instead still works, and the
-    ///         <c>litebus.audit.trail</c> diagnostic check accepts either.
-    ///     </para>
-    ///     <para>
-    ///         <see cref="InstanceLifetime" /> lives in <c>LiteBus.Runtime.Abstractions</c>, so overriding the default
-    ///         needs that using directive in a registration file that touches nothing else in Runtime. The default is
-    ///         the lifetime a trail usually wants, and <see cref="UseAuditTrailInstance" /> names the singleton case,
-    ///         so the directive is only needed to say <see cref="InstanceLifetime.Transient" /> or to state
-    ///         <see cref="InstanceLifetime.Scoped" /> explicitly.
-    ///     </para>
-    /// </remarks>
-    public MessageModuleBuilder UseAuditTrail<TAuditTrail>(InstanceLifetime lifetime = InstanceLifetime.Scoped)
-        where TAuditTrail : class, IAuditTrail
-    {
-        AuditTrail = typeof(TAuditTrail);
-        AuditTrailLifetime = lifetime;
-        return this;
-    }
-
-    /// <summary>
-    ///     Registers a pre-created <see cref="IAuditTrail" /> that receives audit records.
-    /// </summary>
-    /// <param name="auditTrail">The trail instance, shared by every mediation for the life of the process.</param>
-    /// <returns>The current builder.</returns>
-    /// <remarks>
-    ///     The name says the lifetime, because a pre-created instance can only be a singleton. A trail built here with a
-    ///     database session captures that one session forever, which is the failure this name exists to make visible at
-    ///     the call site. Use <see cref="UseAuditTrail{TAuditTrail}" /> whenever the trail has dependencies.
-    /// </remarks>
-    public MessageModuleBuilder UseAuditTrailInstance(IAuditTrail auditTrail)
-    {
-        ArgumentNullException.ThrowIfNull(auditTrail);
-        AuditTrail = auditTrail;
-        AuditTrailLifetime = InstanceLifetime.Singleton;
-        return this;
-    }
-
-    /// <summary>
-    ///     Gets the audit record writer the module registers, as an instance or an implementation type.
-    /// </summary>
-    /// <value>
-    ///     The instance passed to <see cref="UseAuditRecordWriterInstance" />, the type passed to
-    ///     <see cref="UseAuditRecordWriter{TAuditRecordWriter}" />, or <see langword="null" /> to use the built-in
-    ///     writer.
-    /// </value>
-    internal object? AuditRecordWriter { get; private set; }
-
-    /// <summary>
-    ///     Gets the lifetime the audit record writer implementation type is registered with.
-    /// </summary>
-    internal InstanceLifetime AuditRecordWriterLifetime { get; private set; } = InstanceLifetime.Scoped;
-
-    /// <summary>
-    ///     Replaces the writer that turns a completed mediation into an audit record.
-    /// </summary>
-    /// <typeparam name="TAuditRecordWriter">The writer implementation.</typeparam>
-    /// <param name="lifetime">
-    ///     The lifetime the writer is resolved with. Defaults to <see cref="InstanceLifetime.Scoped" />, which is what
-    ///     a writer holding a database session needs.
-    /// </param>
-    /// <returns>The current builder.</returns>
-    /// <remarks>
-    ///     <para>
-    ///         This is the seam for an application that wants its own audit record shape. <see cref="AuditRecord" /> is
-    ///         a handoff, not a schema, so a different set of columns needs no new abstraction here: it needs a
-    ///         different writer. Replacing it keeps the completion-stage placement, the
-    ///         <see cref="HandlerPriorities.Observability" /> priority, and the per-axis wiring, and replaces exactly
-    ///         the record building.
-    ///     </para>
-    ///     <para>
-    ///         A replacement owns everything the built-in writer does, and every part of it is public: reading the
-    ///         audit position through <see cref="IMessageRegistry" /> and <see cref="AuditDeclaration" />, enforcing
-    ///         <see cref="AuditedDeclaration.ReasonRequired" /> with
-    ///         <see cref="AuditReasonMissingException" />, reading what a handler supplied through
-    ///         <see cref="IAuditScope" />, and classifying the outcome through <see cref="IAuditOutcomeMapper" />.
-    ///         Skipping a message that declares no audit position is part of that contract: without it, every message
-    ///         produces a record.
-    ///     </para>
-    ///     <para>
-    ///         A custom writer does not have to use <see cref="IAuditTrail" />, so the <c>litebus.audit.trail</c>
-    ///         probe stops asserting one is registered and reports the writer instead. LiteBus cannot know what a
-    ///         writer it did not build needs.
-    ///     </para>
-    /// </remarks>
-    public MessageModuleBuilder UseAuditRecordWriter<TAuditRecordWriter>(
-        InstanceLifetime lifetime = InstanceLifetime.Scoped)
-        where TAuditRecordWriter : class, IAuditRecordWriter
-    {
-        AuditRecordWriter = typeof(TAuditRecordWriter);
-        AuditRecordWriterLifetime = lifetime;
-        return this;
-    }
-
-    /// <summary>
-    ///     Replaces the audit record writer with a pre-created instance.
-    /// </summary>
-    /// <param name="auditRecordWriter">The writer instance, shared for the life of the process.</param>
-    /// <returns>The current builder.</returns>
-    /// <exception cref="ArgumentNullException"><paramref name="auditRecordWriter" /> is <see langword="null" />.</exception>
-    /// <remarks>
-    ///     The name says the lifetime, because a pre-created instance can only be a singleton. Use
-    ///     <see cref="UseAuditRecordWriter{TAuditRecordWriter}" /> whenever the writer has dependencies.
-    /// </remarks>
-    public MessageModuleBuilder UseAuditRecordWriterInstance(IAuditRecordWriter auditRecordWriter)
-    {
-        ArgumentNullException.ThrowIfNull(auditRecordWriter);
-        AuditRecordWriter = auditRecordWriter;
-        AuditRecordWriterLifetime = InstanceLifetime.Singleton;
-        return this;
-    }
-
-    /// <summary>
-    ///     Gets the axis selection <see cref="AddAuditing" /> recorded, or null when it was not called.
-    /// </summary>
-    /// <remarks>
-    ///     Published into the shared module context by the messaging module so that the command, query, and event
-    ///     modules, which build after it, can register their own audit completion handler without the consumer
-    ///     repeating the decision on each of their builders.
-    /// </remarks>
-    internal AuditingComposition? Auditing { get; private set; }
-
-    /// <summary>
-    ///     Configures the whole audit trail feature: the trail, the actor resolver, the outcome mapper, and which axes
-    ///     produce records.
-    /// </summary>
-    /// <param name="configure">The auditing configuration callback.</param>
-    /// <returns>The current builder.</returns>
-    /// <exception cref="ArgumentNullException"><paramref name="configure" /> is <see langword="null" />.</exception>
-    /// <remarks>
-    ///     <para>
-    ///         This is the one place the feature is decided. Before it, the trail lived here and the per-axis switch
-    ///         lived on the command and query builders, so an application could register either without the other and
-    ///         find out from a diagnostic probe. The per-axis switches remain and are what this composes.
-    ///     </para>
-    ///     <para>
-    ///         Calling it twice adds to the same selection rather than replacing it, so an axis enabled once stays
-    ///         enabled.
-    ///     </para>
-    /// </remarks>
-    /// <example>
-    ///     <code><![CDATA[
-    /// registry.AddMessaging(messaging => messaging.AddAuditing(auditing => auditing
-    ///     .UseTrail<MartenAuditTrail>(InstanceLifetime.Scoped)
-    ///     .UseActorResolver<RequestActorResolver>()
-    ///     .ForCommands()
-    ///     .ForQueries()));
-    /// ]]></code>
-    /// </example>
-    public MessageModuleBuilder AddAuditing(Action<AuditingBuilder> configure)
-    {
-        ArgumentNullException.ThrowIfNull(configure);
-
-        Auditing ??= new AuditingComposition();
-        configure(new AuditingBuilder(this, Auditing));
-
-        return this;
-    }
-
-    /// <summary>
-    ///     Gets the audit actor resolver the module registers, as an instance or an implementation type.
-    /// </summary>
-    internal object? AuditActorResolver { get; private set; }
-
-    /// <summary>
-    ///     Gets the lifetime the actor resolver implementation type is registered with.
-    /// </summary>
-    internal InstanceLifetime AuditActorResolverLifetime { get; private set; } = InstanceLifetime.Scoped;
-
-    /// <summary>
-    ///     Registers the <see cref="IAuditActorResolver" /> that says who an audited action is attributed to.
-    /// </summary>
-    /// <typeparam name="TAuditActorResolver">The resolver implementation.</typeparam>
-    /// <param name="lifetime">
-    ///     The lifetime the resolver is resolved with. Defaults to <see cref="InstanceLifetime.Scoped" />, which is
-    ///     what a resolver reading the authenticated principal of the request in flight needs.
-    /// </param>
-    /// <returns>The current builder.</returns>
-    /// <remarks>
-    ///     <para>
-    ///         Without a resolver, every record is written with no actor, which makes the trail a log of what happened
-    ///         rather than a record of who is answerable for it. The <c>litebus.audit.trail</c> probe reports the gap
-    ///         at startup rather than leaving it to be noticed during a review.
-    ///     </para>
-    ///     <para>
-    ///         The resolver runs at the completion stage, so it also attributes a denied or failed command. That is the
-    ///         case a trail exists for and the reason this is not a pre-stage handler: a guard that denies stops the
-    ///         pipeline before any pre-handler could have recorded who tried.
-    ///     </para>
-    /// </remarks>
-    public MessageModuleBuilder UseAuditActorResolver<TAuditActorResolver>(
-        InstanceLifetime lifetime = InstanceLifetime.Scoped)
-        where TAuditActorResolver : class, IAuditActorResolver
-    {
-        AuditActorResolver = typeof(TAuditActorResolver);
-        AuditActorResolverLifetime = lifetime;
-        return this;
-    }
-
-    /// <summary>
-    ///     Registers the <see cref="IAuditActorResolver" /> that says who an audited action is attributed to, named as
-    ///     a type.
-    /// </summary>
-    /// <param name="resolverType">The resolver implementation, which must implement <see cref="IAuditActorResolver" />.</param>
-    /// <param name="lifetime">The lifetime the resolver is resolved with.</param>
-    /// <returns>The current builder.</returns>
-    /// <exception cref="ArgumentNullException"><paramref name="resolverType" /> is <see langword="null" />.</exception>
-    /// <exception cref="ArgumentException">
-    ///     <paramref name="resolverType" /> does not implement <see cref="IAuditActorResolver" />, or cannot be
-    ///     constructed.
-    /// </exception>
-    /// <remarks>
-    ///     The generic overload is the one to reach for. This exists for composition code that chooses the resolver at
-    ///     runtime, where the type is a value rather than something the call site can name.
-    /// </remarks>
-    public MessageModuleBuilder UseAuditActorResolver(
-        Type resolverType,
-        InstanceLifetime lifetime = InstanceLifetime.Scoped)
-    {
-        ArgumentNullException.ThrowIfNull(resolverType);
-
-        if (!typeof(IAuditActorResolver).IsAssignableFrom(resolverType) ||
-            resolverType is { IsClass: false } or { IsAbstract: true })
-        {
-            throw new ArgumentException(
-                $"'{resolverType.Name}' is not a concrete class implementing IAuditActorResolver, so it cannot resolve "
-                + "the actor an audit record is attributed to.",
-                nameof(resolverType));
-        }
-
-        AuditActorResolver = resolverType;
-        AuditActorResolverLifetime = lifetime;
-        return this;
-    }
-
-    /// <summary>
-    ///     Registers a pre-created <see cref="IAuditActorResolver" /> that says who an audited action is attributed to.
-    /// </summary>
-    /// <param name="auditActorResolver">The resolver instance, shared by every mediation for the life of the process.</param>
-    /// <returns>The current builder.</returns>
-    /// <remarks>
-    ///     The name says the lifetime, because a pre-created instance can only be a singleton. A resolver that reads
-    ///     the request in flight through a scoped dependency cannot be built here; use
-    ///     <see cref="UseAuditActorResolver{TAuditActorResolver}" /> for that.
-    /// </remarks>
-    public MessageModuleBuilder UseAuditActorResolverInstance(IAuditActorResolver auditActorResolver)
-    {
-        ArgumentNullException.ThrowIfNull(auditActorResolver);
-        AuditActorResolver = auditActorResolver;
-        AuditActorResolverLifetime = InstanceLifetime.Singleton;
-        return this;
-    }
-
-    /// <summary>
-    ///     Registers the <see cref="IAuditOutcomeMapper" /> instance used to classify how an audited action ended.
-    /// </summary>
-    /// <param name="auditOutcomeMapper">The mapper to register, shared for the life of the process.</param>
-    /// <returns>The current builder.</returns>
-    /// <remarks>
-    ///     <para>
-    ///         LiteBus knows that a mediation failed but cannot know whether it failed because the actor was not
-    ///         permitted. Register a mapper so that an application refusal exception is recorded as
-    ///         <see cref="AuditOutcome.Denied" /> rather than <see cref="AuditOutcome.Failed" />. An application that
-    ///         refuses through a guard or a validator needs no mapper: the pipeline already reports
-    ///         <see cref="MediationOutcome.Denied" /> and <see cref="MediationOutcome.Invalid" /> as decisions.
-    ///     </para>
-    ///     <para>
-    ///         When omitted, <c>DefaultAuditOutcomeMapper</c> maps each mediation outcome to the audit outcome that
-    ///         matches it and records every remaining failure as <see cref="AuditOutcome.Failed" />.
-    ///     </para>
-    /// </remarks>
-    public MessageModuleBuilder UseAuditOutcomeMapper(IAuditOutcomeMapper auditOutcomeMapper)
-    {
-        ArgumentNullException.ThrowIfNull(auditOutcomeMapper);
-        AuditOutcomeMapper = auditOutcomeMapper;
-        return this;
-    }
-
-    /// <summary>
-    ///     Registers the <see cref="IAuditOutcomeMapper" /> used to classify how an audited action ended.
-    /// </summary>
-    /// <typeparam name="TAuditOutcomeMapper">The mapper implementation, constructed once at configuration time.</typeparam>
-    /// <returns>The current builder.</returns>
-    /// <remarks>
-    ///     The mapper is read on the completion path of every audited mediation and must stay pure, so it is created
-    ///     once here rather than resolved per scope. A mapper needing scoped state is reading the wrong thing: the
-    ///     completion context it is handed already carries the outcome, the exception, and the reason.
-    /// </remarks>
-    public MessageModuleBuilder UseAuditOutcomeMapper<TAuditOutcomeMapper>()
-        where TAuditOutcomeMapper : IAuditOutcomeMapper, new()
-    {
-        AuditOutcomeMapper = new TAuditOutcomeMapper();
-        return this;
-    }
-
-    /// <summary>
     ///     Gets the fault refusal classifiers registered through <see cref="UseFaultRefusalClassifier{TClassifier}" />
     ///     and <see cref="UseFaultRefusalClassifierInstance" />, in registration order, as implementation types and
     ///     pre-created instances.
@@ -922,6 +768,102 @@ public sealed class MessageModuleBuilder
         ArgumentNullException.ThrowIfNull(classifier);
         _faultRefusalClassifiers.Add(classifier);
         return this;
+    }
+
+    /// <summary>
+    ///     Registers a translator that turns a recognized domain exception into the refusal the mediation ends as.
+    /// </summary>
+    /// <typeparam name="TTranslator">The translator implementation, constructed from the dispatch scope.</typeparam>
+    /// <returns>The current builder.</returns>
+    /// <remarks>
+    ///     <para>
+    ///         Call this once per translator. The strategies consult them in registration order and the first match
+    ///         wins, so register the most specific translator first. A fault is offered here only when the fault
+    ///         refusal classifiers left it unrecognized, and a translated fault skips the error handlers: it is a
+    ///         refusal, not a fault.
+    ///     </para>
+    ///     <para>
+    ///         Translators are scoped, so an implementation may read scoped services such as localization or
+    ///         tenant-aware detail while translating. Cancellation, an exception that already carries a refusal, and a
+    ///         <see cref="MessageFaultException" /> are never offered.
+    ///     </para>
+    /// </remarks>
+    public MessageModuleBuilder UseRefusalExceptionTranslator<TTranslator>()
+        where TTranslator : class, IRefusalExceptionTranslator
+    {
+        _refusalExceptionTranslators.Add(typeof(TTranslator));
+        EnsureRefusalExceptionTranslatorRegistration();
+        return this;
+    }
+
+    /// <summary>
+    ///     Registers a pre-created translator that turns a recognized domain exception into the refusal the mediation
+    ///     ends as.
+    /// </summary>
+    /// <param name="translator">The translator instance, shared by every mediation for the life of the process.</param>
+    /// <returns>The current builder.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="translator" /> is <see langword="null" />.</exception>
+    /// <remarks>
+    ///     The name says the lifetime, because a pre-created instance can only be a singleton. This is the overload
+    ///     for a translator that is configured rather than injected. Use
+    ///     <see cref="UseRefusalExceptionTranslator{TTranslator}" /> whenever the translator has dependencies.
+    /// </remarks>
+    public MessageModuleBuilder UseRefusalExceptionTranslatorInstance(IRefusalExceptionTranslator translator)
+    {
+        ArgumentNullException.ThrowIfNull(translator);
+        _refusalExceptionTranslators.Add(translator);
+        EnsureRefusalExceptionTranslatorRegistration();
+        return this;
+    }
+
+    /// <summary>
+    ///     Registers the build step that publishes the collected translators, once for every translator.
+    /// </summary>
+    /// <remarks>
+    ///     Registered as a build step rather than applied here because translators collected after this call must be
+    ///     published too: the step reads the collected entries when the message module builds, so registration order
+    ///     is preserved whatever the call order was.
+    /// </remarks>
+    private void EnsureRefusalExceptionTranslatorRegistration()
+    {
+        if (_refusalExceptionTranslatorsRegistered)
+        {
+            return;
+        }
+
+        _refusalExceptionTranslatorsRegistered = true;
+        AddBuildStep(RegisterRefusalExceptionTranslators);
+    }
+
+    /// <summary>
+    ///     Registers the collected refusal exception translators as a multi-registration collection resolved in
+    ///     registration order.
+    /// </summary>
+    /// <param name="configuration">The module configuration receiving the registrations.</param>
+    /// <remarks>
+    ///     Each entry is registered as one collection item rather than as the service itself, so several translators
+    ///     coexist and the strategies resolve them as an ordered enumerable. Implementation types resolve scoped,
+    ///     because a translator may read scoped services while translating. With no entry nothing is registered, and
+    ///     every fault keeps the behavior it had before translators existed.
+    /// </remarks>
+    private void RegisterRefusalExceptionTranslators(IModuleConfiguration configuration)
+    {
+        foreach (var entry in _refusalExceptionTranslators)
+        {
+            if (entry is Type translatorType)
+            {
+                configuration.DependencyRegistry.RegisterCollection(DependencyDescriptor.ForCollection(
+                    typeof(IRefusalExceptionTranslator),
+                    translatorType,
+                    InstanceLifetime.Scoped));
+            }
+            else
+            {
+                configuration.DependencyRegistry.RegisterCollection(DependencyDescriptor.ForCollection(
+                    typeof(IRefusalExceptionTranslator),
+                    entry));
+            }
+        }
     }
 
     /// <summary>

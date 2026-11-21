@@ -52,6 +52,25 @@ The handler and the writer resolve the same scoped session, so the document and 
 
 The writer resolves duplicates before queueing because the queued insert ends with `ON CONFLICT DO NOTHING` and reports nothing about skipped rows. `ReturnExisting` (the default) returns the stored receipt without queueing a second row. `Strict` returns the stored receipt for a byte-identical replay and throws `IdempotencyConflictException` when the conflicting submission differs. Staging the same message twice in one session queues one row and returns `AlreadyEnqueued` for the second attempt.
 
+## Harvesting Domain Events
+
+`HarvestDomainEvents()` on the PostgreSQL storage builder registers `MartenDomainEventHarvester` as a scoped `IDomainEventHarvester`. The staging completion handler runs the harvester before it drains the collector, so domain events buffered on tracked documents stage with the same session save:
+
+```csharp
+builder.AddOutbox(outbox =>
+{
+    outbox.StageCollectedEvents();
+    outbox.UsePostgreSqlStorage(pg =>
+    {
+        pg.UseDataSource(dataSource);
+        pg.UseMartenTransactionalOutbox();
+        pg.HarvestDomainEvents();
+    });
+});
+```
+
+The harvester reads the pending inserts, updates, and deletions of the scoped `IDocumentSession`. A deletion harvests only when it carries a document, as with `session.Delete(entity)`; `DeleteWhere` carries no document, so flows that delete by predicate collect their events on `IDomainEventCollector` by hand. Documents implementing `IHasDomainEvents` harvest by default; documents with their own event storage configure accessor pairs with `OutboxModuleBuilder.HarvestDomainEvents<TAggregate>`. The harvester clears the events it moved from each document, so each event stages once. Harvesters run only when the mediation completed with `MediationOutcome.Succeeded`. See [Domain Events and Unit of Work](../reliable-messaging/domain-events-and-unit-of-work.md) for the harvesting contract.
+
 ## Choosing Between the Queued Writer and the Ambient Transaction
 
 | Setup | Use |

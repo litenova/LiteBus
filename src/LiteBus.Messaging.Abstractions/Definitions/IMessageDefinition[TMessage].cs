@@ -1,3 +1,4 @@
+
 namespace LiteBus.Messaging.Abstractions;
 
 /// <summary>
@@ -8,7 +9,7 @@ namespace LiteBus.Messaging.Abstractions;
 ///     <para>
 ///         This is the shape to reach for. <see cref="IMessageDefinition{TMessage,TValue}" /> types one declaration
 ///         against the compiler and is the better choice when a message declares exactly one thing, which is why
-///         <see cref="IAuditDefinition{TMessage}" /> and <c>IIdempotencyDefinition&lt;TMessage&gt;</c> are built on it.
+///         <c>IAuditDefinition&lt;TMessage&gt;</c> and <c>IIdempotencyDefinition&lt;TMessage&gt;</c> are built on it.
 ///         Past one declaration it stops paying: the second and every later value has to be written as an explicit
 ///         interface implementation that names the message type and the value type again, and a message that declares
 ///         an audit position and a required permission is the normal case rather than the exception.

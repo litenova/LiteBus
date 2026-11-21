@@ -17,6 +17,23 @@ public interface IDependencyRegistry : IReadOnlyCollection<DependencyDescriptor>
     void Register(DependencyDescriptor descriptor);
 
     /// <summary>
+    ///     Registers a service dependency in the registry, replacing any existing binding for the same service type.
+    /// </summary>
+    /// <param name="descriptor">The dependency descriptor that defines how the service should be registered.</param>
+    /// <exception cref="System.ArgumentNullException">Thrown when <paramref name="descriptor" /> is <see langword="null" />.</exception>
+    /// <remarks>
+    ///     An identical repeat is a no-op; a different binding overwrites the existing one. This is the
+    ///     deliberate override for the registration conflict rule, used when an application replaces a
+    ///     LiteBus default port registration with an explicit implementation. The default implementation
+    ///     calls <see cref="Register" />, which is correct for identical repeats. Container adapters
+    ///     override this to overwrite a conflicting binding in both the tracker and the container.
+    /// </remarks>
+    void Replace(DependencyDescriptor descriptor)
+    {
+        Register(descriptor);
+    }
+
+    /// <summary>
     ///     Registers a service implementation as one entry in a multi-registration collection resolved through
     ///     <c>IEnumerable&lt;T&gt;</c> (or equivalent container collection resolution).
     /// </summary>

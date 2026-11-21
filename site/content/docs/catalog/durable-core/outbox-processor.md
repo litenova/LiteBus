@@ -42,7 +42,7 @@ In a typical deployment, the application enqueues domain events through `IOutbox
 - **Transport dispatchers** recommend `HookFailurePolicy = CompleteDespiteHookFailure`, because the broker send already succeeded.
 - **In-process dispatch** inherits the `DeadLetter` default.
 - **`ValidatePayloadBeforeDispatch`**: When enabled on transport options, the dispatcher deserializes before broker publish.
-- **`InProcessOutboxDispatchOptions.RequireHandler`** defaults to `true` and is set through `UseInProcessDispatch(dispatch => ...)`. A dispatched message with no handler fails the attempt, retries, and moves to dead letter. When it is `false`, the message is marked published without any handler having run.
+- **`InProcessOutboxDispatchOptions.RequireHandler`** defaults to `true` and is turned off only by `UseInProcessDispatch(dispatch => dispatch.AllowEnvelopesWithoutHandler(reason))`. A dispatched message with no handler fails the attempt, retries, and moves to dead letter. When it is off, the message is marked published without any handler having run.
 
 Set `Retry.IsPermanentFailure` to move application failures that can never succeed on retry to dead letter. See [Permanent Failures](lease-retry-dead-letter.md#permanent-failures).
 
@@ -287,11 +287,11 @@ Outbox processor instrumentation uses meter `LiteBus.Outbox` (`LiteBusOutboxTele
 - **Expected outcome**: The row has failed status with retry and is never silently published.
 - **Remarks**: `LiteBus.Outbox.UnitTests` (`Dispatch/InProcess/`)
 
-#### `InProcessOutboxDispatchRequireHandlerTests.Turning_RequireHandler_off_restores_the_silent_no_op`
+#### `InProcessOutboxDispatchRequireHandlerTests.Allowing_envelopes_without_handler_restores_the_silent_no_op`
 
-- **Use case**: When `RequireHandler` is disabled, a handlerless dispatch completes
+- **Use case**: After `AllowEnvelopesWithoutHandler(reason)`, a handlerless dispatch completes
 - **Test kind**: Unit
-- **Description**: `UseInProcessDispatch(dispatch => dispatch.RequireHandler = false)`
+- **Description**: `UseInProcessDispatch(dispatch => dispatch.AllowEnvelopesWithoutHandler("..."))`
 - **Behavior**: `ProcessPendingAsync` on a handlerless envelope
 - **Expected outcome**: The row reaches published status without any handler having run
 - **Remarks**: `LiteBus.Outbox.UnitTests` (`Dispatch/InProcess/`)

@@ -1,3 +1,5 @@
+using LiteBus.Auditing;
+using LiteBus.Auditing.Recording;
 using LiteBus.Commands;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Events;
@@ -9,6 +11,7 @@ using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Exceptions;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using LiteBus.Auditing.Abstractions;
 
 namespace LiteBus.Mediator.UnitTests.Auditing;
 
@@ -27,11 +30,11 @@ public sealed class AuditingBuilderTests : LiteBusTestBase
         var provider = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessaging(messaging => messaging.AddAuditing(auditing => auditing
+                registry.AddAuditing(auditing => auditing
                     .UseTrailInstance(trail)
                     .UseActorResolverInstance(new TestAuditActorResolver())
-                    .UseOutcomeMapperInstance(new TestAuditOutcomeMapper())
-                    .ForCommands()));
+                    .UseOutcomeMapper(new TestAuditOutcomeMapper())
+                    .ForCommands());
 
                 registry.AddCommands(builder =>
                 {
@@ -50,17 +53,14 @@ public sealed class AuditingBuilderTests : LiteBusTestBase
     [Fact]
     public async Task A_typed_outcome_mapper_and_an_explicit_trail_lifetime_are_accepted()
     {
-        var trail = new RecordingAuditTrail();
-
         var provider = new ServiceCollection()
-            .AddSingleton<IAuditTrail>(trail)
             .AddLiteBus(registry =>
             {
-                registry.AddMessaging(messaging => messaging.AddAuditing(auditing => auditing
+                registry.AddAuditing(auditing => auditing
                     .UseTrail<PassThroughAuditTrail>(InstanceLifetime.Singleton)
                     .UseActorResolver<TestAuditActorResolver>(InstanceLifetime.Singleton)
                     .UseOutcomeMapper<PassThroughOutcomeMapper>()
-                    .ForCommands()));
+                    .ForCommands());
 
                 registry.AddCommands(builder =>
                 {
@@ -80,10 +80,11 @@ public sealed class AuditingBuilderTests : LiteBusTestBase
     public void ForAllAxes_selects_every_axis_the_host_registered()
     {
         var provider = new ServiceCollection()
-            .AddSingleton<IAuditTrail>(new RecordingAuditTrail())
             .AddLiteBus(registry =>
             {
-                registry.AddMessaging(messaging => messaging.AddAuditing(auditing => auditing.ForAllAxes()));
+                registry.AddAuditing(auditing => auditing
+                    .UseTrailInstance(new RecordingAuditTrail())
+                    .ForAllAxes());
 
                 registry.AddCommands(builder =>
                 {
@@ -96,20 +97,25 @@ public sealed class AuditingBuilderTests : LiteBusTestBase
             })
             .BuildServiceProvider();
 
-        // An axis with no messages is unaffected, so this is safe on a host that composes only some of them.
-        provider.GetRequiredService<LiteBusCompositionSummary>().AuditingEnabled.Should().BeTrue();
+        // An axis with no messages is unaffected, so this is safe on a host that composes only some of them. Each
+        // selected axis installs its completion handler, which is what turns an ended mediation into a record.
+        provider.GetRequiredService<IMessageRegistry>().Handlers
+            .Select(handler => handler.HandlerType)
+            .Should().Contain(typeof(CommandAuditCompletionHandler))
+            .And.Contain(typeof(QueryAuditCompletionHandler))
+            .And.Contain(typeof(EventAuditCompletionHandler));
     }
 
     [Fact]
     public void Calling_AddAuditing_twice_adds_to_the_same_selection()
     {
         var provider = new ServiceCollection()
-            .AddSingleton<IAuditTrail>(new RecordingAuditTrail())
             .AddLiteBus(registry =>
             {
-                registry.AddMessaging(messaging => messaging
-                    .AddAuditing(auditing => auditing.ForCommands())
-                    .AddAuditing(auditing => auditing.ForQueries()));
+                registry.AddAuditing(auditing => auditing
+                    .UseTrailInstance(new RecordingAuditTrail())
+                    .ForCommands());
+                registry.AddAuditing(auditing => auditing.ForQueries());
 
                 registry.AddCommands(builder =>
                 {
@@ -122,7 +128,10 @@ public sealed class AuditingBuilderTests : LiteBusTestBase
             .BuildServiceProvider();
 
         // An axis enabled once stays enabled, so a composition file assembled from several helpers behaves.
-        provider.GetRequiredService<LiteBusCompositionSummary>().AuditingEnabled.Should().BeTrue();
+        provider.GetRequiredService<IMessageRegistry>().Handlers
+            .Select(handler => handler.HandlerType)
+            .Should().Contain(typeof(CommandAuditCompletionHandler))
+            .And.Contain(typeof(QueryAuditCompletionHandler));
     }
 
     [Fact]
@@ -173,6 +182,6 @@ internal sealed class PassThroughOutcomeMapper : IAuditOutcomeMapper
     public AuditOutcome Map(MessageCompletionContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
-        return LiteBus.Messaging.Audit.DefaultAuditOutcomeMapper.MapByOutcome(context);
+        return DefaultAuditOutcomeMapper.MapByOutcome(context);
     }
 }

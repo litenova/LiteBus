@@ -35,7 +35,7 @@ public sealed class DependencyDescriptor : IEquatable<DependencyDescriptor>
     ///     .
     /// </exception>
     public DependencyDescriptor(Type dependencyType, Type implementationType, InstanceLifetime lifetime)
-        : this(dependencyType, implementationType, lifetime, false)
+        : this(dependencyType, implementationType, lifetime, false, false)
     {
     }
 
@@ -48,6 +48,9 @@ public sealed class DependencyDescriptor : IEquatable<DependencyDescriptor>
     /// <param name="isCollectionRegistration">
     ///     When <see langword="true" />, the descriptor participates in multi-registration collection resolution.
     /// </param>
+    /// <param name="isLiteBusDefault">
+    ///     When <see langword="true" />, the descriptor registers a LiteBus default implementation for a replaceable port.
+    /// </param>
     /// <exception cref="System.ArgumentNullException">
     ///     Thrown when <paramref name="dependencyType" /> or <paramref name="implementationType" /> is <see langword="null" />
     ///     .
@@ -56,7 +59,8 @@ public sealed class DependencyDescriptor : IEquatable<DependencyDescriptor>
         Type dependencyType,
         Type implementationType,
         InstanceLifetime lifetime,
-        bool isCollectionRegistration)
+        bool isCollectionRegistration,
+        bool isLiteBusDefault)
     {
         ArgumentNullException.ThrowIfNull(dependencyType);
         ArgumentNullException.ThrowIfNull(implementationType);
@@ -67,6 +71,7 @@ public sealed class DependencyDescriptor : IEquatable<DependencyDescriptor>
         ImplementationType = implementationType;
         Lifetime = lifetime;
         IsCollectionRegistration = isCollectionRegistration;
+        IsLiteBusDefault = isLiteBusDefault;
     }
 
     /// <summary>
@@ -78,7 +83,7 @@ public sealed class DependencyDescriptor : IEquatable<DependencyDescriptor>
     ///     Thrown when <paramref name="dependencyType" /> or <paramref name="instance" /> is <see langword="null" />.
     /// </exception>
     public DependencyDescriptor(Type dependencyType, object instance)
-        : this(dependencyType, instance, false)
+        : this(dependencyType, instance, false, false)
     {
     }
 
@@ -90,10 +95,13 @@ public sealed class DependencyDescriptor : IEquatable<DependencyDescriptor>
     /// <param name="isCollectionRegistration">
     ///     When <see langword="true" />, the descriptor participates in multi-registration collection resolution.
     /// </param>
+    /// <param name="isLiteBusDefault">
+    ///     When <see langword="true" />, the descriptor registers a LiteBus default implementation for a replaceable port.
+    /// </param>
     /// <exception cref="System.ArgumentNullException">
     ///     Thrown when <paramref name="dependencyType" /> or <paramref name="instance" /> is <see langword="null" />.
     /// </exception>
-    internal DependencyDescriptor(Type dependencyType, object instance, bool isCollectionRegistration)
+    internal DependencyDescriptor(Type dependencyType, object instance, bool isCollectionRegistration, bool isLiteBusDefault)
     {
         ArgumentNullException.ThrowIfNull(dependencyType);
         ArgumentNullException.ThrowIfNull(instance);
@@ -110,6 +118,7 @@ public sealed class DependencyDescriptor : IEquatable<DependencyDescriptor>
         Instance = instance;
         Lifetime = InstanceLifetime.Singleton;
         IsCollectionRegistration = isCollectionRegistration;
+        IsLiteBusDefault = isLiteBusDefault;
     }
 
     /// <summary>
@@ -139,7 +148,7 @@ public sealed class DependencyDescriptor : IEquatable<DependencyDescriptor>
         Type dependencyType,
         Func<IServiceProvider, object> factory,
         InstanceLifetime lifetime)
-        : this(dependencyType, factory, lifetime, false)
+        : this(dependencyType, factory, lifetime, false, false)
     {
     }
 
@@ -153,6 +162,9 @@ public sealed class DependencyDescriptor : IEquatable<DependencyDescriptor>
     /// <param name="isCollectionRegistration">
     ///     When <see langword="true" />, the descriptor participates in multi-registration collection resolution.
     /// </param>
+    /// <param name="isLiteBusDefault">
+    ///     When <see langword="true" />, the descriptor registers a LiteBus default implementation for a replaceable port.
+    /// </param>
     /// <exception cref="System.ArgumentNullException">
     ///     Thrown when <paramref name="dependencyType" /> or <paramref name="factory" /> is <see langword="null" />.
     /// </exception>
@@ -160,7 +172,8 @@ public sealed class DependencyDescriptor : IEquatable<DependencyDescriptor>
         Type dependencyType,
         Func<IServiceProvider, object> factory,
         InstanceLifetime lifetime,
-        bool isCollectionRegistration)
+        bool isCollectionRegistration,
+        bool isLiteBusDefault)
     {
         ArgumentNullException.ThrowIfNull(dependencyType);
         ArgumentNullException.ThrowIfNull(factory);
@@ -170,6 +183,7 @@ public sealed class DependencyDescriptor : IEquatable<DependencyDescriptor>
         Factory = factory;
         Lifetime = lifetime;
         IsCollectionRegistration = isCollectionRegistration;
+        IsLiteBusDefault = isLiteBusDefault;
     }
 
     /// <summary>
@@ -212,9 +226,22 @@ public sealed class DependencyDescriptor : IEquatable<DependencyDescriptor>
     public bool IsCollectionRegistration { get; }
 
     /// <summary>
+    ///     Gets a value indicating whether this descriptor registers a LiteBus default implementation for a replaceable port.
+    /// </summary>
+    /// <value>
+    ///     <see langword="true" /> when the descriptor was created for a port default; otherwise,
+    ///     <see langword="false" />. The composition model reads this flag to list which ports an
+    ///     application replaced with an explicit registration.
+    /// </value>
+    public bool IsLiteBusDefault { get; }
+
+    /// <summary>
     ///     Determines whether the specified <see cref="DependencyDescriptor" /> is equal to the current instance.
-    ///     Type registrations compare dependency type, implementation type, and lifetime; instance and factory registrations
-    ///     compare dependency type, lifetime, and the registered instance or factory reference.
+    ///     Type registrations compare dependency type, implementation type, lifetime, and collection metadata; instance
+    ///     and factory registrations compare dependency type, lifetime, collection metadata, and the registered
+    ///     instance or factory reference. The LiteBus default port marker records provenance for the composition
+    ///     model and does not affect equality, so a default and an explicit registration of the same binding
+    ///     are identical under the registration conflict rule.
     /// </summary>
     /// <param name="other">The descriptor to compare with the current instance.</param>
     /// <returns>
@@ -271,7 +298,7 @@ public sealed class DependencyDescriptor : IEquatable<DependencyDescriptor>
         Type implementationType,
         InstanceLifetime lifetime = InstanceLifetime.Transient)
     {
-        return new DependencyDescriptor(dependencyType, implementationType, lifetime, true);
+        return new DependencyDescriptor(dependencyType, implementationType, lifetime, true, false);
     }
 
     /// <summary>
@@ -282,7 +309,7 @@ public sealed class DependencyDescriptor : IEquatable<DependencyDescriptor>
     /// <returns>A descriptor marked for collection registration.</returns>
     public static DependencyDescriptor ForCollection(Type dependencyType, object instance)
     {
-        return new DependencyDescriptor(dependencyType, instance, true);
+        return new DependencyDescriptor(dependencyType, instance, true, false);
     }
 
     /// <summary>
@@ -297,7 +324,85 @@ public sealed class DependencyDescriptor : IEquatable<DependencyDescriptor>
         Func<IServiceProvider, object> factory,
         InstanceLifetime lifetime = InstanceLifetime.Transient)
     {
-        return new DependencyDescriptor(dependencyType, factory, lifetime, true);
+        return new DependencyDescriptor(dependencyType, factory, lifetime, true, false);
+    }
+
+    /// <summary>
+    ///     Creates a LiteBus default port descriptor for a concrete implementation type.
+    /// </summary>
+    /// <param name="dependencyType">The port type resolved from the mediation scope.</param>
+    /// <param name="implementationType">The default implementation type registered for the port.</param>
+    /// <param name="lifetime">The instance lifetime for resolved instances.</param>
+    /// <returns>A descriptor marked as a LiteBus default port registration.</returns>
+    public static DependencyDescriptor ForDefaultPort(
+        Type dependencyType,
+        Type implementationType,
+        InstanceLifetime lifetime = InstanceLifetime.Transient)
+    {
+        return new DependencyDescriptor(dependencyType, implementationType, lifetime, false, true);
+    }
+
+    /// <summary>
+    ///     Creates a LiteBus default port descriptor for a pre-created singleton instance.
+    /// </summary>
+    /// <param name="dependencyType">The port type resolved from the mediation scope.</param>
+    /// <param name="instance">The default singleton instance registered for the port.</param>
+    /// <returns>A descriptor marked as a LiteBus default port registration.</returns>
+    public static DependencyDescriptor ForDefaultPort(Type dependencyType, object instance)
+    {
+        return new DependencyDescriptor(dependencyType, instance, false, true);
+    }
+
+    /// <summary>
+    ///     Creates a LiteBus default port descriptor for a factory-created instance.
+    /// </summary>
+    /// <param name="dependencyType">The port type resolved from the mediation scope.</param>
+    /// <param name="factory">The factory that creates default port instances.</param>
+    /// <param name="lifetime">The instance lifetime for factory-created instances.</param>
+    /// <returns>A descriptor marked as a LiteBus default port registration.</returns>
+    public static DependencyDescriptor ForDefaultPort(
+        Type dependencyType,
+        Func<IServiceProvider, object> factory,
+        InstanceLifetime lifetime = InstanceLifetime.Transient)
+    {
+        return new DependencyDescriptor(dependencyType, factory, lifetime, false, true);
+    }
+
+    /// <summary>
+    ///     Returns a copy of the current descriptor marked as a LiteBus default port registration.
+    /// </summary>
+    /// <returns>
+    ///     The current instance when it is already marked; otherwise, a new descriptor with the same
+    ///     binding and collection metadata marked as a LiteBus default port registration.
+    /// </returns>
+    public DependencyDescriptor AsLiteBusDefault()
+    {
+        if (IsLiteBusDefault)
+        {
+            return this;
+        }
+
+        if (ImplementationType is not null)
+        {
+            return new DependencyDescriptor(
+                DependencyType,
+                ImplementationType,
+                Lifetime,
+                IsCollectionRegistration,
+                true);
+        }
+
+        if (Instance is not null)
+        {
+            return new DependencyDescriptor(DependencyType, Instance, IsCollectionRegistration, true);
+        }
+
+        return new DependencyDescriptor(
+            DependencyType,
+            Factory!,
+            Lifetime,
+            IsCollectionRegistration,
+            true);
     }
 
     /// <summary>

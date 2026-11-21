@@ -141,6 +141,20 @@ public interface IMessageDependencies
     IReadOnlyList<IFaultRefusalClassifier> FaultRefusalClassifiers => [];
 
     /// <summary>
+    ///     Gets the refusal exception translators consulted when a stage raises a fault the classifiers left
+    ///     unrecognized, in registration order.
+    /// </summary>
+    /// <value>
+    ///     The translators, first match wins. Empty when none were registered, in which case every fault keeps the
+    ///     behavior it had before translators existed.
+    /// </value>
+    /// <remarks>
+    ///     The default implementation answers empty, so an implementation that predates translators keeps working
+    ///     without one. LiteBus resolves the registered translators from the dispatch scope.
+    /// </remarks>
+    IReadOnlyList<IRefusalExceptionTranslator> RefusalExceptionTranslators => [];
+
+    /// <summary>
     ///     Gets a lazy initialized read-only collection of every completion handler that observes this message, ordered
     ///     by priority. These handlers are invoked once the mediation ends, on every path, allowing the outcome of the
     ///     operation to be observed and recorded.

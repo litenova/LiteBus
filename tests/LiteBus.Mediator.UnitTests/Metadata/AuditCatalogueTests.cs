@@ -1,3 +1,4 @@
+using LiteBus.Auditing.Abstractions;
 using LiteBus.Commands;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Messaging;
@@ -100,7 +101,7 @@ public sealed class AuditCatalogueTests : LiteBusTestBase
             .Select(entry =>
             {
                 entry.Metadata.TryGet<RequiredAuthorization>(out var permission);
-                return (entry.MessageType.Name, Permission: permission!.Name, entry.Audit?.Action);
+                return (entry.MessageType.Name, Permission: permission!.Name, entry.GetAudit()?.Action);
             })
             .ToList();
 

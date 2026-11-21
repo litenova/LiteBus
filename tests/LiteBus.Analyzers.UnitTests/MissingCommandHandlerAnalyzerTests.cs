@@ -1,5 +1,6 @@
 using LiteBus.Commands.Abstractions;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Auditing.Abstractions;
 using Microsoft.CodeAnalysis;
 
 namespace LiteBus.Analyzers.UnitTests;
@@ -336,5 +337,47 @@ public sealed class MissingCommandHandlerAnalyzerTests
             commandsReference,
             messagingReference,
             referencedProject);
+    }
+
+    /// <summary>
+    ///     Verifies that a command without a handler in an assembly that names another registering assembly produces no diagnostic.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task CommandInAssemblyNamingAnotherAssembly_ProducesNoDiagnostic()
+    {
+        const string source = """
+                              using LiteBus.Commands.Abstractions;
+                              using LiteBus.Messaging.Abstractions;
+
+                              [assembly: MessageContractsRegisteredIn("LedgerModule")]
+
+                              public sealed record CreateUserCommand(string Name) : ICommand;
+                              """;
+
+        return AnalyzerTest.VerifyNoDiagnosticsAsync<MissingCommandHandlerAnalyzer>(source);
+    }
+
+    /// <summary>
+    ///     Verifies that a command without a handler in an assembly that names its own compilation still produces LB1008.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task CommandInAssemblyNamingCurrentCompilation_ProducesDiagnostic()
+    {
+        const string source = """
+                              using LiteBus.Commands.Abstractions;
+                              using LiteBus.Messaging.Abstractions;
+
+                              [assembly: MessageContractsRegisteredIn("TestProject")]
+
+                              public sealed record {|#0:CreateUserCommand|}(string Name) : ICommand;
+                              """;
+
+        return AnalyzerTest.VerifyDiagnosticAsync<MissingCommandHandlerAnalyzer>(
+            source,
+            DiagnosticDescriptors.MissingCommandHandler,
+            0,
+            "CreateUserCommand");
     }
 }

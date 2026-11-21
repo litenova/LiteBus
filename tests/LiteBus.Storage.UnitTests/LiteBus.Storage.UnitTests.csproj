@@ -1,5 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+    <PropertyGroup>
+        <!-- Marten is not strong-named. This project is signed like every other, and CS8002 is the only consequence:
+             a signed assembly referencing an unsigned one. -->
+        <NoWarn>$(NoWarn);CS8002</NoWarn>
+    </PropertyGroup>
+
     <ItemGroup>
         <PackageReference Include="AwesomeAssertions"/>
         <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory"/>
@@ -14,7 +20,12 @@
     </ItemGroup>
 
     <ItemGroup>
+        <ProjectReference Include="..\..\src\LiteBus.Auditing.Abstractions\LiteBus.Auditing.Abstractions.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Commands\LiteBus.Commands.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Commands.Storage.Marten\LiteBus.Commands.Storage.Marten.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Outbox.Storage.Marten\LiteBus.Outbox.Storage.Marten.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Auditing.Storage.Marten\LiteBus.Auditing.Storage.Marten.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Auditing\LiteBus.Auditing.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Extensions.Microsoft.DependencyInjection\LiteBus.Extensions.Microsoft.DependencyInjection.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Inbox\LiteBus.Inbox.csproj"/>
         <ProjectReference Include="..\..\src\LiteBus.Inbox.Dispatch.InProcess\LiteBus.Inbox.Dispatch.InProcess.csproj"/>

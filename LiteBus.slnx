@@ -35,7 +35,9 @@
         <Project Path="src/LiteBus.Saga/LiteBus.Saga.csproj"/>
         <Project Path="src/LiteBus.Saga.InboxIntegration/LiteBus.Saga.InboxIntegration.csproj"/>
         <Project Path="src/LiteBus.Saga.Storage.PostgreSql/LiteBus.Saga.Storage.PostgreSql.csproj"/>
+        <Project Path="src/LiteBus.Saga.Storage.Marten/LiteBus.Saga.Storage.Marten.csproj"/>
         <Project Path="src/LiteBus.Extensions.AspNetCore/LiteBus.Extensions.AspNetCore.csproj"/>
+        <Project Path="src/LiteBus.Extensions.AspNetCore.OpenApi/LiteBus.Extensions.AspNetCore.OpenApi.csproj"/>
         <Project
                 Path="src/LiteBus.Extensions.Diagnostics.HealthChecks/LiteBus.Extensions.Diagnostics.HealthChecks.csproj"/>
         <Project Path="src/LiteBus.Analyzers/LiteBus.Analyzers.csproj"/>
@@ -45,6 +47,17 @@
                 Path="src/LiteBus.Commands.Extensions.Microsoft.DependencyInjection/LiteBus.Commands.Extensions.Microsoft.DependencyInjection.csproj"/>
         <Project Path="src/LiteBus.Commands.Recurring/LiteBus.Commands.Recurring.csproj"/>
         <Project Path="src/LiteBus.Commands.Recurring.Storage.PostgreSql/LiteBus.Commands.Recurring.Storage.PostgreSql.csproj"/>
+        <Project Path="src/LiteBus.Auditing/LiteBus.Auditing.csproj"/>
+        <Project Path="src/LiteBus.Auditing.Abstractions/LiteBus.Auditing.Abstractions.csproj"/>
+        <Project Path="src/LiteBus.Auditing.Storage.Marten/LiteBus.Auditing.Storage.Marten.csproj"/>
+        <Project Path="src/LiteBus.Auditing.Storage.PostgreSql/LiteBus.Auditing.Storage.PostgreSql.csproj"/>
+        <Project Path="src/LiteBus.Auditing.Storage.EntityFrameworkCore/LiteBus.Auditing.Storage.EntityFrameworkCore.csproj"/>
+        <Project Path="src/LiteBus.Auditing.Anchors.S3/LiteBus.Auditing.Anchors.S3.csproj"/>
+        <Project Path="src/LiteBus.Auditing.Anchors.AzureBlob/LiteBus.Auditing.Anchors.AzureBlob.csproj"/>
+        <Project Path="src/LiteBus.Auditing.Anchors.Timestamping/LiteBus.Auditing.Anchors.Timestamping.csproj"/>
+        <Project Path="src/LiteBus.Auditing.Extensions.Microsoft.DependencyInjection/LiteBus.Auditing.Extensions.Microsoft.DependencyInjection.csproj"/>
+        <Project Path="src/LiteBus.Auditing.Extensions.Autofac/LiteBus.Auditing.Extensions.Autofac.csproj"/>
+        <Project Path="src/LiteBus.Commands.Recurring.Schedules.Cron/LiteBus.Commands.Recurring.Schedules.Cron.csproj"/>
         <Project Path="src/LiteBus.Commands.Storage.Marten/LiteBus.Commands.Storage.Marten.csproj"/>
         <Project Path="src/LiteBus.Commands.Storage.PostgreSql/LiteBus.Commands.Storage.PostgreSql.csproj"/>
         <Project Path="src/LiteBus.Commands/LiteBus.Commands.csproj"/>
@@ -57,6 +70,8 @@
                 Path="src/LiteBus.Extensions.Microsoft.DependencyInjection/LiteBus.Extensions.Microsoft.DependencyInjection.csproj"/>
         <Project Path="src/LiteBus.Inbox.Extensions.OpenTelemetry/LiteBus.Inbox.Extensions.OpenTelemetry.csproj"/>
         <Project Path="src/LiteBus.Outbox.Extensions.OpenTelemetry/LiteBus.Outbox.Extensions.OpenTelemetry.csproj"/>
+        <Project
+                Path="src/LiteBus.Auditing.Extensions.OpenTelemetry/LiteBus.Auditing.Extensions.OpenTelemetry.csproj"/>
         <Project
                 Path="src/LiteBus.Transport.Extensions.OpenTelemetry/LiteBus.Transport.Extensions.OpenTelemetry.csproj"/>
         <Project
@@ -132,11 +147,13 @@
         <File Path="samples/.editorconfig"/>
         <File Path="samples/Directory.Build.props"/>
         <Project Path="samples/LiteBus.Sample/LiteBus.Sample.csproj"/>
+        <Project Path="samples/LiteBus.Samples.Documentation/LiteBus.Samples.Documentation.csproj"/>
     </Folder>
     <Folder Name="/tests/">
         <File Path="tests/Directory.Build.props"/>
         <File Path="tests/Directory.Packages.props"/>
         <Project Path="tests/LiteBus.Analyzers.UnitTests/LiteBus.Analyzers.UnitTests.csproj"/>
+        <Project Path="tests/LiteBus.Auditing.UnitTests/LiteBus.Auditing.UnitTests.csproj"/>
         <Project Path="tests/LiteBus.Durable.IntegrationTests/LiteBus.Durable.IntegrationTests.csproj"/>
         <Project Path="tests/LiteBus.Enterprise.UnitTests/LiteBus.Enterprise.UnitTests.csproj"/>
         <Project Path="tests/LiteBus.Extensions.IntegrationTests/LiteBus.Extensions.IntegrationTests.csproj"/>

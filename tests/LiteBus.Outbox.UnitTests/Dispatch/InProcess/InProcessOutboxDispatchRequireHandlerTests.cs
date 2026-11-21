@@ -44,9 +44,9 @@ public sealed class InProcessOutboxDispatchRequireHandlerTests : LiteBusTestBase
     }
 
     [Fact]
-    public async Task Turning_RequireHandler_off_restores_the_silent_no_op()
+    public async Task Allowing_envelopes_without_handler_restores_the_silent_no_op()
     {
-        var serviceProvider = BuildProvider(dispatch => dispatch.RequireHandler = false);
+        var serviceProvider = BuildProvider(dispatch => dispatch.AllowEnvelopesWithoutHandler("events without a subscriber are expected in this test"));
 
         var outbox = serviceProvider.GetRequiredService<IOutbox>();
         var processor = serviceProvider.GetRequiredService<IOutboxProcessor>();

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Abstractions.Processing;
+using LiteBus.Outbox.DomainEvents;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Diagnostics;
 using LiteBus.Runtime.Abstractions.Exceptions;
@@ -24,6 +25,36 @@ public sealed class OutboxModuleBuilder
     ///     Consumer-owned diagnostic probes registered for this outbox.
     /// </summary>
     private readonly List<DiagnosticCheckRegistration> _diagnosticChecks = [];
+
+    /// <summary>
+    ///     The configured domain event accessor pairs in registration order.
+    /// </summary>
+    private readonly List<DomainEventAccessor> _domainEventAccessors = [];
+
+    /// <summary>
+    ///     The translator registrations by closed domain event type.
+    /// </summary>
+    private readonly Dictionary<Type, DomainEventTranslatorRegistration> _domainEventTranslators = [];
+
+    /// <summary>
+    ///     The domain event types dropped without staging.
+    /// </summary>
+    private readonly HashSet<Type> _ignoredDomainEvents = [];
+
+    /// <summary>
+    ///     The domain event types published in process after the commit.
+    /// </summary>
+    private readonly HashSet<Type> _inProcessDomainEvents = [];
+
+    /// <summary>
+    ///     The domain event types staged unchanged.
+    /// </summary>
+    private readonly HashSet<Type> _stagedDomainEvents = [];
+
+    /// <summary>
+    ///     What the staging handler does with a domain event type that has no registered decision.
+    /// </summary>
+    private UndecidedDomainEventPolicy _undecidedDomainEventPolicy = UndecidedDomainEventPolicy.StageAsIs;
 
     /// <summary>
     ///     The configured dispatcher sub-module, if any.
@@ -69,6 +100,11 @@ public sealed class OutboxModuleBuilder
     ///     Whether <see cref="UseAmbientTrace" /> was called.
     /// </summary>
     private bool _useAmbientTrace;
+
+    /// <summary>
+    ///     Whether <see cref="UseAmbientTenant" /> was called.
+    /// </summary>
+    private bool _useAmbientTenant;
 
     /// <summary>
     ///     Whether <see cref="EnablePerHandlerDelivery" /> was called.
@@ -283,13 +319,372 @@ public sealed class OutboxModuleBuilder
     ///         Core interceptor non-generic adapter over <see cref="ITransactionalOutbox{TContext}" />; the staging handler
     ///         resolves it lazily and only when the drain is non-empty, so mediations that collect nothing never touch it.
     ///         When <see cref="UseAmbientTrace" /> is also enabled, staged envelopes stamp
-    ///         <see cref="LiteBus.Messaging.Abstractions.DurableMessaging.MessageTrace.FromAmbient" />.
+    ///         <see cref="LiteBus.Messaging.Abstractions.DurableMessaging.MessageTrace.FromAmbient" />. When
+    ///         <see cref="UseAmbientTenant" /> is also enabled, staged envelopes stamp the ambient execution identity
+    ///         tenant.
     ///     </para>
     /// </remarks>
     public OutboxModuleBuilder StageCollectedEvents()
     {
         _stageCollectedEvents = true;
         return this;
+    }
+
+    /// <summary>
+    ///     Configures which tracked entities the storage harvesters read when they stage domain events.
+    /// </summary>
+    /// <typeparam name="TAggregate">The aggregate type the accessors read.</typeparam>
+    /// <param name="events">Reads the buffered domain events of one aggregate instance.</param>
+    /// <param name="clear">Removes the buffered domain events of one aggregate instance after harvesting.</param>
+    /// <returns>The current builder.</returns>
+    /// <remarks>
+    ///     <para>
+    ///         Aggregates that implement <see cref="IHasDomainEvents" /> are harvested by default once a storage
+    ///         harvester is registered, without calling this method. Call it for aggregate shapes with their own event
+    ///         storage, so the harvesters can read and clear them.
+    ///     </para>
+    ///     <para>
+    ///         Registering the same aggregate type twice replaces the previous pair, so repeated composition keeps the
+    ///         latest configuration. A configured accessor wins over the <see cref="IHasDomainEvents" /> default for
+    ///         its aggregate type.
+    ///     </para>
+    /// </remarks>
+    public OutboxModuleBuilder HarvestDomainEvents<TAggregate>(Func<TAggregate, IEnumerable<object>> events, Action<TAggregate> clear)
+        where TAggregate : class
+    {
+        ArgumentNullException.ThrowIfNull(events);
+        ArgumentNullException.ThrowIfNull(clear);
+
+        var accessor = DomainEventAccessor.Create(events, clear);
+
+        for (var index = 0; index < _domainEventAccessors.Count; index++)
+        {
+            if (_domainEventAccessors[index].AggregateType == typeof(TAggregate))
+            {
+                _domainEventAccessors[index] = accessor;
+                return this;
+            }
+        }
+
+        _domainEventAccessors.Add(accessor);
+        return this;
+    }
+
+    /// <summary>
+    ///     Configures which tracked entities the storage harvesters read when they stage domain events, for an aggregate type given as a <see cref="Type" />.
+    /// </summary>
+    /// <param name="aggregateType">The aggregate type the accessors read, either closed or an open generic definition such as <c>typeof(AggregateRoot&lt;&gt;)</c>.</param>
+    /// <param name="events">Reads the buffered domain events of one aggregate instance.</param>
+    /// <param name="clear">Removes the buffered domain events of one aggregate instance after harvesting.</param>
+    /// <returns>The current builder.</returns>
+    /// <remarks>
+    ///     <para>
+    ///         A closed type behaves like the generic overload: the entity type itself and anything derived from or
+    ///         implementing it harvest through the accessors. An open generic definition matches every closed entity
+    ///         built on it, found up the base-type chain and among the implemented interfaces, so one registration
+    ///         covers every aggregate built on the same base without a marker interface.
+    ///     </para>
+    ///     <para>
+    ///         Registering the same aggregate type twice replaces the previous pair, so repeated composition keeps the
+    ///         latest configuration.
+    ///     </para>
+    /// </remarks>
+    public OutboxModuleBuilder HarvestDomainEvents(Type aggregateType, Func<object, IEnumerable<object>> events, Action<object> clear)
+    {
+        ArgumentNullException.ThrowIfNull(aggregateType);
+        ArgumentNullException.ThrowIfNull(events);
+        ArgumentNullException.ThrowIfNull(clear);
+
+        if (!aggregateType.IsClass && !aggregateType.IsInterface)
+        {
+            throw new ArgumentException(
+                $"Domain event harvesting must use a class or interface aggregate type, but '{aggregateType.FullName}' is neither.",
+                nameof(aggregateType));
+        }
+
+        var accessor = DomainEventAccessor.Create(aggregateType, events, clear);
+
+        for (var index = 0; index < _domainEventAccessors.Count; index++)
+        {
+            if (_domainEventAccessors[index].AggregateType == aggregateType)
+            {
+                _domainEventAccessors[index] = accessor;
+                return this;
+            }
+        }
+
+        _domainEventAccessors.Add(accessor);
+        return this;
+    }
+
+    /// <summary>
+    ///     Configures which tracked entities the storage harvesters read when they stage domain events, for aggregates with no common base selected by a predicate.
+    /// </summary>
+    /// <param name="predicate">Tests whether the accessors read one tracked entity type.</param>
+    /// <param name="events">Reads the buffered domain events of one aggregate instance.</param>
+    /// <param name="clear">Removes the buffered domain events of one aggregate instance after harvesting.</param>
+    /// <returns>The current builder.</returns>
+    /// <remarks>
+    ///     <para>
+    ///         Type registrations and predicates share one ordered list. An exact type match wins first; otherwise the
+    ///         first registration in order whose test matches is used. Register broad conventions after the specific
+    ///         types they must not shadow.
+    ///     </para>
+    ///     <para>
+    ///         Registering the same predicate instance twice replaces the previous pair. Different predicates
+    ///         accumulate, and the first match in registration order wins.
+    ///     </para>
+    /// </remarks>
+    public OutboxModuleBuilder HarvestDomainEventsWhere(Func<Type, bool> predicate, Func<object, IEnumerable<object>> events, Action<object> clear)
+    {
+        ArgumentNullException.ThrowIfNull(predicate);
+        ArgumentNullException.ThrowIfNull(events);
+        ArgumentNullException.ThrowIfNull(clear);
+
+        var accessor = DomainEventAccessor.CreateWhere(predicate, events, clear);
+
+        for (var index = 0; index < _domainEventAccessors.Count; index++)
+        {
+            var registered = _domainEventAccessors[index];
+
+            if (registered.AggregateType is null && registered.IsMatch == predicate)
+            {
+                _domainEventAccessors[index] = accessor;
+                return this;
+            }
+        }
+
+        _domainEventAccessors.Add(accessor);
+        return this;
+    }
+
+    /// <summary>
+    ///     Translates one domain event type into the messages to stage, through a pure function.
+    /// </summary>
+    /// <typeparam name="TEvent">The closed domain event type this translation handles.</typeparam>
+    /// <param name="translate">Maps one domain event to the messages to stage; an empty list stages nothing.</param>
+    /// <returns>The current builder.</returns>
+    /// <remarks>
+    ///     <para>
+    ///         Translation runs inside the staging completion handler, before the unit of work commits and inside the
+    ///         transaction's scope. Translated messages stage through the transactional outbox like collected events;
+    ///         they are published messages, so they are staged directly without a further decision.
+    ///     </para>
+    ///     <para>
+    ///         A domain event type declares one decision. Registering the same function twice is a no-op; a different
+    ///         decision for the same event type fails composition and names both.
+    ///     </para>
+    /// </remarks>
+    public OutboxModuleBuilder TranslateDomainEvent<TEvent>(Func<TEvent, IReadOnlyList<object>> translate)
+        where TEvent : notnull
+    {
+        ArgumentNullException.ThrowIfNull(translate);
+
+        var registration = DomainEventTranslatorRegistration.ForFunction(translate);
+
+        ThrowIfDomainEventDecided(typeof(TEvent), registration.Description, null, translate);
+
+        _domainEventTranslators[typeof(TEvent)] = registration;
+        return this;
+    }
+
+    /// <summary>
+    ///     Translates one domain event type into the messages to stage, through a translator resolved from the dispatch scope.
+    /// </summary>
+    /// <typeparam name="TEvent">The closed domain event type this translation handles.</typeparam>
+    /// <typeparam name="TTranslator">The translator type resolved from the dispatch scope.</typeparam>
+    /// <returns>The current builder.</returns>
+    /// <remarks>
+    ///     <para>
+    ///         Translation runs inside the staging completion handler, before the unit of work commits and inside the
+    ///         transaction's scope, with scoped services available through
+    ///         <see cref="DomainEventTranslationContext.ServiceProvider" />. Translated messages stage through the
+    ///         transactional outbox like collected events; they are published messages, so they are staged directly
+    ///         without a further decision.
+    ///     </para>
+    ///     <para>
+    ///         A domain event type declares one decision. Registering the same translator twice is a no-op; a different
+    ///         decision for the same event type fails composition and names both.
+    ///     </para>
+    /// </remarks>
+    public OutboxModuleBuilder TranslateDomainEvent<TEvent, TTranslator>()
+        where TEvent : notnull
+        where TTranslator : class, IDomainEventTranslator<TEvent>
+    {
+        var registration = DomainEventTranslatorRegistration.ForTranslator<TEvent, TTranslator>();
+
+        ThrowIfDomainEventDecided(typeof(TEvent), registration.Description, typeof(TTranslator));
+
+        _domainEventTranslators[typeof(TEvent)] = registration;
+        return this;
+    }
+
+    /// <summary>
+    ///     Drops one domain event type without staging it.
+    /// </summary>
+    /// <typeparam name="TEvent">The closed domain event type to drop.</typeparam>
+    /// <returns>The current builder.</returns>
+    /// <remarks>
+    ///     <para>
+    ///         Ignored events never reach the transactional outbox and need no contract registration. Use this for
+    ///         events consumed inside the mediation, such as by a post-handler, that must never be published.
+    ///     </para>
+    ///     <para>
+    ///         A domain event type declares one decision. Ignoring the same event type twice is a no-op; a different
+    ///         decision for the same event type fails composition and names both.
+    ///     </para>
+    /// </remarks>
+    public OutboxModuleBuilder IgnoreDomainEvent<TEvent>()
+        where TEvent : notnull
+    {
+        var eventType = DomainEventTranslatorRegistration.ThrowIfOpenEventType(typeof(TEvent));
+
+        ThrowIfDomainEventDecided(eventType, $"IgnoreDomainEvent<{eventType.FullName}>");
+
+        _ignoredDomainEvents.Add(eventType);
+        return this;
+    }
+
+    /// <summary>
+    ///     Publishes one domain event type in process through the event mediator after the commit, as a root mediation with a cause.
+    /// </summary>
+    /// <typeparam name="TEvent">The closed domain event type to publish in process.</typeparam>
+    /// <returns>The current builder.</returns>
+    /// <remarks>
+    ///     <para>
+    ///         The event is recorded during staging and published after the unit of work commits, as a root mediation
+    ///         whose cause identifies the domain event. A mediation with no unit of work has no commit to wait for, so
+    ///         the event publishes when staging completes instead. There is deliberately no pre-commit in-process
+    ///         dispatch: reactions that must join the transaction already exist as post-handlers.
+    ///     </para>
+    ///     <para>
+    ///         A domain event type declares one decision. Publishing the same event type in process twice is a no-op;
+    ///         a different decision for the same event type fails composition and names both.
+    ///     </para>
+    /// </remarks>
+    public OutboxModuleBuilder PublishDomainEventInProcess<TEvent>()
+        where TEvent : notnull
+    {
+        var eventType = DomainEventTranslatorRegistration.ThrowIfOpenEventType(typeof(TEvent));
+
+        ThrowIfDomainEventDecided(eventType, $"PublishDomainEventInProcess<{eventType.FullName}>");
+
+        _inProcessDomainEvents.Add(eventType);
+        return this;
+    }
+
+    /// <summary>
+    ///     Stages one domain event type unchanged, in its collected shape.
+    /// </summary>
+    /// <typeparam name="TEvent">The closed domain event type to stage unchanged.</typeparam>
+    /// <returns>The current builder.</returns>
+    /// <remarks>
+    ///     <para>
+    ///         Staged events reach the transactional outbox in their collected shape, so the event type needs a
+    ///         contract registration. Use this for events whose collected shape is already the published contract,
+    ///         so the decision reads as intent instead of an identity translation. A staged event type counts as
+    ///         decided under <see cref="RequireDomainEventDecision" />.
+    ///     </para>
+    ///     <para>
+    ///         A domain event type declares one decision. Staging the same event type twice is a no-op; a different
+    ///         decision for the same event type fails composition and names both.
+    ///     </para>
+    /// </remarks>
+    public OutboxModuleBuilder StageDomainEvent<TEvent>()
+        where TEvent : notnull
+    {
+        var eventType = DomainEventTranslatorRegistration.ThrowIfOpenEventType(typeof(TEvent));
+
+        ThrowIfDomainEventDecided(eventType, $"StageDomainEvent<{eventType.FullName}>");
+
+        _stagedDomainEvents.Add(eventType);
+        return this;
+    }
+
+    /// <summary>
+    ///     Fails staging before the commit when a drained domain event has no registered decision.
+    /// </summary>
+    /// <returns>The current builder.</returns>
+    /// <remarks>
+    ///     Harvested types are known only at run time, so a composition check cannot enumerate them. The staging
+    ///     handler throws instead, before the commit, naming the event type and the missing decision, so the business
+    ///     write never commits without its declared consequences.
+    /// </remarks>
+    public OutboxModuleBuilder RequireDomainEventDecision()
+    {
+        _undecidedDomainEventPolicy = UndecidedDomainEventPolicy.Throw;
+        return this;
+    }
+
+    /// <summary>
+    ///     Throws when one domain event type already declares a different decision.
+    /// </summary>
+    /// <param name="eventType">The closed domain event type one builder call registers.</param>
+    /// <param name="decision">The builder call shape of the new decision.</param>
+    /// <param name="translatorType">The translator type of the new decision, or <see langword="null" /> when it translates through a function or is not a translation.</param>
+    /// <param name="translateFunction">The translation function of the new decision, or <see langword="null" /> when it translates through a type or is not a translation.</param>
+    /// <remarks>
+    ///     An identical repeat is a no-op and returns silently. A conflicting repeat fails composition and names both
+    ///     decisions. Two translation functions are identical only when they are the same delegate instance; the
+    ///     library cannot prove two different instances translate the same way, so they conflict.
+    /// </remarks>
+    private void ThrowIfDomainEventDecided(Type eventType, string decision, Type? translatorType = null, Delegate? translateFunction = null)
+    {
+        if (_domainEventTranslators.TryGetValue(eventType, out var translator))
+        {
+            if (string.Equals(translator.Description, decision, StringComparison.Ordinal) &&
+                translator.TranslatorType == translatorType &&
+                Equals(translator.TranslateFunction, translateFunction))
+            {
+                return;
+            }
+
+            throw new LiteBusConfigurationException(
+                $"Domain event '{eventType.FullName}' already declares {translator.Description}, so {decision} conflicts with it. " +
+                "Declare one decision per domain event type: translate, ignore, publish in process, or stage.");
+        }
+
+        if (_ignoredDomainEvents.Contains(eventType))
+        {
+            var existing = $"IgnoreDomainEvent<{eventType.FullName}>";
+
+            if (string.Equals(existing, decision, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            throw new LiteBusConfigurationException(
+                $"Domain event '{eventType.FullName}' already declares {existing}, so {decision} conflicts with it. " +
+                "Declare one decision per domain event type: translate, ignore, publish in process, or stage.");
+        }
+
+        if (_inProcessDomainEvents.Contains(eventType))
+        {
+            var existing = $"PublishDomainEventInProcess<{eventType.FullName}>";
+
+            if (string.Equals(existing, decision, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            throw new LiteBusConfigurationException(
+                $"Domain event '{eventType.FullName}' already declares {existing}, so {decision} conflicts with it. " +
+                "Declare one decision per domain event type: translate, ignore, publish in process, or stage.");
+        }
+
+        if (_stagedDomainEvents.Contains(eventType))
+        {
+            var existing = $"StageDomainEvent<{eventType.FullName}>";
+
+            if (string.Equals(existing, decision, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            throw new LiteBusConfigurationException(
+                $"Domain event '{eventType.FullName}' already declares {existing}, so {decision} conflicts with it. " +
+                "Declare one decision per domain event type: translate, ignore, publish in process, or stage.");
+        }
     }
 
     /// <summary>
@@ -308,6 +703,26 @@ public sealed class OutboxModuleBuilder
     public OutboxModuleBuilder UseAmbientTrace()
     {
         _useAmbientTrace = true;
+        return this;
+    }
+
+    /// <summary>
+    ///     Stamps the ambient execution identity tenant onto enqueued envelopes whose items carry no explicit tenant.
+    /// </summary>
+    /// <returns>The current builder.</returns>
+    /// <remarks>
+    ///     <para>
+    ///         When an item's tenant is
+    ///         <see cref="LiteBus.Messaging.Abstractions.DurableMessaging.TenantScope.Unscoped" />, the envelope factory
+    ///         stores the tenant of <see cref="AmbientExecutionContext" /> instead. An explicit item tenant in
+    ///         <see cref="LiteBus.Messaging.Abstractions.DurableMessaging.TenantScope.Isolated" /> always wins over the
+    ///         ambient value, and outside a mediation the ambient read yields none, so the envelope is identical to one
+    ///         enqueued without this option.
+    ///     </para>
+    /// </remarks>
+    public OutboxModuleBuilder UseAmbientTenant()
+    {
+        _useAmbientTenant = true;
         return this;
     }
 
@@ -407,7 +822,7 @@ public sealed class OutboxModuleBuilder
     internal IOutboxDispatcherModule? DispatcherModule => _dispatcherModule;
 
     /// <summary>
-    ///     Collects the enqueue options built from the ambient trace and per-handler delivery flags.
+    ///     Collects the enqueue options built from the ambient trace, ambient tenant, and per-handler delivery flags.
     /// </summary>
     /// <returns>The enqueue options the module registers.</returns>
     internal OutboxEnqueueOptions CollectEnqueueOptions()
@@ -415,6 +830,7 @@ public sealed class OutboxModuleBuilder
         return new OutboxEnqueueOptions
         {
             UseAmbientTrace = _useAmbientTrace,
+            UseAmbientTenant = _useAmbientTenant,
             PerHandlerDelivery = _perHandlerDelivery
         };
     }
@@ -440,6 +856,48 @@ public sealed class OutboxModuleBuilder
     internal IReadOnlyList<DiagnosticCheckRegistration> CollectDiagnosticChecks()
     {
         return _diagnosticChecks;
+    }
+
+    /// <summary>
+    ///     Collects the configured domain event accessor pairs in registration order.
+    /// </summary>
+    /// <returns>The accessor pairs declared on this builder.</returns>
+    internal IReadOnlyList<DomainEventAccessor> CollectDomainEventAccessors()
+    {
+        return [.. _domainEventAccessors];
+    }
+
+    /// <summary>
+    ///     Collects the per-type domain event decisions declared on this builder.
+    /// </summary>
+    /// <returns>The decisions the staging completion handler reads.</returns>
+    internal DomainEventDecisions CollectDomainEventDecisions()
+    {
+        return new DomainEventDecisions(
+            new Dictionary<Type, DomainEventTranslatorRegistration>(_domainEventTranslators),
+            new HashSet<Type>(_ignoredDomainEvents),
+            new HashSet<Type>(_inProcessDomainEvents),
+            new HashSet<Type>(_stagedDomainEvents),
+            _undecidedDomainEventPolicy);
+    }
+
+    /// <summary>
+    ///     Collects the translator types declared on this builder, so the outbox module can register them in dependency injection.
+    /// </summary>
+    /// <returns>The translator types declared through the translator overload, in no particular order.</returns>
+    internal IReadOnlyList<Type> CollectDomainEventTranslatorTypes()
+    {
+        List<Type> translatorTypes = [];
+
+        foreach (var registration in _domainEventTranslators.Values)
+        {
+            if (registration.TranslatorType is not null)
+            {
+                translatorTypes.Add(registration.TranslatorType);
+            }
+        }
+
+        return translatorTypes;
     }
 
     /// <summary>

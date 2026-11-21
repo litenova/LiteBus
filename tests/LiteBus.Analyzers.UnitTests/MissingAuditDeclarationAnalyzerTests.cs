@@ -1,3 +1,5 @@
+using LiteBus.Auditing.Abstractions;
+
 namespace LiteBus.Analyzers.UnitTests;
 
 /// <summary>
@@ -15,6 +17,7 @@ public sealed class MissingAuditDeclarationAnalyzerTests
         const string source = """
                               using LiteBus.Commands.Abstractions;
                               using LiteBus.Messaging.Abstractions;
+                              using LiteBus.Auditing.Abstractions;
 
                               [Audited("users.create-user")]
                               public sealed record CreateUserCommand(string Name) : ICommand;
@@ -33,6 +36,7 @@ public sealed class MissingAuditDeclarationAnalyzerTests
         const string source = """
                               using LiteBus.Commands.Abstractions;
                               using LiteBus.Messaging.Abstractions;
+                              using LiteBus.Auditing.Abstractions;
 
                               [AuditExempt("no sensitive data is touched")]
                               public sealed record PingCommand : ICommand;
@@ -51,6 +55,7 @@ public sealed class MissingAuditDeclarationAnalyzerTests
         const string source = """
                               using LiteBus.Commands.Abstractions;
                               using LiteBus.Messaging.Abstractions;
+                              using LiteBus.Auditing.Abstractions;
 
                               public sealed record ShipOrderCommand : ICommand;
 
@@ -78,6 +83,7 @@ public sealed class MissingAuditDeclarationAnalyzerTests
         const string source = """
                               using LiteBus.Commands.Abstractions;
                               using LiteBus.Messaging.Abstractions;
+                              using LiteBus.Auditing.Abstractions;
 
                               public interface IBillingCommand;
 
@@ -102,6 +108,7 @@ public sealed class MissingAuditDeclarationAnalyzerTests
         const string source = """
                               using LiteBus.Commands.Abstractions;
                               using LiteBus.Messaging.Abstractions;
+                              using LiteBus.Auditing.Abstractions;
 
                               [DeclarationExempt(typeof(AuditDeclaration), "a health probe touches no customer data")]
                               public sealed record PingCommand : ICommand;
@@ -165,6 +172,7 @@ public sealed class MissingAuditDeclarationAnalyzerTests
         const string source = """
                               using LiteBus.Commands.Abstractions;
                               using LiteBus.Messaging.Abstractions;
+                              using LiteBus.Auditing.Abstractions;
 
                               public sealed record ShipOrderCommand : ICommand;
 
@@ -194,6 +202,7 @@ public sealed class MissingAuditDeclarationAnalyzerTests
         const string source = """
                               using LiteBus.Commands.Abstractions;
                               using LiteBus.Messaging.Abstractions;
+                              using LiteBus.Auditing.Abstractions;
 
                               public sealed record PingCommand : ICommand;
 
@@ -219,6 +228,7 @@ public sealed class MissingAuditDeclarationAnalyzerTests
         const string source = """
                               using LiteBus.Commands.Abstractions;
                               using LiteBus.Messaging.Abstractions;
+                              using LiteBus.Auditing.Abstractions;
 
                               public interface IBillingCommand;
 
@@ -251,6 +261,7 @@ public sealed class MissingAuditDeclarationAnalyzerTests
         const string source = """
                               using LiteBus.Commands.Abstractions;
                               using LiteBus.Messaging.Abstractions;
+                              using LiteBus.Auditing.Abstractions;
 
                               public sealed record ArchiveOrderCommand : ICommand;
 
@@ -288,6 +299,7 @@ public sealed class MissingAuditDeclarationAnalyzerTests
         const string source = """
                               using LiteBus.Commands.Abstractions;
                               using LiteBus.Messaging.Abstractions;
+                              using LiteBus.Auditing.Abstractions;
 
                               public sealed record RequiredPermission(string Name);
 

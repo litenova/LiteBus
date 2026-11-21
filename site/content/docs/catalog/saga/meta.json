@@ -5,6 +5,7 @@
                   "correlation-and-tenancy",
                   "handler-context",
                   "in-memory-store",
+                  "marten-storage",
                   "inbox-command-scope",
                   "inbox-integration",
                   "optimistic-concurrency",

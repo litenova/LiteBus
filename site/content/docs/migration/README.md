@@ -8,6 +8,7 @@ LiteBus ships one upgrade guide per major version. Each guide lists the breaking
 
 | Upgrade Path | Changes | Guide |
 | --- | --- | --- |
+| v7.x to v8.0 | Every mediation carries an execution identity (principal and tenant). Tenancy is a declared position with ambient propagation, authorization policies compose from combinators, and each assembly contributes configuration through application modules. Audit types move to `...Auditing`, `RequireHandler` becomes an acknowledgement call, and HTTP refusals map through a catalog. | [Migration Guide v8](v8.md) |
 | v6.x to v7.0 | Decision stages run in a fixed order (guards, validators, shortcuts, pre-handlers), followed by a completion stage. Validators return `Validity` instead of throwing. The synchronous handler layer and `Abort` are removed. The PostgreSQL outbox moves to schema version 2 with an automatic upgrade. Kafka, SQS, and AMQP ingress metadata change. | [Migration Guide v7](v7.md) |
 | v5.x to v6.0 | Version 6 adds nested module builders, `AcceptAsync` / `EnqueueAsync` writer calls, and pipelined processors, targets `net10.0` only, and ships new PostgreSQL version 1 schemas. | [Migration Guide v6](v6.md) |
 | v4.x to v5.0 | Explicit inbox and outbox modules with stable contracts and role-split stores replace the attribute-based command inbox. Descriptor and open generic failures now throw typed exceptions. The solution moved to `LiteBus.slnx`. | [Migration Guide v5](v5.md) |
@@ -15,11 +16,12 @@ LiteBus ships one upgrade guide per major version. Each guide lists the breaking
 
 ## Upgrading Across More than One Major Version
 
-Apply the guides in order, oldest first. A v3 application moving to v7 follows the v4 guide, then v5, then v6, then v7. Do not skip an intermediate guide. Each later guide assumes the package and naming changes from earlier versions are already in place.
+Apply the guides in order, oldest first. A v3 application moving to v8 follows the v4 guide, then v5, then v6, then v7, then v8. Do not skip an intermediate guide. Each later guide assumes the package and naming changes from earlier versions are already in place.
 
 ## Next
 
 - New to LiteBus: [Getting Started](../getting-started/README.md) and the [Cheat Sheet](../getting-started/cheat-sheet.md).
+- Upgrading from v7: [Migration Guide v8](v8.md).
 - Upgrading from v6: [Migration Guide v7](v7.md).
 - Upgrading from v5: [Migration Guide v6](v6.md).
 - Coming from MediatR: [LiteBus vs. MediatR](mediatr-differences.md).

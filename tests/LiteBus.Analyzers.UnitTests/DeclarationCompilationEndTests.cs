@@ -35,6 +35,7 @@ public sealed class DeclarationCompilationEndTests
             """
             using LiteBus.Commands.Abstractions;
             using LiteBus.Messaging.Abstractions;
+            using LiteBus.Auditing.Abstractions;
 
             public sealed record RequiredPermission(string Name);
 
@@ -70,6 +71,7 @@ public sealed class DeclarationCompilationEndTests
             """
             using LiteBus.Commands.Abstractions;
             using LiteBus.Messaging.Abstractions;
+            using LiteBus.Auditing.Abstractions;
 
             public sealed class CreateUserCommandDefinition : IMessageDefinition<CreateUserCommand>
             {
@@ -139,6 +141,7 @@ public sealed class DeclarationCompilationEndTests
             """
             using LiteBus.Commands.Abstractions;
             using LiteBus.Messaging.Abstractions;
+            using LiteBus.Auditing.Abstractions;
 
             namespace App
             {
@@ -185,6 +188,7 @@ public sealed class DeclarationCompilationEndTests
             """
             using LiteBus.Commands.Abstractions;
             using LiteBus.Messaging.Abstractions;
+            using LiteBus.Auditing.Abstractions;
 
             namespace App
             {

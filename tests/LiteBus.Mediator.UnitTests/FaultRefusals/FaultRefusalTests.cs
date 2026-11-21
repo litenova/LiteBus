@@ -1,3 +1,4 @@
+using LiteBus.Auditing;
 using LiteBus.Events;
 using LiteBus.Queries;
 using LiteBus.Commands;
@@ -10,6 +11,7 @@ using LiteBus.Messaging.Abstractions;
 using LiteBus.Queries.Abstractions;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using LiteBus.Auditing.Abstractions;
 
 namespace LiteBus.Mediator.UnitTests.FaultRefusals;
 
@@ -39,11 +41,6 @@ public sealed class FaultRefusalTests : LiteBusTestBase
         services.AddSingleton(calls);
         services.AddSingleton(completions);
 
-        if (trail is not null)
-        {
-            services.AddSingleton<IAuditTrail>(trail);
-        }
-
         return services
             .AddLiteBus(registry =>
             {
@@ -51,6 +48,13 @@ public sealed class FaultRefusalTests : LiteBusTestBase
                 {
                     configureMessaging?.Invoke(messaging);
                 });
+
+                if (trail is not null)
+                {
+                    registry.AddAuditing(auditing => auditing
+                        .UseTrailInstance(trail)
+                        .ForCommands());
+                }
 
                 registry.AddCommands(configureCommands);
             })
@@ -611,7 +615,6 @@ public sealed class FaultRefusalTests : LiteBusTestBase
             {
                 commands.Register<AuditedConflictCommand>();
                 commands.Register<AuditedConflictCommandHandler>();
-                commands.EnableAuditing();
             },
             new FaultRefusalRecorder(),
             new CompletionRecorder(),

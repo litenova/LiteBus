@@ -14,12 +14,17 @@
 - `Data` type-keyed store (`IHandleContextData`)
 - `Tags`
 - `HandledAt`, read once from the messaging `TimeProvider` when the mediation starts
+- `Identity`, who the mediation runs for
+- `MessageType`, the runtime type of the message being mediated
+- `Parent`, the context of the enclosing mediation, or `null` for a root mediation
 - `MessageResult`
 - `SuppressPostHandlers()`
 
 `IExecutionContext` is registered as a scoped dependency, so a handler declares it as a constructor parameter and the dependency appears in the type signature. `AmbientExecutionContext` stores the current context in an `AsyncLocal<IExecutionContext?>` and is the way to reach it from code that runs outside dependency injection. `CreateScope` sets and restores the ambient context for nested mediations and async flows.
 
 Scoped here means per mediation. The mediator opens the ambient scope before it creates the dispatch scope, and there is one dispatch scope per mediation, so resolving the scoped service returns the context of the mediation in flight.
+
+A handler that sends or publishes another message starts a nested mediation whose parent is the handler's own context. Before a nested mediation starts, the mediator evaluates every registered `IMediationNestingRule` against a `MediationNestingContext` carrying the enclosing context and the inner message type; the first denial throws `NestedMediationException` naming both message types. A root mediation, which has no enclosing context, skips rule resolution entirely.
 
 ## Public Surface
 
@@ -41,6 +46,14 @@ public sealed class ContextAwarePreHandler : ICommandPreHandler<CreateOrderComma
 | `IExecutionContext.Tags` | Effective routing tags |
 | `IExecutionContext.CancellationToken` | Effective cancellation token |
 | `IExecutionContext.HandledAt` | The instant the mediation started. One clock reading shared by every stage |
+| `IExecutionContext.Identity` | Who the mediation runs for: the calling principal and the tenant |
+| `IExecutionContext.MessageType` | The runtime type of the message being mediated, or `null` for a custom context that does not track it |
+| `IExecutionContext.Parent` | The enclosing mediation's context, or `null` for a root mediation |
+| `CommandMediationSettings.ForTenant` / `QueryMediationSettings.ForTenant` / `EventMediationSettings.ForTenant` | Settings factories that run a mediation in one tenant |
+| `IMediationNestingRule.Evaluate` | Allows or denies a nested mediation |
+| `MediationNestingContext.Ancestors()` | The enclosing contexts, nearest first |
+| `NestedMediationException` | The denial thrown before the inner pipeline starts, carrying outer and inner message types, reason, and code |
+| `CommandModuleBuilder.ForbidNestedCommands()` | Registers the rule that denies a command nested under another command with code `commands.nested-command` |
 | `MessageModuleBuilder.UseTimeProvider(TimeProvider)` | Pins the clock `HandledAt` is read from, for tests |
 | `IExecutionContext.MessageResult` | Result override written by a post-handler |
 | `IExecutionContext.SuppressPostHandlers()` | Skips the post-handlers that have not run yet |
@@ -68,7 +81,9 @@ public sealed class ContextAwarePreHandler : ICommandPreHandler<CreateOrderComma
 - Context is scoped to one mediation call.
 - `HandledAt` is read once when the context is created, so every stage of one mediation observes the same instant, and advancing the clock mid-mediation does not move it. A nested mediation creates its own context and reads its own instant.
 - `Current` throws `NoExecutionContextException` when accessed outside scope, and so does resolving `IExecutionContext` from the container outside a mediation.
-- The dispatch scope is a child of the root provider, not of the ambient request scope, so an application's scoped services in a handler are per mediation and are not the request's instances.
+- The dispatch scope is a child of the root provider, not of the ambient request scope, so an application's scoped services in a handler are per mediation and are not the request's instances. An `IExecutionIdentityProvider` that reads a request-scoped holder observes a fresh default, so providers bridge through `IHttpContextAccessor` and claims.
+- A root mediation (durable dispatcher, recurring loop, inbox processor, HTTP request) has a `null` parent. A nested mediation inherits the enclosing mediation's identity unless its settings carry an explicit one.
+- Nesting rules run only for a nested mediation, before the inner pipeline starts. The first denial throws `NestedMediationException`, so the denied message never reaches a guard, a handler, or the registry.
 - `Data` holds one value per type in its unkeyed slot. A keyed entry and the unkeyed entry of the same type are separate slots, and neither clears the other.
 - `Items` and the audit scope state are safe for concurrent use by parallel event handlers. Two handlers racing to set one key leave whichever value landed last, and parallel audit writes share one scope state.
 - A shortcut that stops a result-returning command or query supplies the result through its answer, not through the context. A refusal supplies no result, and the value a refused caller receives comes from a registered refusal mapper.

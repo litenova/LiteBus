@@ -16,11 +16,18 @@ namespace LiteBus.Inbox.Dispatch.InProcess;
 ///         This dispatcher resolves the CLR type from the stored contract, deserializes the payload, and calls
 ///         <see cref="ICommandMediator.SendAsync(ICommand, CommandMediationSettings?, CancellationToken)" />. It sets
 ///         <see cref="InboxExecutionContextKeys.IsInboxExecution" /> on the mediation settings so pre-handlers,
-///         post-handlers, and error handlers can detect inbox replay.
+///         post-handlers, and error handlers can detect inbox replay. It restores the envelope tenant into
+///         <see cref="CommandMediationSettings.Identity" /> so the dispatched command runs in the stored tenant; a
+///         principal is never persisted on an envelope.
 ///     </para>
 ///     <para>
 ///         Register a custom <see cref="IInboxDispatcher" /> when the inbox needs to execute messages through a
 ///         different pipeline.
+///     </para>
+///     <para>
+///         Each dispatch runs as a root mediation: the command is sent inside <see cref="RootMediationScope" /> with
+///         <see cref="CommandMediationSettings.Cause" /> set from the envelope correlation and causation identifiers, so
+///         the execution carries typed lineage instead of nesting inside an ambient mediation.
 ///     </para>
 /// </remarks>
 public sealed class CommandInboxDispatcher : IInboxDispatcher
@@ -96,7 +103,11 @@ public sealed class CommandInboxDispatcher : IInboxDispatcher
                 $"Contract '{envelope.ContractName}' version {envelope.ContractVersion} resolved to a type that does not implement ICommand.");
         }
 
-        var mediationSettings = new CommandMediationSettings();
+        var mediationSettings = new CommandMediationSettings
+        {
+            Identity = ExecutionIdentity.ForTenant(envelope.TenantId),
+            Cause = CreateMediationCause(envelope)
+        };
         mediationSettings.Items[InboxExecutionContextKeys.IsInboxExecution] = true;
         mediationSettings.Items[InboxExecutionContextKeys.MessageId] = envelope.Id;
         mediationSettings.Items[InboxExecutionContextKeys.ContractName] = envelope.ContractName;
@@ -108,6 +119,29 @@ public sealed class CommandInboxDispatcher : IInboxDispatcher
             envelope.TenantId,
             envelope.TraceContext);
 
-        await _commandMediator.SendAsync(command, mediationSettings, cancellationToken).ConfigureAwait(false);
+        using (RootMediationScope.Begin())
+        {
+            await _commandMediator.SendAsync(command, mediationSettings, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    ///     Creates the mediation cause identifying the committed inbox envelope that caused the execution.
+    /// </summary>
+    /// <param name="envelope">The inbox envelope being dispatched.</param>
+    /// <returns>The cause with the envelope correlation and causation identifiers and an inbox source.</returns>
+    /// <remarks>
+    ///     An identifier the envelope does not carry falls back to the envelope identifier, so a dispatched execution
+    ///     always carries a cause: the envelope itself is the committed fact, and an unstamped envelope starts its own
+    ///     workflow.
+    /// </remarks>
+    private static MediationCause CreateMediationCause(InboxEnvelope envelope)
+    {
+        var fallback = envelope.Id.ToString("D");
+
+        return new MediationCause(
+            string.IsNullOrWhiteSpace(envelope.CorrelationId) ? fallback : envelope.CorrelationId,
+            string.IsNullOrWhiteSpace(envelope.CausationId) ? fallback : envelope.CausationId,
+            MediationCauseSource.Inbox);
     }
 }

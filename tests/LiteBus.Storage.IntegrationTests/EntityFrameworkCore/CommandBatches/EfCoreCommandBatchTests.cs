@@ -1,3 +1,4 @@
+using LiteBus.Auditing;
 using LiteBus.Commands;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Commands.Storage.PostgreSql;
@@ -13,6 +14,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using System.Collections.Concurrent;
+using LiteBus.Auditing.Abstractions;
 
 namespace LiteBus.Storage.IntegrationTests.EntityFrameworkCore.CommandBatches;
 
@@ -612,7 +614,10 @@ public sealed class EfCoreCommandBatchTests : IClassFixture<PostgreSqlFixture>
         services.AddDbContextFactory<BatchAuditDbContext>(options => options.UseNpgsql(connectionString));
         services.AddLiteBus(registry =>
         {
-            registry.AddMessaging(messaging => messaging.UseAuditTrail<EfCoreBatchAuditTrail>());
+            registry.AddMessaging(_ => { });
+            registry.Modules.AddAuditing(auditing => auditing
+                .ForCommands()
+                .UseTrail<EfCoreBatchAuditTrail>());
             registry.AddCommands(commands =>
             {
                 commands.Register<ApplyBatchOrderCommand>();
@@ -624,7 +629,6 @@ public sealed class EfCoreCommandBatchTests : IClassFixture<PostgreSqlFixture>
                 commands.Register<AnswerBatchOrderShortcut>();
                 commands.Register<NestedBatchOrderCommand>();
                 commands.Register<NestedBatchOrderCommandHandler>();
-                commands.EnableAuditing();
                 commands.EnableIdempotency();
                 commands.UsePostgreSqlIdempotencyStore(pg =>
                 {

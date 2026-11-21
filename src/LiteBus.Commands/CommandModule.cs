@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Commands.Batching;
@@ -6,7 +7,6 @@ using LiteBus.Commands.Idempotency;
 using LiteBus.Commands.UnitOfWork;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Audit;
 using LiteBus.Messaging.Idempotency;
 using LiteBus.Messaging.Registry;
 using LiteBus.Runtime.Abstractions;
@@ -31,6 +31,11 @@ public sealed class CommandModule : ICompositeModule, IRequires<MessageModule>
     private CommandModuleBuilder? _moduleBuilder;
 
     /// <summary>
+    ///     The child modules already declared through the module registry, compared by reference.
+    /// </summary>
+    private readonly List<IModule> _declaredChildren = [];
+
+    /// <summary>
     ///     Initializes a new instance of the <see cref="CommandModule" /> class.
     /// </summary>
     /// <param name="builder">The configuration action for the command module.</param>
@@ -39,6 +44,33 @@ public sealed class CommandModule : ICompositeModule, IRequires<MessageModule>
     {
         ArgumentNullException.ThrowIfNull(builder);
         _builder = builder;
+    }
+
+    /// <summary>
+    ///     Runs an additional configuration callback on the existing command builder and declares new child modules.
+    /// </summary>
+    /// <param name="builderAction">The additional command configuration callback.</param>
+    /// <param name="registerChild">Registers each newly declared child module with the module registry.</param>
+    internal void Configure(Action<CommandModuleBuilder> builderAction, Action<IModule> registerChild)
+    {
+        ArgumentNullException.ThrowIfNull(builderAction);
+        ArgumentNullException.ThrowIfNull(registerChild);
+
+        var moduleBuilder = _moduleBuilder ?? throw new InvalidOperationException(
+            "CommandModule.Configure ran before DeclareChildren. The module registry declares children during Register.");
+
+        builderAction(moduleBuilder);
+
+        foreach (var childModule in moduleBuilder.CollectSubModules())
+        {
+            if (IsAlreadyDeclared(childModule))
+            {
+                continue;
+            }
+
+            registerChild(childModule);
+            _declaredChildren.Add(childModule);
+        }
     }
 
     /// <inheritdoc />
@@ -52,6 +84,7 @@ public sealed class CommandModule : ICompositeModule, IRequires<MessageModule>
         foreach (var childModule in _moduleBuilder.CollectSubModules())
         {
             registerChild(childModule);
+            _declaredChildren.Add(childModule);
         }
     }
 
@@ -75,22 +108,9 @@ public sealed class CommandModule : ICompositeModule, IRequires<MessageModule>
 
         moduleBuilder.ApplyContracts(contractRegistry);
 
-        // AddAuditing on the messaging module selects the axes, so a consumer configures the feature once instead of
-        // repeating the decision here. EnableAuditing stays the primitive, and registering the same handler twice is a
-        // no-op in the registry.
-        if (configuration.TryGetContext<AuditingComposition>(out var auditing) && auditing?.Commands == true)
-        {
-            moduleBuilder.EnableAuditing();
-        }
-
         // Applied after every source of registrations has run, including the axis selection above, because the
         // builder now queues registrations rather than writing them straight through to the registry.
         moduleBuilder.ApplyRegistrations(messageRegistry);
-
-        if (moduleBuilder.AuditingEnabled)
-        {
-            configuration.RegisterDiagnosticCheck(typeof(AuditTrailDiagnosticCheck), AuditTrailDiagnosticCheck.CheckName);
-        }
 
         if (moduleBuilder.IdempotencyEnabled)
         {
@@ -108,6 +128,24 @@ public sealed class CommandModule : ICompositeModule, IRequires<MessageModule>
         }
 
         ModuleRegistration.RegisterNewHandlers(configuration, messageRegistry, startIndex);
+    }
+
+    /// <summary>
+    ///     Determines whether a child module was already declared through the module registry.
+    /// </summary>
+    /// <param name="childModule">The child module collected from the builder.</param>
+    /// <returns><see langword="true" /> when the same instance was already declared; otherwise, <see langword="false" />.</returns>
+    private bool IsAlreadyDeclared(IModule childModule)
+    {
+        foreach (var declared in _declaredChildren)
+        {
+            if (ReferenceEquals(declared, childModule))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -146,22 +184,6 @@ public sealed class CommandModule : ICompositeModule, IRequires<MessageModule>
                 typeof(ICommandBatchParticipant),
                 serviceProvider => serviceProvider.GetService(typeof(CommandBatchIdempotencyParticipant))
                     ?? throw new LiteBusDependencyResolutionException(typeof(CommandBatchIdempotencyParticipant)),
-                InstanceLifetime.Scoped));
-        }
-
-        if (moduleBuilder.AuditingEnabled)
-        {
-            // The concrete registration is the one instance per batch scope; the completion handlers add to it and the
-            // batch reads it through the participant collection, so both must resolve the same object.
-            configuration.DependencyRegistry.Register(new DependencyDescriptor(
-                typeof(CommandBatchAuditParticipant),
-                typeof(CommandBatchAuditParticipant),
-                InstanceLifetime.Scoped));
-
-            configuration.DependencyRegistry.RegisterCollection(DependencyDescriptor.ForCollection(
-                typeof(ICommandBatchParticipant),
-                serviceProvider => serviceProvider.GetService(typeof(CommandBatchAuditParticipant))
-                    ?? throw new LiteBusDependencyResolutionException(typeof(CommandBatchAuditParticipant)),
                 InstanceLifetime.Scoped));
         }
 

@@ -258,6 +258,8 @@ On the transactional EF path, a duplicate `message_id` or `(tenant_id, idempoten
 
 When the processor is enabled without a registered dispatcher, module build fails.
 
+The in-process dispatcher sends each command as a root mediation inside `RootMediationScope`, with `CommandMediationSettings.Cause` set from the envelope correlation and causation ids (`MediationCauseSource.Inbox`). An id the envelope does not carry falls back to the envelope id, so a dispatched execution always carries a cause. The command runs in the envelope tenant restored without the calling principal, its `Parent` is `null`, and nesting rules never evaluate. See [Execution Context](../concepts/execution-context.md).
+
 ## Ingress
 
 Broker ingress extensions (`UseAmqpIngress`, `UseAzureServiceBusIngress`, `UseAwsSqsIngress`, `UseKafkaIngress`, `UseInMemoryIngress`) consume messages into `IInbox.AcceptAsync`. Register the matching `Add*Transport(...)` extension once at the root. Ingress does not own broker connectivity.

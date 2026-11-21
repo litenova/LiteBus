@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Outbox.Abstractions;
+using LiteBus.Outbox.DomainEvents;
 using LiteBus.Outbox.ImmediateDispatch;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Exceptions;
@@ -26,6 +28,11 @@ public sealed class OutboxModule : ICompositeModule, IRequires<MessageModule>
     private OutboxModuleBuilder? _builder;
 
     /// <summary>
+    ///     The child modules already declared through the module registry, compared by reference.
+    /// </summary>
+    private readonly List<IModule> _declaredChildren = [];
+
+    /// <summary>
     ///     Initializes a new instance of the <see cref="OutboxModule" /> class.
     /// </summary>
     /// <param name="configure">The module configuration action.</param>
@@ -36,15 +43,46 @@ public sealed class OutboxModule : ICompositeModule, IRequires<MessageModule>
         _configure = configure;
     }
 
+    /// <summary>
+    ///     Runs an additional configuration callback on the existing outbox builder and declares new child modules.
+    /// </summary>
+    /// <param name="builderAction">The additional outbox configuration callback.</param>
+    /// <param name="registerChild">Registers each newly declared child module with the module registry.</param>
+    internal void Configure(Action<OutboxModuleBuilder> builderAction, Action<IModule> registerChild)
+    {
+        ArgumentNullException.ThrowIfNull(builderAction);
+        ArgumentNullException.ThrowIfNull(registerChild);
+
+        var moduleBuilder = _builder ?? throw new DurableStorageConfigurationException(
+            "OutboxModule.Configure was called without a prior DeclareChildren call. " +
+            "Register the module through IModuleRegistry.");
+
+        builderAction(moduleBuilder);
+
+        foreach (var subModule in moduleBuilder.CollectSubModules())
+        {
+            if (IsAlreadyDeclared(subModule))
+            {
+                continue;
+            }
+
+            registerChild(subModule);
+            _declaredChildren.Add(subModule);
+        }
+    }
+
     /// <inheritdoc />
     public void DeclareChildren(Action<IModule> registerChild)
     {
+        ArgumentNullException.ThrowIfNull(registerChild);
+
         _builder = new OutboxModuleBuilder();
         _configure(_builder);
 
         foreach (var subModule in _builder.CollectSubModules())
         {
             registerChild(subModule);
+            _declaredChildren.Add(subModule);
         }
     }
 
@@ -92,6 +130,13 @@ public sealed class OutboxModule : ICompositeModule, IRequires<MessageModule>
             configuration.RegisterCompositionValidation(() => ValidateSubscriberNames(messageRegistry));
         }
 
+        if (_builder.ImmediateDispatchOptions is not null && !_builder.IsPerHandlerDeliveryEnabled)
+        {
+            var messageRegistry = configuration.GetContext<IMessageRegistry>();
+
+            configuration.RegisterCompositionValidation(() => ValidateImmediateDispatchHandlerAttributes(messageRegistry));
+        }
+
         if (_builder.IsOutboxProcessorEnabled)
         {
             _builder.ProcessorHostOptions.Validate();
@@ -135,6 +180,10 @@ public sealed class OutboxModule : ICompositeModule, IRequires<MessageModule>
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(OutboxEnqueueOptions),
             _builder.CollectEnqueueOptions()));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(DomainEventAccessors),
+            new DomainEventAccessors(_builder.CollectDomainEventAccessors())));
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IOutboxEnvelopeFactory),
@@ -210,6 +259,24 @@ public sealed class OutboxModule : ICompositeModule, IRequires<MessageModule>
     }
 
     /// <summary>
+    ///     Determines whether a child module was already declared through the module registry.
+    /// </summary>
+    /// <param name="subModule">The child module collected from the builder.</param>
+    /// <returns><see langword="true" /> when the same instance was already declared; otherwise, <see langword="false" />.</returns>
+    private bool IsAlreadyDeclared(IModule subModule)
+    {
+        foreach (var declared in _declaredChildren)
+        {
+            if (ReferenceEquals(declared, subModule))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
     ///     Registers the services immediate dispatch needs and the check that its requirements are met.
     /// </summary>
     /// <param name="configuration">The module configuration being built.</param>
@@ -274,6 +341,54 @@ public sealed class OutboxModule : ICompositeModule, IRequires<MessageModule>
             throw new LiteBusConfigurationException(
                 "EnableImmediateDispatch requires " + string.Join("; ", missing) + ".");
         }
+    }
+
+    /// <summary>
+    ///     Validates that no registered main handler carries <see cref="DispatchImmediatelyAttribute" /> when immediate
+    ///     dispatch is enabled without per-handler delivery.
+    /// </summary>
+    /// <param name="reader">The registry holding every registered message descriptor.</param>
+    /// <exception cref="LiteBusConfigurationException">
+    ///     A registered handler class carries <see cref="DispatchImmediatelyAttribute" /> while per-handler delivery is off.
+    /// </exception>
+    /// <remarks>
+    ///     Runs as a composition validation rather than during <see cref="Build" /> because the modules that
+    ///     register event handlers build after the outbox module, so their handlers are not visible yet while this
+    ///     module builds. Direct and indirect main handlers are validated together because per-handler delivery writes
+    ///     one envelope per handler in both sets, and handler types are deduplicated because one handler class may
+    ///     observe several messages.
+    /// </remarks>
+    private static void ValidateImmediateDispatchHandlerAttributes(IMessageReader reader)
+    {
+        ArgumentNullException.ThrowIfNull(reader);
+
+        var attributed = new SortedSet<string>(StringComparer.Ordinal);
+
+        foreach (var descriptor in reader)
+        {
+            var handlerTypes = descriptor.Handlers.Select(static handler => handler.HandlerType)
+                .Concat(descriptor.IndirectHandlers.Select(static handler => handler.HandlerType));
+
+            foreach (var handlerType in handlerTypes)
+            {
+                if (handlerType.GetCustomAttribute<DispatchImmediatelyAttribute>(inherit: false) is not null)
+                {
+                    attributed.Add(handlerType.FullName ?? handlerType.Name);
+                }
+            }
+        }
+
+        if (attributed.Count == 0)
+        {
+            return;
+        }
+
+        throw new LiteBusConfigurationException(
+            "EnableImmediateDispatch is set without per-handler delivery, but the following handler classes carry " +
+            "[DispatchImmediately], which is ignored without per-handler envelopes: " +
+            string.Join(", ", attributed.Select(static name => $"'{name}'")) +
+            ". Call EnablePerHandlerDelivery() inside AddOutboxModule(...) so each handler gets its own envelope, " +
+            "or move [DispatchImmediately] to the event type for event-level immediacy.");
     }
 
     /// <summary>
@@ -398,7 +513,7 @@ public sealed class OutboxModule : ICompositeModule, IRequires<MessageModule>
     }
 
     /// <summary>
-    ///     Registers the default scoped domain event collector and the open generic staging completion handler.
+    ///     Registers the default scoped domain event collector, the per-type domain event decisions and their composition section, the in-process publication buffer and listener, and the open generic staging completion handler.
     /// </summary>
     /// <param name="configuration">The module configuration receiving the staging registrations.</param>
     /// <remarks>
@@ -407,12 +522,40 @@ public sealed class OutboxModule : ICompositeModule, IRequires<MessageModule>
     ///     registered in the container for the same reason: closed handler types are resolved through it regardless of
     ///     module build order.
     /// </remarks>
-    private static void RegisterCollectedEventStaging(IModuleConfiguration configuration)
+    private void RegisterCollectedEventStaging(IModuleConfiguration configuration)
     {
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IDomainEventCollector),
             typeof(DomainEventCollector),
             InstanceLifetime.Scoped));
+
+        var decisions = _builder!.CollectDomainEventDecisions();
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(DomainEventDecisions),
+            decisions));
+
+        configuration.DependencyRegistry.RegisterCollection(DependencyDescriptor.ForCollection(
+            typeof(ICompositionSectionContributor),
+            new OutboxDomainEventCompositionSection(decisions)));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(StagedInProcessDomainEvents),
+            typeof(StagedInProcessDomainEvents),
+            InstanceLifetime.Scoped));
+
+        configuration.DependencyRegistry.RegisterCollection(DependencyDescriptor.ForCollection(
+            typeof(IUnitOfWorkCommitListener),
+            typeof(DomainEventInProcessPublishListener),
+            InstanceLifetime.Scoped));
+
+        foreach (var translatorType in _builder.CollectDomainEventTranslatorTypes().Distinct())
+        {
+            configuration.DependencyRegistry.Register(new DependencyDescriptor(
+                translatorType,
+                translatorType,
+                InstanceLifetime.Scoped));
+        }
 
         var messageRegistry = configuration.GetContext<IMessageRegistry>();
         messageRegistry.Register(typeof(StageCollectedDomainEventsCompletionHandler<>));

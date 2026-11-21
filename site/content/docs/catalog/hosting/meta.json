@@ -6,6 +6,7 @@
                   "add-lite-bus-microsoft-di",
                   "aspnet-health-checks",
                   "aspnet-management-endpoints",
+                  "aspnet-problem-details",
                   "autofac-hosting-bridge",
                   "background-services",
                   "diagnostic-probes",

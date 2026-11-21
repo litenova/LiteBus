@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <ItemGroup>
+        <PackageReference Include="Azure.Storage.Blobs"/>
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\LiteBus.Auditing.Abstractions\LiteBus.Auditing.Abstractions.csproj"/>
+        <ProjectReference Include="..\LiteBus.Auditing\LiteBus.Auditing.csproj"/>
+        <ProjectReference Include="..\LiteBus.Messaging.Abstractions\LiteBus.Messaging.Abstractions.csproj"/>
+        <ProjectReference Include="..\LiteBus.Runtime.Abstractions\LiteBus.Runtime.Abstractions.csproj"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="LiteBus.Auditing.UnitTests, PublicKey=$(LiteBusPublicKey)"/>
+        <InternalsVisibleTo Include="LiteBus.Storage.IntegrationTests, PublicKey=$(LiteBusPublicKey)"/>
+    </ItemGroup>
+
+</Project>

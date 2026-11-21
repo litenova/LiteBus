@@ -1,9 +1,10 @@
+using LiteBus.Auditing;
 using LiteBus.Commands;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
 using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Audit;
+using LiteBus.Auditing.Recording;
 using LiteBus.Queries;
 using LiteBus.Queries.Abstractions;
 using LiteBus.Runtime.Abstractions.Diagnostics;
@@ -11,6 +12,7 @@ using LiteBus.Runtime.Abstractions.Hosting;
 using LiteBus.Runtime.Abstractions.Exceptions;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using LiteBus.Auditing.Abstractions;
 
 namespace LiteBus.Mediator.UnitTests.Auditing;
 
@@ -30,17 +32,20 @@ public sealed class AuditTrailTests : LiteBusTestBase
     private static ServiceProvider BuildProvider(RecordingAuditTrail trail, bool useCustomOutcomeMapper = false)
     {
         var services = new ServiceCollection();
-        services.AddSingleton<IAuditTrail>(trail);
 
         return services
             .AddLiteBus(registry =>
             {
-                registry.AddMessaging(messaging =>
+                registry.AddAuditing(auditing =>
                 {
+                    auditing.UseTrailInstance(trail);
+
                     if (useCustomOutcomeMapper)
                     {
-                        messaging.UseAuditOutcomeMapper(new TestAuditOutcomeMapper());
+                        auditing.UseOutcomeMapper(new TestAuditOutcomeMapper());
                     }
+
+                    auditing.ForCommands().ForQueries();
                 });
 
                 registry.AddCommands(builder =>
@@ -64,7 +69,6 @@ public sealed class AuditTrailTests : LiteBusTestBase
                     builder.Register<ApproveRefundCommand>();
                     builder.Register<ApproveRefundCommandGuard>();
                     builder.Register<ApproveRefundCommandHandler>();
-                    builder.EnableAuditing();
                 });
 
                 registry.AddQueries(builder =>
@@ -74,7 +78,6 @@ public sealed class AuditTrailTests : LiteBusTestBase
                     builder.Register<ReadOrderQuery>();
                     builder.Register<ReadOrderQueryShortcut>();
                     builder.Register<ReadOrderQueryHandler>();
-                    builder.EnableAuditing();
                 });
             })
             .BuildServiceProvider();
@@ -365,26 +368,30 @@ public sealed class AuditTrailTests : LiteBusTestBase
     [Fact]
     public async Task The_audit_probe_reports_unhealthy_when_no_trail_is_registered()
     {
-        var provider = new ServiceCollection()
+        var composed = new ServiceCollection()
             .AddLiteBus(registry =>
             {
-                registry.AddMessaging(_ => { });
-                registry.AddCommands(builder => builder.EnableAuditing());
+                registry.AddAuditing(auditing => auditing
+                    .UseTrailInstance(new RecordingAuditTrail())
+                    .ForCommands());
+
+                registry.AddCommands(_ => { });
             })
             .BuildServiceProvider();
 
-        var manifest = provider.GetRequiredService<LiteBusHostManifest>();
+        var manifest = composed.GetRequiredService<LiteBusHostManifest>();
 
         manifest.DiagnosticChecks.Should().ContainSingle(descriptor =>
             descriptor.ImplementationType == typeof(AuditTrailDiagnosticCheck));
 
-        var diagnostics = await DiagnosticCheckRunner
-            .RunAsync(manifest, provider, failHealthWhenNoProbes: true)
-            .ConfigureAwait(false);
+        // A composition that enables auditing must name a trail or a store, so the missing-trail state the probe
+        // reports is exercised against a provider that resolves no trail at all.
+        var provider = new ServiceCollection().BuildServiceProvider();
+        var result = await new AuditTrailDiagnosticCheck(provider).CheckAsync().ConfigureAwait(false);
 
         // Without the probe, a missing trail first shows up as a fault inside the completion stage, which is the one
         // stage whose faults are deliberately kept away from the caller.
-        diagnostics.Probes.Should().ContainSingle(probe => probe.Name == AuditTrailDiagnosticCheck.CheckName)
-            .Which.Status.Should().Be(DiagnosticStatus.Unhealthy);
+        result.Status.Should().Be(DiagnosticStatus.Unhealthy);
+        result.Data!["trailRegistered"].Should().Be(false);
     }
 }

@@ -238,6 +238,43 @@ public sealed class LoggingPreHandler<T> : ICommandPreHandler<T> where T : IComm
 }
 ```
 
+## Validating a Host's Container Without Starting It
+
+Some composition mistakes surface only when a host starts: a singleton background service that captures a scoped service fails under the Development container validation, and a missing registration fails when a hosted service is first resolved. `LiteBusHostValidation.Validate`, in the `LiteBus.Testing.Hosting` package, finds them in a unit test with no database, broker or running host:
+
+```csharp
+[Fact]
+public void Worker_host_container_is_valid()
+{
+    var services = new ServiceCollection();
+    WorkerComposition.Configure(services, testConfiguration);
+
+    LiteBusHostValidation.Validate(services);
+}
+```
+
+It builds the provider with `ValidateScopes` and `ValidateOnBuild`, then resolves from the root provider every startup task, background service and diagnostic check in the `LiteBusHostManifest`, and every `IHostedService`. It starts nothing. It collects every failure before it throws `LiteBusHostValidationException`, whose `Failures` names each service that failed and why. The same test also runs the composition checks `AddLiteBus` performs, such as a contract version that disagrees with its registration, a message missing a required declaration, or an authorization policy name with no registration, because those fail while `AddLiteBus` composes.
+
+Run one such test per host composition. A store client registered by the composition, such as `AddMarten` or `AddDbContextFactory`, is resolved but makes no connection until it is used.
+
+Do not call `LiteBusHostValidation.Validate(services)` on a collection the host builds afterwards. It builds and disposes its own provider, and a store such as Marten keeps state in objects the collection holds, so the disposed provider breaks the host's own build. Use it only on a composition built for the test.
+
+An application with no test project can validate the container it already built with `ValidateLiteBusHost()`, an extension in the `LiteBus.Runtime.Extensions.Microsoft.Hosting` package. It resolves the same entries from the host's own `Services` and starts nothing:
+
+```csharp
+var app = builder.Build();
+
+if (args.Contains("--validate-composition"))
+{
+    app.Services.ValidateLiteBusHost();
+    return;
+}
+
+app.Run();
+```
+
+A CI step runs `dotnet run -- --validate-composition`. Scope validation comes from the host's own `ServiceProviderOptions`, which is on by default in the Development environment. The method makes no database or broker connection unless a service's constructor makes one.
+
 ## Integration Testing with `WebApplicationFactory`
 
 Each `AddLiteBus` call builds a fresh `IMessageRegistry` scoped to that module configuration, so `WebApplicationFactory` tests do not share handler registrations across factories in the same process. Register handlers inside `ConfigureTestServices` (or in the application under test) for each factory instance.

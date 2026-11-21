@@ -127,14 +127,26 @@ The Direct project references and Direct package references columns repeat [Gene
 | `LiteBus.Extensions.Microsoft.DependencyInjection` | Host adapter | `LiteBus.Commands.Extensions.Microsoft.DependencyInjection`, `LiteBus.Events.Extensions.Microsoft.DependencyInjection`, `LiteBus.Messaging.Extensions.Microsoft.DependencyInjection`, `LiteBus.Queries.Extensions.Microsoft.DependencyInjection` | none |
 | `LiteBus.Extensions.Diagnostics.HealthChecks` | Host adapter | `LiteBus.Runtime.Abstractions` | `Microsoft.Extensions.Diagnostics.HealthChecks` |
 | `LiteBus.Extensions.AspNetCore` | Host adapter | `LiteBus.Commands.Abstractions`, `LiteBus.Inbox.Abstractions`, `LiteBus.Messaging.Abstractions`, `LiteBus.Outbox.Abstractions`, `LiteBus.Runtime.Abstractions` | none |
+| `LiteBus.Extensions.AspNetCore.OpenApi` | Host adapter | `LiteBus.Extensions.AspNetCore`, `LiteBus.Messaging.Abstractions` | `Microsoft.AspNetCore.OpenApi` |
 | `LiteBus.Messaging.Abstractions` | Mediation contracts | `LiteBus.Runtime.Abstractions` | none |
 | `LiteBus.Messaging` | Core implementation | `LiteBus.DurableMessaging.Abstractions`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions` | `Microsoft.Extensions.Logging.Abstractions` |
 | `LiteBus.Commands.Abstractions` | Mediation contracts | `LiteBus.Messaging.Abstractions` | none |
 | `LiteBus.Commands` | Core implementation | `LiteBus.Commands.Abstractions`, `LiteBus.Messaging`, `LiteBus.Runtime.Abstractions` | none |
-| `LiteBus.Commands.Recurring` | Feature bridge | `LiteBus.Commands`, `LiteBus.Commands.Abstractions`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions` | `Microsoft.Extensions.Logging.Abstractions` |
+| `LiteBus.Commands.Recurring` | Feature bridge | `LiteBus.Commands`, `LiteBus.Commands.Abstractions`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime`, `LiteBus.Runtime.Abstractions` | `Microsoft.Extensions.Logging.Abstractions` |
 | `LiteBus.Commands.Recurring.Storage.PostgreSql` | Feature bridge | `LiteBus.Commands`, `LiteBus.Commands.Recurring`, `LiteBus.Runtime.Abstractions`, `LiteBus.Storage.PostgreSql` | `Npgsql`, `Microsoft.Extensions.Logging.Abstractions` |
 | `LiteBus.Commands.Storage.Marten` | Feature bridge | `LiteBus.Commands`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions` | `Marten`, `Npgsql` |
 | `LiteBus.Commands.Storage.PostgreSql` | Feature bridge | `LiteBus.Commands`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions`, `LiteBus.Storage.PostgreSql` | `Npgsql` |
+| `LiteBus.Commands.Recurring.Schedules.Cron` | Feature bridge | `LiteBus.Runtime`, `LiteBus.Runtime.Abstractions` | `Cronos` |
+| `LiteBus.Auditing.Abstractions` | Mediation contracts | `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions` | none |
+| `LiteBus.Auditing` | Core implementation | `LiteBus.Auditing.Abstractions`, `LiteBus.Commands.Abstractions`, `LiteBus.DurableMessaging.Abstractions`, `LiteBus.Events.Abstractions`, `LiteBus.Messaging`, `LiteBus.Messaging.Abstractions`, `LiteBus.Outbox.Abstractions`, `LiteBus.Queries.Abstractions`, `LiteBus.Runtime`, `LiteBus.Runtime.Abstractions` | `Microsoft.Extensions.Logging.Abstractions` |
+| `LiteBus.Auditing.Storage.Marten` | Feature bridge | `LiteBus.Auditing`, `LiteBus.Auditing.Abstractions`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions` | `Marten`, `Microsoft.Extensions.Logging.Abstractions`, `Npgsql` |
+| `LiteBus.Auditing.Storage.PostgreSql` | Feature bridge | `LiteBus.Auditing`, `LiteBus.Auditing.Abstractions`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions`, `LiteBus.Storage.PostgreSql` | `Microsoft.Extensions.Logging.Abstractions`, `Npgsql` |
+| `LiteBus.Auditing.Storage.EntityFrameworkCore` | Feature bridge | `LiteBus.Auditing`, `LiteBus.Auditing.Abstractions`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions`, `LiteBus.Storage.EntityFrameworkCore` | `Microsoft.EntityFrameworkCore`, `Microsoft.EntityFrameworkCore.Relational`, `Microsoft.Extensions.Logging.Abstractions` |
+| `LiteBus.Auditing.Anchors.S3` | Technology adapter | `LiteBus.Auditing`, `LiteBus.Auditing.Abstractions`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions` | `AWSSDK.S3`, `Microsoft.Extensions.Logging.Abstractions` |
+| `LiteBus.Auditing.Anchors.AzureBlob` | Technology adapter | `LiteBus.Auditing`, `LiteBus.Auditing.Abstractions`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions` | `Azure.Storage.Blobs`, `Microsoft.Extensions.Logging.Abstractions` |
+| `LiteBus.Auditing.Anchors.Timestamping` | Technology adapter | `LiteBus.Auditing`, `LiteBus.Auditing.Abstractions`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions` | `Microsoft.Extensions.Logging.Abstractions`, `System.Security.Cryptography.Pkcs` |
+| `LiteBus.Auditing.Extensions.Microsoft.DependencyInjection` | Host adapter | `LiteBus.Auditing`, `LiteBus.Runtime.Extensions.Microsoft.DependencyInjection` | none |
+| `LiteBus.Auditing.Extensions.Autofac` | Host adapter | `LiteBus.Auditing`, `LiteBus.Runtime.Extensions.Autofac` | none |
 | `LiteBus.Queries.Abstractions` | Mediation contracts | `LiteBus.Messaging.Abstractions` | none |
 | `LiteBus.Queries` | Core implementation | `LiteBus.Messaging`, `LiteBus.Queries.Abstractions`, `LiteBus.Runtime.Abstractions` | none |
 | `LiteBus.Events.Abstractions` | Mediation contracts | `LiteBus.Messaging.Abstractions` | none |
@@ -159,10 +171,11 @@ The Direct project references and Direct package references columns repeat [Gene
 | `LiteBus.Inbox.Ingress.Kafka` | Feature bridge | `LiteBus.Inbox`, `LiteBus.Inbox.Abstractions`, `LiteBus.Inbox.Ingress`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions`, `LiteBus.Transport.Kafka` | none |
 | `LiteBus.Inbox.Ingress.InMemory` | Feature bridge | `LiteBus.Inbox`, `LiteBus.Inbox.Abstractions`, `LiteBus.Inbox.Ingress`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions`, `LiteBus.Transport.InMemory` | none |
 | `LiteBus.Outbox.Abstractions` | Durable contracts | `LiteBus.DurableMessaging.Abstractions`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions` | none |
-| `LiteBus.Outbox` | Core implementation | `LiteBus.DurableMessaging.Abstractions`, `LiteBus.Messaging`, `LiteBus.Outbox.Abstractions`, `LiteBus.Runtime.Abstractions` | `Microsoft.Extensions.Logging.Abstractions` |
+| `LiteBus.Outbox` | Core implementation | `LiteBus.Commands.Abstractions`, `LiteBus.DurableMessaging.Abstractions`, `LiteBus.Events.Abstractions`, `LiteBus.Messaging`, `LiteBus.Outbox.Abstractions`, `LiteBus.Queries.Abstractions`, `LiteBus.Runtime.Abstractions` | `Microsoft.Extensions.Logging.Abstractions` |
 | `LiteBus.Saga.Abstractions` | Durable contracts | `LiteBus.Commands.Abstractions`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions` | none |
 | `LiteBus.Saga` | Core implementation | `LiteBus.DurableMessaging.Abstractions`, `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions`, `LiteBus.Saga.Abstractions` | none |
 | `LiteBus.Saga.InboxIntegration` | Feature bridge | `LiteBus.Commands.Abstractions`, `LiteBus.Inbox`, `LiteBus.Inbox.Abstractions`, `LiteBus.Messaging`, `LiteBus.Saga` | none |
+| `LiteBus.Saga.Storage.Marten` | Feature bridge | `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions`, `LiteBus.Saga`, `LiteBus.Saga.Abstractions` | `Marten`, `Npgsql` |
 | `LiteBus.Saga.Storage.PostgreSql` | Feature bridge | `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Abstractions`, `LiteBus.Saga`, `LiteBus.Saga.Abstractions`, `LiteBus.Storage.PostgreSql` | `Npgsql` |
 | `LiteBus.Outbox.Storage.PostgreSql` | Feature bridge | `LiteBus.Outbox`, `LiteBus.Outbox.Abstractions`, `LiteBus.Runtime.Abstractions`, `LiteBus.Storage.PostgreSql` | `Npgsql` |
 | `LiteBus.Outbox.Storage.Marten` | Feature bridge | `LiteBus.Outbox`, `LiteBus.Outbox.Abstractions`, `LiteBus.Outbox.Storage.PostgreSql`, `LiteBus.Runtime.Abstractions` | `Marten` |
@@ -185,6 +198,7 @@ The Direct project references and Direct package references columns repeat [Gene
 | `LiteBus.Messaging.Extensions.OpenTelemetry` | Host adapter | `LiteBus.Messaging` | `OpenTelemetry` |
 | `LiteBus.Inbox.Extensions.OpenTelemetry` | Host adapter | `LiteBus.Inbox` | `OpenTelemetry` |
 | `LiteBus.Outbox.Extensions.OpenTelemetry` | Host adapter | `LiteBus.Outbox` | `OpenTelemetry` |
+| `LiteBus.Auditing.Extensions.OpenTelemetry` | Host adapter | `LiteBus.Auditing` | `OpenTelemetry` |
 | `LiteBus.Transport.Extensions.OpenTelemetry` | Host adapter | `LiteBus.Transport` | `OpenTelemetry` |
 | `LiteBus.Transport.Amqp.Extensions.OpenTelemetry` | Host adapter | `LiteBus.Transport.Amqp` | `OpenTelemetry` |
 | `LiteBus.Storage.PostgreSql` | Technology adapter | `LiteBus.DurableMessaging.Abstractions`, `LiteBus.Messaging.Abstractions` | `Npgsql` |
@@ -193,13 +207,13 @@ The Direct project references and Direct package references columns repeat [Gene
 | `LiteBus.Runtime.Extensions.Hosting` | Host adapter | `LiteBus.Runtime.Abstractions` | `Microsoft.Extensions.Hosting.Abstractions` |
 | `LiteBus.Runtime.Extensions.Microsoft.Hosting` | Host adapter | `LiteBus.Runtime.Extensions.Hosting` | `Microsoft.Extensions.DependencyInjection.Abstractions`, `Microsoft.Extensions.Hosting.Abstractions` |
 | `LiteBus.Runtime.Extensions.Autofac.Hosting` | Host adapter | `LiteBus.Runtime.Extensions.Hosting` | `Autofac`, `Microsoft.Extensions.Hosting.Abstractions` |
-| `LiteBus` | Aggregate | `LiteBus.Commands`, `LiteBus.Commands.Abstractions`, `LiteBus.DurableMessaging.Abstractions`, `LiteBus.Events`, `LiteBus.Events.Abstractions`, `LiteBus.Inbox`, `LiteBus.Inbox.Abstractions`, `LiteBus.Messaging`, `LiteBus.Messaging.Abstractions`, `LiteBus.Outbox`, `LiteBus.Outbox.Abstractions`, `LiteBus.Queries`, `LiteBus.Queries.Abstractions` | none |
+| `LiteBus` | Aggregate | `LiteBus.Auditing`, `LiteBus.Auditing.Abstractions`, `LiteBus.Commands`, `LiteBus.Commands.Abstractions`, `LiteBus.DurableMessaging.Abstractions`, `LiteBus.Events`, `LiteBus.Events.Abstractions`, `LiteBus.Inbox`, `LiteBus.Inbox.Abstractions`, `LiteBus.Messaging`, `LiteBus.Messaging.Abstractions`, `LiteBus.Outbox`, `LiteBus.Outbox.Abstractions`, `LiteBus.Queries`, `LiteBus.Queries.Abstractions` | none |
 | `LiteBus.Testing` | Consumer tooling | none | none |
 | `LiteBus.Testing.Mediation` | Consumer tooling | `LiteBus.Commands.Abstractions`, `LiteBus.Events.Abstractions`, `LiteBus.Messaging`, `LiteBus.Messaging.Abstractions`, `LiteBus.Queries.Abstractions`, `LiteBus.Runtime` | none |
 | `LiteBus.Testing.Transport` | Consumer tooling | `LiteBus.Transport.Abstractions` | none |
 | `LiteBus.Testing.DurableMessaging` | Consumer tooling | `LiteBus.Extensions.Microsoft.DependencyInjection`, `LiteBus.Inbox`, `LiteBus.Inbox.Abstractions`, `LiteBus.Inbox.Storage.InMemory`, `LiteBus.Messaging`, `LiteBus.Outbox`, `LiteBus.Outbox.Abstractions`, `LiteBus.Outbox.Storage.InMemory`, `LiteBus.Runtime.Abstractions` | `Microsoft.Extensions.DependencyInjection` |
 | `LiteBus.Testing.Hosting` | Consumer tooling | `LiteBus.Inbox`, `LiteBus.Runtime.Abstractions`, `LiteBus.Runtime.Extensions.Microsoft.Hosting` | `Microsoft.Extensions.DependencyInjection`, `Microsoft.Extensions.Hosting.Abstractions` |
-| `LiteBus.Storage.Testing` | Consumer tooling | `LiteBus.Inbox.Abstractions`, `LiteBus.Outbox.Abstractions` | `AwesomeAssertions`, `StyleCop.Analyzers (private)`, `xunit`, `Xunit.SkippableFact` |
+| `LiteBus.Storage.Testing` | Consumer tooling | `LiteBus.Auditing`, `LiteBus.Auditing.Abstractions`, `LiteBus.Inbox.Abstractions`, `LiteBus.Messaging.Abstractions`, `LiteBus.Outbox.Abstractions` | `AwesomeAssertions`, `StyleCop.Analyzers (private)`, `xunit`, `Xunit.SkippableFact` |
 | `LiteBus.Transport.Testing` | Consumer tooling | `LiteBus.Transport.Abstractions` | `StyleCop.Analyzers (private)`, `xunit`, `Xunit.SkippableFact` |
 
 Per-module `*.Extensions.Microsoft.DependencyInjection` and `*.Extensions.Autofac` shells are registration patterns, not shipping packages, so they have no inventory row. Each one depends on its module package and the matching runtime adapter.

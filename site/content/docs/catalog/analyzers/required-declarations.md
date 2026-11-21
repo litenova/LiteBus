@@ -26,7 +26,7 @@ dotnet_diagnostic.LB1020.severity = warning
 
 Use the full metadata name of each value type. Separate several with commas or semicolons. When nothing is configured the rule reports nothing, so referencing the analyzer package changes no existing build.
 
-`LB1021` reports a configured name that does not resolve in the compilation. A name that silently did nothing would disable the requirement it configures, and a typo in `.editorconfig` is exactly how that happens.
+`LB1021` reports a configured name that does not resolve in the compilation, but only when the project references the LiteBus message contracts, the same condition the analyzer uses to look for messages. A name that silently did nothing would disable the requirement it configures, and a typo in `.editorconfig` is exactly how that happens. In a project with no message contracts and no messages, the rule reports nothing, so a shared configuration cannot raise it there.
 
 ## Trigger Conditions
 
@@ -36,6 +36,12 @@ Use the full metadata name of each value type. Separate several with commas or s
 - No definition class declares the required value type for the type or for a base type or interface it implements, in either definition shape.
 - The type carries no attribute annotated `[MessageDeclaration(typeof(TValue))]` for the required value type.
 - The type carries no `[DeclarationExempt(typeof(TValue), "rationale")]` for the required value type.
+
+## Analyzer and Composition Split
+
+`LB1020` checks what the message states itself: a definition, a declaring attribute, or an exemption. Composition checks cover the family mechanisms: defaults declared with `DeclareDefault`, conventions declared with `DeclareConvention`, and `RequireDeclaration` enforcement in Report or Fail mode. A default or convention that satisfies the composition check does not satisfy the analyzer, because composition calls are invisible to the compilations the analyzer sees.
+
+Event requirements are composition-only. `LB1020` does not check events; `RequireDeclaration` enforces event positions at composition time.
 
 ## The Two Definition Shapes
 
