@@ -35,10 +35,27 @@ public sealed record AuditRecord
     ///     Gets the stable identifier of the record, assigned when the record is produced.
     /// </summary>
     /// <remarks>
-    ///     Delivery through the transactional outbox is at least once. The audit store holds one document per id, so
-    ///     a redelivered record overwrites rather than duplicates.
+    ///     <para>
+    ///         LiteBus assigns a time-ordered version 7 identifier (<see cref="Guid.CreateVersion7()" />) to every record it
+    ///         produces, and to a record written with <see cref="Guid.Empty" />. A record written with an identifier keeps
+    ///         it, which is how a retried application-written record finds its first write.
+    ///     </para>
+    ///     <para>
+    ///         Delivery through the transactional outbox is at least once. The audit store holds one document per id, so
+    ///         a redelivered record overwrites rather than duplicates. A record mapper keeps this identifier as the stored
+    ///         document's identity; a mapper that stamps its own loses that protection.
+    ///     </para>
     /// </remarks>
     public Guid Id { get; init; }
+
+    /// <summary>
+    ///     Gets where the record came from: a mediation, or application code that wrote it directly.
+    /// </summary>
+    /// <value>
+    ///     <see cref="AuditRecordOrigin.Mediation" /> for a record LiteBus produced, and
+    ///     <see cref="AuditRecordOrigin.Application" />, the default, for a record application code built.
+    /// </value>
+    public AuditRecordOrigin Origin { get; init; }
 
     /// <summary>
     ///     Gets the use-case identity of the action, such as <c>orders.place-order</c>.

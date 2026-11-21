@@ -67,6 +67,13 @@ internal sealed class AuditCaptureCoordinator : IAuditCaptureCoordinator
 
         AuditCaptureValidator.Validate(capture, "the resolved auditing capture");
 
+        // A record application code wrote without an identifier gets one here, on every path, so two such records never
+        // share a stored document and a mapper that keeps record.Id stays correct.
+        if (record.Id == Guid.Empty)
+        {
+            record = record with { Id = Guid.CreateVersion7() };
+        }
+
         if (record.Outcome == AuditOutcome.Succeeded
             && capture is AuditCapture.AfterCommitThroughOutboxCapture)
         {
@@ -94,7 +101,7 @@ internal sealed class AuditCaptureCoordinator : IAuditCaptureCoordinator
                 + "with WithChange.");
         }
 
-        var stored = record.Id == Guid.Empty ? record with { Id = Guid.NewGuid() } : record;
+        var stored = record;
         var metadata = OutboxEnqueueMetadata.Immediate with
         {
             Identity = new MessageIdentity.Supplied(stored.Id),

@@ -156,7 +156,8 @@ internal sealed class AuditCapturePreHandler<TMessage> : IMessagePreHandler<TMes
     {
         return new AuditRecord
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
+            Origin = AuditRecordOrigin.Mediation,
             Action = declaration.Action,
             Actor = _scope.Actor ?? ResolveActorFromPrincipal(executionContext.Identity),
             Outcome = AuditOutcome.Intent,

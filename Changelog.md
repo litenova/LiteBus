@@ -2,6 +2,22 @@
 
 This file records the notable changes in each LiteBus release.
 
+## v8.0.0-preview.7
+
+Changes since [v8.0.0-preview.6](https://github.com/litenova/LiteBus/releases/tag/v8.0.0-preview.6). The [v8.0.0](#v800) section describes the whole 8.0.0 line. Previews of one line carry no compatibility promise between each other, so this section lists what changed without upgrade steps.
+
+### Added
+
+- `AuditRecord.Origin` (`AuditRecordOrigin.Application` or `Mediation`) tells a record mapper whether application code wrote the record through `IAuditTrail` or LiteBus produced it for a mediation. A record application code builds is `Application` by default.
+
+### Changed
+
+- LiteBus assigns time-ordered version 7 identifiers (`Guid.CreateVersion7()`) to the audit records it produces and to a record written without one, so a mapper that keeps `record.Id` gets time order and redelivery protection together. The auditing page now tells mappers to store under `record.Id`.
+
+### Fixed
+
+- An application-written record without an `Id` reached the Marten and PostgreSQL mappers with `Guid.Empty`, so every such record shared one stored document. Every capture path now assigns an identifier to a record that has none.
+
 ## v8.0.0-preview.6
 
 Changes since [v8.0.0-preview.5](https://github.com/litenova/LiteBus/releases/tag/v8.0.0-preview.5). The [v8.0.0](#v800) section describes the whole 8.0.0 line. Previews of one line carry no compatibility promise between each other, so this section lists what changed without upgrade steps.
@@ -255,6 +271,7 @@ This release makes identity and tenancy part of the pipeline, adds composable au
 - Analyzer LB1030 reports a `Register<TMessage>(name, version)` call that disagrees with the type's `[MessageContract]`.
 - A failed audit write is logged at error level and counted on the `litebus.audit.write.failures` counter of the `LiteBus.Auditing` meter (`LiteBus.Auditing.Extensions.OpenTelemetry` registers it), and the mediation's ending stands. `RequireRecord()` makes a successful mediation fail instead when its record cannot be written. Application code writes its own records through the scoped `IAuditTrail`.
 - `IServiceProvider.ValidateLiteBusHost()` validates a built host's container without starting it, for a startup check such as `--validate-composition`; `LiteBusHostValidation.Validate(IServiceCollection)` in `LiteBus.Testing.Hosting` does the same in a unit test.
+- Audit records carry a time-ordered version 7 `Id`, and `Origin` says whether LiteBus produced the record for a mediation or application code wrote it through `IAuditTrail`; a record written without an `Id` is given one on every capture path.
 
 ### Changed
 

@@ -313,6 +313,8 @@ Refusing through a guard or a validator needs no mapper.
 
 | Field | Holds |
 | --- | --- |
+| `Id` | A time-ordered version 7 identifier LiteBus assigns, or the one application code set; the stored document keeps it |
+| `Origin` | `Mediation` for a record LiteBus produced, `Application` for one application code wrote through `IAuditTrail` |
 | `Action` | Use-case identity, such as `orders.place-order` |
 | `Actor` | Who did it, from the actor resolver or the audit scope |
 | `Outcome` | `Succeeded`, `Denied`, `Invalid`, `Failed`, or `Canceled` (an early answer is a success) |
@@ -474,7 +476,6 @@ public sealed class SegmentRetention
     public Task RecordDeletionAsync(string segment, string tenantId, CancellationToken cancellationToken) =>
         _trail.WriteAsync(new AuditRecord
         {
-            Id = Guid.NewGuid(),
             Action = "retention.segment-deleted",
             Outcome = AuditOutcome.Succeeded,
             OccurredAt = DateTimeOffset.UtcNow,
@@ -485,7 +486,33 @@ public sealed class SegmentRetention
 }
 ```
 
-`IAuditTrail` is scoped. A `Succeeded` record is staged on the scope's business session, so it commits when the application saves that session; any other outcome is written at once on a short session of its own. The record mapper and segmenter apply as they do to every record. Outside a unit of work that links after commit, the link sweep positions the record.
+`IAuditTrail` is scoped. A `Succeeded` record is staged on the scope's business session, so it commits when the application saves that session; any other outcome is written at once on a short session of its own. Outside a unit of work that links after commit, the link sweep positions the record.
+
+The record reaches the same record mapper and segmenter as every mediation record. A mapper usually derives storage choices from mediation facts, such as a retention class from the category or a year from the business time, and an application-written record has no mediation behind it. `AuditRecord.Origin` tells the two apart: a record application code builds is `AuditRecordOrigin.Application` by default, and LiteBus marks the records it produces `AuditRecordOrigin.Mediation`. Carry the storage choices in `Properties` and branch on the origin in the mapper:
+
+```csharp
+public async ValueTask<WorkspaceAuditDocument> MapAsync(
+    AuditRecord record,
+    AuditMappingContext context,
+    CancellationToken cancellationToken)
+{
+    if (record.Origin == AuditRecordOrigin.Application)
+    {
+        return new WorkspaceAuditDocument
+        {
+            Id = record.Id,
+            Action = record.Action,
+            RetentionClass = record.Properties["retention-class"],
+            Year = int.Parse(record.Properties["year"], CultureInfo.InvariantCulture),
+            OccurredAt = record.OccurredAt
+        };
+    }
+
+    return await MapMediationRecordAsync(record, context, cancellationToken).ConfigureAwait(false);
+}
+```
+
+Leave `Id` unset and LiteBus assigns a version 7 identifier. Set it when a retried write must find the first one, for example from the identifier of the checkpoint a retention job cut: the store holds one document per identifier, so the retry overwrites instead of adding a second record.
 
 ## Auditing Command Batches
 
@@ -646,7 +673,7 @@ public sealed class WorkspaceAuditMapper : AuditRecordMapper<WorkspaceAuditDocum
 
         return new WorkspaceAuditDocument
         {
-            Id = Guid.NewGuid(),
+            Id = record.Id,
             Action = record.Action,
             Workspace = workspace ?? "default",
             RefusalCode = record.FailureCode,
@@ -657,6 +684,8 @@ public sealed class WorkspaceAuditMapper : AuditRecordMapper<WorkspaceAuditDocum
 ```
 
 `IAuditRecordMapper<TDocument>` has one member, `MapAsync(record, AuditMappingContext, cancellationToken)`. A mapper that needs no services derives from `AuditRecordMapper<TDocument>` and implements only the synchronous `Map`, as above. When mapping needs services, such as creating a pseudonym for the actor or reading a tenant's time zone, implement `IAuditRecordMapper<TDocument>` and its `MapAsync` directly. Every audit store awaits `MapAsync`, on the success path and on the out-of-band path that records denials, failures and cancellations. The mapper is registered scoped and resolved from the mediation's scope, so its constructor may take scoped services. The context describes the mediation through `Evaluation` (its message, identity, clock and execution context), with `Services` and `Identity` repeated for direct reads.
+
+Store every document under `record.Id`. LiteBus gives each record a time-ordered version 7 identifier, so a mapper keeps time order without stamping its own, and the store holds one document per identifier, so a record redelivered through the outbox, or a retried application write that sets its own identifier, overwrites instead of being stored twice. A mapper that stamps its own identifier loses that protection.
 
 `AuditMappingContext.Features` holds the session the record is written on, so a row the mapper writes through it commits or rolls back with the record:
 
@@ -687,7 +716,7 @@ public sealed class PseudonymizingAuditMapper : IAuditRecordMapper<WorkspaceAudi
 
         return new WorkspaceAuditDocument
         {
-            Id = Guid.NewGuid(),
+            Id = record.Id,
             Action = record.Action,
             Actor = pseudonym,
             OccurredAt = record.OccurredAt
@@ -721,7 +750,7 @@ public sealed class WorkspaceAuditSegmenter : IAuditSegmenter<WorkspaceAuditDocu
 
         return new WorkspaceAuditDocument
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             Action = "audit.segment-opened",
             Workspace = first.Workspace,
             OccurredAt = first.OccurredAt

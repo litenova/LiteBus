@@ -24,7 +24,7 @@ public sealed class EfCoreAuditRecordMapper : AuditRecordMapper<EfCoreAuditRecor
 
         return new EfCoreAuditRecord
         {
-            Id = record.Id == Guid.Empty ? Guid.NewGuid() : record.Id,
+            Id = record.Id == Guid.Empty ? Guid.CreateVersion7() : record.Id,
             Action = record.Action,
             ActorId = record.Actor?.Id,
             ActorKind = record.Actor?.Kind,

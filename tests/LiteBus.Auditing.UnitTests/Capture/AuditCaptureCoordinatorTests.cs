@@ -134,6 +134,55 @@ public sealed class AuditCaptureCoordinatorTests
     }
 
     [Fact]
+    public async Task A_record_written_without_an_id_gets_a_version_7_id_on_the_trail_path()
+    {
+        var trail = new RecordingAuditTrail();
+        var coordinator = new AuditCaptureCoordinator(trail, new RecordingAuditOutbox());
+        var record = TestAuditRecords.WithOutcome(AuditOutcome.Succeeded, id: Guid.Empty);
+
+        await coordinator.CaptureAsync(record, AuditCapture.WithChange(), CancellationToken.None)
+            .ConfigureAwait(false);
+
+        var written = trail.Records.Should().ContainSingle().Subject;
+        written.Id.Should().NotBe(Guid.Empty);
+        written.Id.Version.Should().Be(7);
+    }
+
+    [Fact]
+    public async Task Two_records_written_without_an_id_get_different_ids()
+    {
+        var trail = new RecordingAuditTrail();
+        var coordinator = new AuditCaptureCoordinator(trail, new RecordingAuditOutbox());
+
+        await coordinator.CaptureAsync(
+                TestAuditRecords.WithOutcome(AuditOutcome.Denied, id: Guid.Empty),
+                AuditCapture.WithChange(),
+                CancellationToken.None)
+            .ConfigureAwait(false);
+        await coordinator.CaptureAsync(
+                TestAuditRecords.WithOutcome(AuditOutcome.Denied, id: Guid.Empty),
+                AuditCapture.WithChange(),
+                CancellationToken.None)
+            .ConfigureAwait(false);
+
+        trail.Records.Select(written => written.Id).Should().OnlyHaveUniqueItems();
+    }
+
+    [Fact]
+    public async Task A_record_written_with_an_id_keeps_it()
+    {
+        var trail = new RecordingAuditTrail();
+        var coordinator = new AuditCaptureCoordinator(trail, new RecordingAuditOutbox());
+        var id = Guid.NewGuid();
+        var record = TestAuditRecords.WithOutcome(AuditOutcome.Succeeded, id: id);
+
+        await coordinator.CaptureAsync(record, AuditCapture.WithChange(), CancellationToken.None)
+            .ConfigureAwait(false);
+
+        trail.Records.Should().ContainSingle().Subject.Id.Should().Be(id);
+    }
+
+    [Fact]
     public async Task Capturing_through_the_outbox_without_an_outbox_fails_the_mediation()
     {
         var trail = new RecordingAuditTrail();

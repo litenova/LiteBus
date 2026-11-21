@@ -134,7 +134,8 @@ internal sealed class AuditRecordWriter : IAuditRecordWriter
 
         var record = new AuditRecord
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
+            Origin = AuditRecordOrigin.Mediation,
             Action = declaration.Action,
             Actor = ResolveActor(context, scope),
             Outcome = outcome,
