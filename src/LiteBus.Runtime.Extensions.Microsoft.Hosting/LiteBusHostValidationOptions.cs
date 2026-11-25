@@ -6,7 +6,8 @@ namespace LiteBus.Runtime.Extensions.Microsoft.Hosting;
 /// <remarks>
 ///     Every check is on by default. Switch one off by setting its flag to <see langword="false" />. A host that
 ///     stages events only through explicit enqueue calls switches the event-consistency check off, and a host with
-///     message types no sample factory can build switches the round-trip check off.
+///     message types no sample factory can build switches the round-trip check off or reports those contracts as
+///     not run through <see cref="FailOnMissingSample" />.
 /// </remarks>
 public sealed record LiteBusHostValidationOptions
 {
@@ -29,4 +30,14 @@ public sealed record LiteBusHostValidationOptions
     /// </summary>
     /// <value><see langword="true" /> by default. Skipped silently when messaging was not composed.</value>
     public bool ValidateEventConsistency { get; init; } = true;
+
+    /// <summary>
+    ///     Gets a value indicating whether a contract no sample factory can sample fails validation.
+    /// </summary>
+    /// <value>
+    ///     <see langword="true" /> by default. When <see langword="false" />, the round trip for an unsampleable
+    ///     contract is reported as not run on <see cref="LiteBusHostValidationResult.SkippedRoundTrips" /> instead
+    ///     of failing the host. A factory exception and a serialization failure still fail either way.
+    /// </value>
+    public bool FailOnMissingSample { get; init; } = true;
 }

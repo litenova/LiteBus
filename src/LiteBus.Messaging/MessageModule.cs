@@ -86,6 +86,7 @@ public sealed class MessageModule : IModule
             moduleBuilder.SerializerLifetime,
             moduleBuilder.SerializerOptionsProvider,
             moduleBuilder.MessageSampleFactory,
+            moduleBuilder.MessageSamples,
             moduleBuilder.FaultRefusalClassifiers);
         RegisterRefusalCatalog(configuration, refusalCatalog);
         ModuleRegistration.RegisterNewHandlers(configuration, messageRegistry, startIndex);
@@ -326,6 +327,7 @@ public sealed class MessageModule : IModule
     /// <param name="messageSerializerLifetime">The lifetime a serializer implementation type is registered with.</param>
     /// <param name="serializerOptionsProvider">The options, provider instance, or provider type, or null for the built-in one.</param>
     /// <param name="messageSampleFactory">The sample factory instance or implementation type, or null for the built-in one.</param>
+    /// <param name="messageSamples">The per-type samples registered for the built-in factory.</param>
     /// <param name="faultRefusalClassifiers">The classifier implementation types and instances, in registration order.</param>
     private static void RegisterMessagingServices(
         IModuleConfiguration configuration,
@@ -336,6 +338,7 @@ public sealed class MessageModule : IModule
         InstanceLifetime messageSerializerLifetime,
         object? serializerOptionsProvider,
         object? messageSampleFactory,
+        MessageSampleRegistry messageSamples,
         IReadOnlyList<object> faultRefusalClassifiers)
     {
         // Register message registry as singleton.
@@ -392,7 +395,7 @@ public sealed class MessageModule : IModule
             messageContractRegistry));
 
         RegisterMessageSerializer(configuration, messageSerializer, messageSerializerLifetime, serializerOptionsProvider);
-        RegisterMessageSampleFactory(configuration, messageSampleFactory);
+        RegisterMessageSampleFactory(configuration, messageSampleFactory, messageSamples);
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(TimeProvider),
@@ -607,9 +610,41 @@ public sealed class MessageModule : IModule
     /// </summary>
     /// <param name="configuration">The module configuration.</param>
     /// <param name="messageSampleFactory">The sample factory instance or implementation type, or null for the built-in one.</param>
-    /// <exception cref="LiteBusConfigurationException">The builder held a value that is not a sample factory.</exception>
-    private static void RegisterMessageSampleFactory(IModuleConfiguration configuration, object? messageSampleFactory)
+    /// <param name="messageSamples">The per-type samples registered for the built-in factory.</param>
+    /// <exception cref="LiteBusConfigurationException">
+    ///     The builder held a value that is not a sample factory, or held both per-type samples and a custom
+    ///     factory that would silently ignore them.
+    /// </exception>
+    /// <remarks>
+    ///     A default factory fed with registered samples still registers through
+    ///     <see cref="DependencyDescriptor.ForDefaultPort(Type, object)" />, so the composition model reports the
+    ///     port as the default. The samples registry joins the composition sections only when samples exist, so
+    ///     compositions without samples export no empty section.
+    /// </remarks>
+    private static void RegisterMessageSampleFactory(
+        IModuleConfiguration configuration,
+        object? messageSampleFactory,
+        MessageSampleRegistry messageSamples)
     {
+        if (messageSampleFactory is not null && messageSamples.Count > 0)
+        {
+            throw new LiteBusConfigurationException(
+                "The composition registers per-type samples through 'RegisterSample' and replaces the message "
+                + "sample factory. A custom factory never consults the registered samples, so they would be "
+                + "silently ignored; move the samples into the custom factory or remove the replacement.");
+        }
+
+        if (messageSamples.Count > 0)
+        {
+            configuration.DependencyRegistry.Register(DependencyDescriptor.ForDefaultPort(
+                typeof(IMessageSampleFactory),
+                new DefaultMessageSampleFactory(messageSamples.Snapshot())));
+            configuration.DependencyRegistry.RegisterCollection(DependencyDescriptor.ForCollection(
+                typeof(ICompositionSectionContributor),
+                messageSamples));
+            return;
+        }
+
         switch (messageSampleFactory)
         {
             case null:

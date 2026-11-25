@@ -46,17 +46,25 @@ internal static class MessageContractRoundTripCheck
     ///     Round-trips every registered durable message contract and records one failure per problem found.
     /// </summary>
     /// <param name="services">The root service provider built by the host.</param>
+    /// <param name="options">The validation options selecting strict or lenient missing-sample handling.</param>
     /// <param name="failures">The failure messages collected so far.</param>
+    /// <param name="skippedRoundTrips">The not-run entries collected so far.</param>
     /// <remarks>
     ///     Skipped silently when messaging was not composed: with no composition model or no serializer there are no
     ///     contracts to check. A missing sample factory fails every contract instead, because messaging composed
     ///     without one is a broken composition rather than an absent feature.
     /// </remarks>
     [RequiresUnreferencedCode("Round-trip comparison inspects contract message types via reflection.")]
-    internal static void Validate(IServiceProvider services, List<string> failures)
+    internal static void Validate(
+        IServiceProvider services,
+        LiteBusHostValidationOptions options,
+        List<string> failures,
+        List<string> skippedRoundTrips)
     {
         ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(failures);
+        ArgumentNullException.ThrowIfNull(skippedRoundTrips);
 
         if (services.GetService(typeof(ICompositionModel)) is not ICompositionModel model
             || services.GetService(typeof(IMessageSerializer)) is not IMessageSerializer serializer)
@@ -74,7 +82,7 @@ internal static class MessageContractRoundTripCheck
 
         foreach (var contract in model.Contracts)
         {
-            ValidateContract(contract, serializer, factory, failures);
+            ValidateContract(contract, options, serializer, factory, failures, skippedRoundTrips);
         }
     }
 
@@ -83,9 +91,11 @@ internal static class MessageContractRoundTripCheck
     ///     Round-trips one registered contract and records one failure per problem found.
     /// </summary>
     /// <param name="contract">The contract registration to check.</param>
+    /// <param name="options">The validation options selecting strict or lenient missing-sample handling.</param>
     /// <param name="serializer">The configured message serializer.</param>
     /// <param name="factory">The configured message sample factory.</param>
     /// <param name="failures">The failure messages collected so far.</param>
+    /// <param name="skippedRoundTrips">The not-run entries collected so far.</param>
     /// <remarks>
     ///     The catches stay broad because the sample factory and the serializer are application-replaceable ports:
     ///     a custom implementation throws exception types the check cannot enumerate, and a check that crashed on
@@ -94,9 +104,11 @@ internal static class MessageContractRoundTripCheck
     [RequiresUnreferencedCode("Round-trip comparison inspects contract message types via reflection.")]
     private static void ValidateContract(
         ContractRegistration contract,
+        LiteBusHostValidationOptions options,
         IMessageSerializer serializer,
         IMessageSampleFactory factory,
-        List<string> failures)
+        List<string> failures,
+        List<string> skippedRoundTrips)
     {
         var messageType = contract.MessageType;
         var typeName = messageType.FullName ?? messageType.Name;
@@ -116,10 +128,18 @@ internal static class MessageContractRoundTripCheck
 
         if (sample is null)
         {
-            failures.Add(
-                $"message contract round trip for '{typeName}' (contract '{contract.Name}' version "
-                + $"{contract.Version}): no sample is available. Register an '{nameof(IMessageSampleFactory)}' "
-                + "that samples this type, or switch the round-trip check off.");
+            var diagnosis = DescribeFailure(factory, messageType);
+            var entry = FormatMissingSample(contract, typeName, diagnosis, options.FailOnMissingSample);
+
+            if (options.FailOnMissingSample)
+            {
+                failures.Add(entry);
+            }
+            else
+            {
+                skippedRoundTrips.Add(entry);
+            }
+
             return;
         }
 
@@ -155,6 +175,79 @@ internal static class MessageContractRoundTripCheck
         }
 
         CompareProperties(contract, typeName, sample, roundTripped, failures);
+    }
+
+    /// <summary>
+    ///     Asks the sample factory why a message type cannot be sampled.
+    /// </summary>
+    /// <param name="factory">The configured message sample factory.</param>
+    /// <param name="messageType">The message type that cannot be sampled.</param>
+    /// <returns>The sampling failure, or <see langword="null" /> when the factory carries no detail.</returns>
+    /// <remarks>
+    ///     The catch stays broad because the factory is an application-replaceable port: a custom diagnosis
+    ///     throws exception types the check cannot enumerate, and a throwing diagnosis must fall back to the
+    ///     generic message rather than crash validation.
+    /// </remarks>
+    private static MessageSampleFailure? DescribeFailure(IMessageSampleFactory factory, Type messageType)
+    {
+        try
+        {
+            return factory.DescribeFailureAsync(messageType).AsTask().GetAwaiter().GetResult();
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    ///     Formats the failure or not-run entry for a contract no sample factory can sample.
+    /// </summary>
+    /// <param name="contract">The contract registration under check.</param>
+    /// <param name="typeName">The display name of the message type.</param>
+    /// <param name="diagnosis">The sampling failure, or <see langword="null" /> when the factory carries no detail.</param>
+    /// <param name="failOnMissingSample"><see langword="true" /> for a failure entry; otherwise, a not-run entry.</param>
+    /// <returns>The formatted entry.</returns>
+    private static string FormatMissingSample(
+        ContractRegistration contract,
+        string typeName,
+        MessageSampleFailure? diagnosis,
+        bool failOnMissingSample)
+    {
+        var outcome = failOnMissingSample ? "no sample is available" : "not run: no sample is available";
+        var header = $"message contract round trip for '{typeName}' (contract '{contract.Name}' version "
+            + $"{contract.Version}): {outcome}";
+
+        if (diagnosis is null)
+        {
+            return header
+                + $". Register a sample with 'MessageModuleBuilder.RegisterSample<{contract.MessageType.Name}>' or an "
+                + $"'{nameof(IMessageSampleFactory)}' that samples this type, or switch the round-trip check off."
+                + LenientNote(failOnMissingSample);
+        }
+
+        var failedName = diagnosis.FailedType.FullName ?? diagnosis.FailedType.Name;
+        var location = diagnosis.MemberPath.Length == 0
+            ? $"type '{failedName}'"
+            : $"member '{diagnosis.MemberPath}' (type '{failedName}')";
+
+        return header
+            + $": {location} cannot be sampled: {diagnosis.Reason}. Register a sample with "
+            + $"'MessageModuleBuilder.RegisterSample<{diagnosis.FailedType.Name}>' or an "
+            + $"'{nameof(IMessageSampleFactory)}' that samples this type, or switch the round-trip check off."
+            + LenientNote(failOnMissingSample);
+    }
+
+    /// <summary>
+    ///     Formats the trailing note of a not-run entry.
+    /// </summary>
+    /// <param name="failOnMissingSample"><see langword="true" /> for a failure entry; otherwise, a not-run entry.</param>
+    /// <returns>The note, or the empty string for a failure entry.</returns>
+    private static string LenientNote(bool failOnMissingSample)
+    {
+        return failOnMissingSample
+            ? string.Empty
+            : " The round trip did not run because 'FailOnMissingSample' is 'false'.";
     }
 #pragma warning restore CA1031
 

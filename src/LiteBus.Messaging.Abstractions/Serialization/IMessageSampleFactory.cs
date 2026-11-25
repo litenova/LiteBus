@@ -16,7 +16,8 @@ namespace LiteBus.Messaging.Abstractions;
 ///     </para>
 ///     <para>
 ///         A message type the default factory cannot build, such as one whose constructors all guard their
-///         arguments, needs an application factory registered through
+///         arguments, needs either a per-type sample registered through
+///         <c>MessageModuleBuilder.RegisterSample</c> or an application factory registered through
 ///         <c>MessageModuleBuilder.UseMessageSampleFactory</c>. Return <see langword="null" /> for a type the
 ///         factory cannot sample; the check reports the missing sample so the registration is fixed.
 ///     </para>
@@ -33,4 +34,22 @@ public interface IMessageSampleFactory
     /// <param name="cancellationToken">A token used to cancel sample creation.</param>
     /// <returns>The sample instance, or <see langword="null" /> when the factory cannot sample the type.</returns>
     ValueTask<object?> CreateSampleAsync(Type messageType, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     Describes why a message type cannot be sampled.
+    /// </summary>
+    /// <param name="messageType">The message type that cannot be sampled.</param>
+    /// <param name="cancellationToken">A token used to cancel failure diagnosis.</param>
+    /// <returns>
+    ///     The sampling failure, or <see langword="null" /> when the type samples or the factory carries no
+    ///     detail. The default implementation answers <see langword="null" />, so an existing custom factory
+    ///     keeps working and the check reports its missing samples without a member path.
+    /// </returns>
+    ValueTask<MessageSampleFailure?> DescribeFailureAsync(Type messageType, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(messageType);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        return new ValueTask<MessageSampleFailure?>((MessageSampleFailure?) null);
+    }
 }

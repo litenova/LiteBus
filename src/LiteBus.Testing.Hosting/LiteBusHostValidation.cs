@@ -78,6 +78,69 @@ public static class LiteBusHostValidation
     /// </exception>
     public static void Validate(IServiceCollection services, LiteBusHostValidationOptions? options)
     {
+        var result = ValidateWithResult(services, options);
+
+        if (result.Failures.Count > 0)
+        {
+            throw new LiteBusHostValidationException(result.Failures);
+        }
+    }
+
+    /// <summary>
+    ///     Builds the service provider with scope and build validation enabled, then validates the LiteBus host
+    ///     composition and answers the outcome without throwing.
+    /// </summary>
+    /// <param name="services">The service collection holding the LiteBus composition to validate.</param>
+    /// <returns>The validation outcome, with one entry per failure and per skipped round trip.</returns>
+    /// <remarks>
+    ///     <para>
+    ///         This method builds and disposes its own provider, so call it on a composition built only for the test,
+    ///         never on a collection the host builds afterwards. A provider that holds state from the composition breaks
+    ///         the host's own build when it is disposed first.
+    ///     </para>
+    ///     <para>
+    ///         Runs every check. The skipped round trips are only visible on the answered result.
+    ///     </para>
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">
+    ///     Thrown when <paramref name="services" /> is <see langword="null" />.
+    /// </exception>
+    public static LiteBusHostValidationResult ValidateWithResult(IServiceCollection services)
+    {
+        return ValidateWithResult(services, options: null);
+    }
+
+    /// <summary>
+    ///     Builds the service provider with scope and build validation enabled, then validates the LiteBus host
+    ///     composition and answers the outcome without throwing.
+    /// </summary>
+    /// <param name="services">The service collection holding the LiteBus composition to validate.</param>
+    /// <param name="options">
+    ///     The checks to run, or <see langword="null" /> to run every check. Each check is individually switchable.
+    /// </param>
+    /// <returns>The validation outcome, with one entry per failure and per skipped round trip.</returns>
+    /// <remarks>
+    ///     <para>
+    ///         This method builds and disposes its own provider, so call it on a composition built only for the test,
+    ///         never on a collection the host builds afterwards. A provider that holds state from the composition breaks
+    ///         the host's own build when it is disposed first.
+    ///     </para>
+    ///     <para>
+    ///         Inside a host, call <see cref="LiteBusHostValidationExtensions.ValidateLiteBusHostWithResult(IServiceProvider, LiteBusHostValidationOptions)" /> on the built host's
+    ///         <c>Services</c> instead.
+    ///     </para>
+    ///     <para>
+    ///         The overload to reach for when missing samples do not fail validation: the skipped round trips are
+    ///         only visible on the answered result.
+    ///     </para>
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">
+    ///     Thrown when <paramref name="services" /> is <see langword="null" />.
+    /// </exception>
+    public static LiteBusHostValidationResult ValidateWithResult(
+        IServiceCollection services,
+        LiteBusHostValidationOptions? options)
+    {
         ArgumentNullException.ThrowIfNull(services);
 
         List<string> failures = [];
@@ -98,17 +161,18 @@ public static class LiteBusHostValidation
                 failures.Add(FormatFailure("service provider build", innerException));
             }
 
-            throw new LiteBusHostValidationException(failures);
+            return new LiteBusHostValidationResult(failures, []);
         }
         catch (InvalidOperationException exception)
         {
             failures.Add(FormatFailure("service provider build", exception));
-            throw new LiteBusHostValidationException(failures);
+
+            return new LiteBusHostValidationResult(failures, []);
         }
 
         using (provider)
         {
-            provider.ValidateLiteBusHost(options);
+            return provider.ValidateLiteBusHostWithResult(options);
         }
     }
 

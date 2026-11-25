@@ -61,10 +61,65 @@ public static class LiteBusHostValidationExtensions
     /// </exception>
     public static void ValidateLiteBusHost(this IServiceProvider services, LiteBusHostValidationOptions? options)
     {
+        var result = ValidateLiteBusHostWithResult(services, options);
+
+        if (result.Failures.Count > 0)
+        {
+            throw new LiteBusHostValidationException(result.Failures);
+        }
+    }
+
+    /// <summary>
+    ///     Validates a LiteBus host composition from the host's root provider and answers the outcome without throwing.
+    /// </summary>
+    /// <param name="services">The root service provider built by the host.</param>
+    /// <returns>The validation outcome, with one entry per failure and per skipped round trip.</returns>
+    /// <remarks>
+    ///     Runs every check. The skipped round trips are only visible on the answered result.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">
+    ///     Thrown when <paramref name="services" /> is <see langword="null" />.
+    /// </exception>
+    public static LiteBusHostValidationResult ValidateLiteBusHostWithResult(this IServiceProvider services)
+    {
+        return ValidateLiteBusHostWithResult(services, options: null);
+    }
+
+    /// <summary>
+    ///     Validates a LiteBus host composition from the host's root provider and answers the outcome without throwing.
+    /// </summary>
+    /// <param name="services">The root service provider built by the host.</param>
+    /// <param name="options">
+    ///     The checks to run, or <see langword="null" /> to run every check. Each check is individually switchable.
+    /// </param>
+    /// <returns>The validation outcome, with one entry per failure and per skipped round trip.</returns>
+    /// <remarks>
+    ///     <para>
+    ///         Scope validation comes from the host's own <c>ServiceProviderOptions</c>, which is on by default in the
+    ///         Development environment. The method does not build or dispose a provider.
+    ///     </para>
+    ///     <para>
+    ///         It makes no database or broker connection unless a service's constructor does. The contract round-trip
+    ///         and event-consistency checks read the composition model and the configured serializer from the provider
+    ///         and are skipped silently when messaging was not composed.
+    ///     </para>
+    ///     <para>
+    ///         The overload to reach for when missing samples do not fail validation: the skipped round trips are
+    ///         only visible on the answered result.
+    ///     </para>
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">
+    ///     Thrown when <paramref name="services" /> is <see langword="null" />.
+    /// </exception>
+    public static LiteBusHostValidationResult ValidateLiteBusHostWithResult(
+        this IServiceProvider services,
+        LiteBusHostValidationOptions? options)
+    {
         ArgumentNullException.ThrowIfNull(services);
 
         options ??= new LiteBusHostValidationOptions();
         List<string> failures = [];
+        List<string> skippedRoundTrips = [];
 
         if (options.ValidateRegistrations)
         {
@@ -73,7 +128,7 @@ public static class LiteBusHostValidationExtensions
 
         if (options.ValidateContractRoundTrips)
         {
-            MessageContractRoundTripCheck.Validate(services, failures);
+            MessageContractRoundTripCheck.Validate(services, options, failures, skippedRoundTrips);
         }
 
         if (options.ValidateEventConsistency)
@@ -81,10 +136,7 @@ public static class LiteBusHostValidationExtensions
             DurableEventConsistencyCheck.Validate(services, failures);
         }
 
-        if (failures.Count > 0)
-        {
-            throw new LiteBusHostValidationException(failures);
-        }
+        return new LiteBusHostValidationResult(failures, skippedRoundTrips);
     }
 
     /// <summary>

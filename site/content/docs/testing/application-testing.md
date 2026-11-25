@@ -287,14 +287,28 @@ LiteBusHostValidation.Validate(
     new LiteBusHostValidationOptions { ValidateEventConsistency = false });
 ```
 
-Message types without a parameterless shape need a sample the default factory cannot build. Register an `IMessageSampleFactory` through the message module builder; it may delegate to `DefaultMessageSampleFactory` for the types it does not handle itself:
+The default sample factory builds the shapes domain models use: records and structs whose constructors validate their arguments, static factories named `TryParse`, `TryCreate`, `Create`, `From` (including `FromCode`-style factories) or `Parse`, and abstract closed sets, which sample through the first concrete derived type in the same assembly by name, or through a parameterless static member such as an `All` list when the cases hide their constructors. A guarded string needs a registered sample. Interfaces stay unsampleable.
+
+A value no general rule satisfies, such as an address validated against a regular expression, needs one per-type sample. The default factory consults it at every level of sampling, so one registration fixes every message holding the type:
 
 ```csharp
 builder.AddMessaging(messaging => messaging
-    .UseMessageSampleFactoryInstance(new OrderSampleFactory()));
+    .RegisterSample<EmailAddress>(() => EmailAddress.Parse("billing@example.com")));
 ```
 
-When the factory returns `null` for a type, the round-trip check fails naming the type instead of silently skipping it.
+Repeats follow the registration conflict rule: an identical repeat is a no-op, a conflicting repeat fails composition naming both call sites, and `ReplaceSample` overwrites deliberately. Registered samples appear in the `message-samples` composition section. A whole-domain replacement stays available through `UseMessageSampleFactoryInstance`, which may delegate to `DefaultMessageSampleFactory` for the types it does not handle itself; registering samples together with a custom factory fails composition, because the custom factory would silently ignore them.
+
+When no strategy builds a type, the round-trip check fails naming the message type, the contract name and version, the member path with its type and reason, and both registrations that fix it (`RegisterSample` or an `IMessageSampleFactory` replacement). A host migrating toward full coverage reports those contracts as not run instead of failing them:
+
+```csharp
+var result = LiteBusHostValidation.ValidateWithResult(
+    services,
+    new LiteBusHostValidationOptions { FailOnMissingSample = false });
+
+result.SkippedRoundTrips.Should().BeEmpty(); // or track each entry in CI
+```
+
+`FailOnMissingSample` defaults to `true`. When `false`, an unsampleable contract lands on `SkippedRoundTrips` with the same diagnosis a failure would carry, while a factory exception and a serialization failure still fail either way. Inside a host, `ValidateLiteBusHostWithResult` on the built host's `Services` answers the same result; the existing `void` overloads delegate to it and throw when `Failures` is non-empty, so their behavior is unchanged.
 
 ## Integration Testing with `WebApplicationFactory`
 

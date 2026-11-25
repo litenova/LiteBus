@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using LiteBus.Messaging.Abstractions;
@@ -21,6 +23,11 @@ public sealed class MessageModuleBuilder
     ///     Gets the shared message registry used to register handlers and message types.
     /// </summary>
     private readonly IMessageRegistry _messageRegistry;
+
+    /// <summary>
+    ///     The per-type samples host validation round trips build through the default sample factory.
+    /// </summary>
+    private readonly MessageSampleRegistry _messageSamples = new();
 
     /// <summary>
     ///     The application composition checks to run once every module has been built.
@@ -882,6 +889,147 @@ public sealed class MessageModuleBuilder
         ArgumentNullException.ThrowIfNull(factory);
         MessageSampleFactory = factory;
         return this;
+    }
+
+    /// <summary>
+    ///     Gets the per-type samples host validation round trips build through the default sample factory.
+    /// </summary>
+    internal MessageSampleRegistry MessageSamples => _messageSamples;
+
+    /// <summary>
+    ///     Registers the sample host validation round trips build for one type.
+    /// </summary>
+    /// <typeparam name="TMessage">The sampled type: a message or a member type such as a value object.</typeparam>
+    /// <param name="sample">The factory answering the sample.</param>
+    /// <param name="callerFile">The registering file, supplied by the compiler.</param>
+    /// <param name="callerLine">The registering line, supplied by the compiler.</param>
+    /// <returns>The current builder.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="sample" /> is <see langword="null" />.</exception>
+    /// <remarks>
+    ///     <para>
+    ///         The overload to reach for for one strict value object in an otherwise samplable domain, such as an
+    ///         address validated against a regular expression. The default factory consults the sample at every
+    ///         level of sampling, so one registration fixes every message holding the type.
+    ///     </para>
+    ///     <para>
+    ///         An identical repeat is a no-op. A conflicting repeat fails composition naming both call sites, and
+    ///         <see cref="ReplaceSample{TMessage}" /> overwrites deliberately. Registering a sample together with
+    ///         a custom <see cref="IMessageSampleFactory" /> fails composition, because the custom factory would
+    ///         silently ignore the sample.
+    ///     </para>
+    /// </remarks>
+    public MessageModuleBuilder RegisterSample<TMessage>(
+        Func<TMessage> sample,
+        [CallerFilePath] string? callerFile = null,
+        [CallerLineNumber] int callerLine = 0)
+        where TMessage : notnull
+    {
+        ArgumentNullException.ThrowIfNull(sample);
+
+        _messageSamples.Add(sample, DescribeCaller(callerFile, callerLine));
+        return this;
+    }
+
+    /// <summary>
+    ///     Registers the sample host validation round trips build for one type.
+    /// </summary>
+    /// <param name="messageType">The sampled type: a message or a member type such as a value object.</param>
+    /// <param name="sample">The factory answering the sample.</param>
+    /// <param name="callerFile">The registering file, supplied by the compiler.</param>
+    /// <param name="callerLine">The registering line, supplied by the compiler.</param>
+    /// <returns>The current builder.</returns>
+    /// <exception cref="ArgumentNullException">
+    ///     <paramref name="messageType" /> or <paramref name="sample" /> is <see langword="null" />.
+    /// </exception>
+    /// <remarks>
+    ///     The generic overload is the one to reach for. This exists for composition code that registers samples
+    ///     from configuration, where the types are values rather than something the call site can name. An
+    ///     identical repeat is a no-op, a conflicting repeat fails composition naming both call sites, and
+    ///     <c>ReplaceSample</c> overwrites deliberately.
+    /// </remarks>
+    public MessageModuleBuilder RegisterSample(
+        Type messageType,
+        Func<object?> sample,
+        [CallerFilePath] string? callerFile = null,
+        [CallerLineNumber] int callerLine = 0)
+    {
+        ArgumentNullException.ThrowIfNull(messageType);
+        ArgumentNullException.ThrowIfNull(sample);
+
+        _messageSamples.Add(messageType, sample, DescribeCaller(callerFile, callerLine));
+        return this;
+    }
+
+    /// <summary>
+    ///     Registers the sample host validation round trips build for one type, overwriting any sample already
+    ///     registered for it.
+    /// </summary>
+    /// <typeparam name="TMessage">The sampled type: a message or a member type such as a value object.</typeparam>
+    /// <param name="sample">The factory answering the sample.</param>
+    /// <param name="callerFile">The registering file, supplied by the compiler.</param>
+    /// <param name="callerLine">The registering line, supplied by the compiler.</param>
+    /// <returns>The current builder.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="sample" /> is <see langword="null" />.</exception>
+    /// <remarks>
+    ///     This is the deliberate override for the registration conflict rule. A conflicting repeat through
+    ///     <see cref="RegisterSample{TMessage}" /> fails composition naming both call sites, while this method
+    ///     overwrites the recorded sample.
+    /// </remarks>
+    public MessageModuleBuilder ReplaceSample<TMessage>(
+        Func<TMessage> sample,
+        [CallerFilePath] string? callerFile = null,
+        [CallerLineNumber] int callerLine = 0)
+        where TMessage : notnull
+    {
+        ArgumentNullException.ThrowIfNull(sample);
+
+        _messageSamples.Replace(sample, DescribeCaller(callerFile, callerLine));
+        return this;
+    }
+
+    /// <summary>
+    ///     Registers the sample host validation round trips build for one type, overwriting any sample already
+    ///     registered for it.
+    /// </summary>
+    /// <param name="messageType">The sampled type: a message or a member type such as a value object.</param>
+    /// <param name="sample">The factory answering the sample.</param>
+    /// <param name="callerFile">The registering file, supplied by the compiler.</param>
+    /// <param name="callerLine">The registering line, supplied by the compiler.</param>
+    /// <returns>The current builder.</returns>
+    /// <exception cref="ArgumentNullException">
+    ///     <paramref name="messageType" /> or <paramref name="sample" /> is <see langword="null" />.
+    /// </exception>
+    /// <remarks>
+    ///     The generic overload is the one to reach for. This exists for composition code that registers samples
+    ///     from configuration, where the types are values rather than something the call site can name.
+    /// </remarks>
+    public MessageModuleBuilder ReplaceSample(
+        Type messageType,
+        Func<object?> sample,
+        [CallerFilePath] string? callerFile = null,
+        [CallerLineNumber] int callerLine = 0)
+    {
+        ArgumentNullException.ThrowIfNull(messageType);
+        ArgumentNullException.ThrowIfNull(sample);
+
+        _messageSamples.Replace(messageType, sample, DescribeCaller(callerFile, callerLine));
+        return this;
+    }
+
+    /// <summary>
+    ///     Describes the call site that registered a sample.
+    /// </summary>
+    /// <param name="callerFile">The registering file, supplied by the compiler.</param>
+    /// <param name="callerLine">The registering line, supplied by the compiler.</param>
+    /// <returns>The file name and line, so conflict messages and the snapshot stay machine-neutral.</returns>
+    private static string DescribeCaller(string? callerFile, int callerLine)
+    {
+        if (string.IsNullOrWhiteSpace(callerFile))
+        {
+            return "composition";
+        }
+
+        return $"{Path.GetFileName(callerFile)}:{callerLine}";
     }
 
     /// <summary>
