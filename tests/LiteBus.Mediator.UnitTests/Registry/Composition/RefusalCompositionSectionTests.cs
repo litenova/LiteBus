@@ -48,12 +48,12 @@ public sealed class RefusalCompositionSectionTests : LiteBusTestBase
         var data = section.GetData().Should().BeOfType<SortedDictionary<string, object?>>().Subject;
         var entries = data["entries"].Should().BeAssignableTo<IReadOnlyList<SortedDictionary<string, object?>>>().Subject;
 
-        var billing = entries.Single(entry => (string)entry["pattern"]! == "billing.unpaid");
+        var billing = entries.Single(entry => (string) entry["pattern"]! == "billing.unpaid");
         billing["kind"].Should().Be("Conflict");
         billing["title"].Should().Be("Billing conflict");
         billing["retryable"].Should().Be(true);
         billing["owner"].Should().Be("billing");
-        entries.Should().Contain(entry => (string)entry["pattern"]! == "concurrency.conflict");
+        entries.Should().Contain(entry => (string) entry["pattern"]! == "concurrency.conflict");
     }
 
     [Fact]

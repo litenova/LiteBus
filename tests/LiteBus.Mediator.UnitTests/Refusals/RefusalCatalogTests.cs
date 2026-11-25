@@ -224,7 +224,7 @@ public sealed class RefusalCatalogTests
         var entries = data["entries"].Should().BeAssignableTo<IReadOnlyList<SortedDictionary<string, object?>>>().Subject;
 
         entries.Should().HaveCount(11);
-        var billing = entries.Single(entry => (string)entry["pattern"]! == "billing.unpaid");
+        var billing = entries.Single(entry => (string) entry["pattern"]! == "billing.unpaid");
         billing["kind"].Should().Be("Conflict");
         billing["title"].Should().Be("Billing conflict");
         billing["retryable"].Should().Be(true);
