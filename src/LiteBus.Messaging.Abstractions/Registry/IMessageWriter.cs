@@ -102,4 +102,32 @@ public interface IMessageWriter
     ///     <paramref name="declaration" />.
     /// </remarks>
     bool TryAddDeclaration(MessageDeclarationItem declaration);
+
+    /// <summary>
+    ///     Declares one metadata value for a message type, overwriting any declaration already recorded for the same
+    ///     message and value type.
+    /// </summary>
+    /// <param name="declaration">The message type the value covers, the type it is keyed by, and the value.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="declaration" /> is <see langword="null" />.</exception>
+    /// <remarks>
+    ///     <para>
+    ///         This is the deliberate override for the registration conflict rule. A conflicting repeat through
+    ///         <see cref="AddDeclaration" /> fails composition naming both sources, while this method overwrites the
+    ///         recorded value, which is how a composition replaces a declaration with an explicit choice.
+    ///     </para>
+    ///     <para>
+    ///         The default implementation throws. A writer that cannot record declarations must say so rather than
+    ///         accept the call and drop it, because a silently dropped authorization replacement is an unguarded
+    ///         command that looks configured.
+    ///     </para>
+    /// </remarks>
+    void ReplaceDeclaration(MessageDeclarationItem declaration)
+    {
+        ArgumentNullException.ThrowIfNull(declaration);
+
+        throw new NotSupportedException(
+            $"This {nameof(IMessageWriter)} implementation does not record declarations, so the replacement of "
+            + $"'{declaration.DeclarationType.Name}' for '{declaration.MessageType.Name}' would be dropped. "
+            + "Implement ReplaceDeclaration, or declare the value with a definition class beside the message.");
+    }
 }

@@ -1,3 +1,4 @@
+using System;
 
 namespace LiteBus.Messaging.Abstractions;
 
@@ -70,4 +71,28 @@ public interface IMessageDeclarations
     /// </remarks>
     IMessageDeclarations Exempt<TValue>(string rationale)
         where TValue : notnull;
+
+    /// <summary>
+    ///     Declares the refusal codes the message can produce.
+    /// </summary>
+    /// <param name="refusals">The refusal codes, each with its kind, title, and retryability.</param>
+    /// <returns>The collection, for chaining.</returns>
+    /// <exception cref="System.ArgumentNullException"><paramref name="refusals" /> is <see langword="null" />.</exception>
+    /// <remarks>
+    ///     <para>
+    ///         At composition, every message's declarations are harvested into the refusal catalog, so transports
+    ///         answer the codes without a hand-registered map. A code declared here and registered through
+    ///         composition for the same meaning is an identical repeat; a conflicting repeat fails composition.
+    ///     </para>
+    ///     <para>
+    ///         The default implementation stores a <see cref="RefusalDeclarations" /> value, so a definition that
+    ///         declares refusals needs no other member.
+    ///     </para>
+    /// </remarks>
+    IMessageDeclarations Refusals(params RefusalDeclaration[] refusals)
+    {
+        ArgumentNullException.ThrowIfNull(refusals);
+
+        return Declare(new RefusalDeclarations(refusals));
+    }
 }

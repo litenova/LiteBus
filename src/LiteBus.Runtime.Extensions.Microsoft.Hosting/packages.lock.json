@@ -103,6 +103,12 @@
         "resolved": "10.0.14",
         "contentHash": "lVqovhCt3HlZe7ONG5ydaj6BYwYI004gldVfMMkJl/lR5ueeCtWNpW4nejOX75sPmzm8vXCxB69GqwHaYCnyUQ=="
       },
+      "litebus.messaging.abstractions": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )"
+        }
+      },
       "litebus.runtime.abstractions": {
         "type": "Project"
       },
@@ -178,6 +184,12 @@
         "type": "Transitive",
         "resolved": "10.0.14",
         "contentHash": "lVqovhCt3HlZe7ONG5ydaj6BYwYI004gldVfMMkJl/lR5ueeCtWNpW4nejOX75sPmzm8vXCxB69GqwHaYCnyUQ=="
+      },
+      "litebus.messaging.abstractions": {
+        "type": "Project",
+        "dependencies": {
+          "LiteBus.Runtime.Abstractions": "[8.0.0, )"
+        }
       },
       "litebus.runtime.abstractions": {
         "type": "Project"

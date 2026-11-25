@@ -10,7 +10,7 @@ namespace LiteBus.Messaging.Registry;
 /// <param name="Value">The effective value the pipeline reads.</param>
 /// <param name="Source">Which source supplied the value.</param>
 /// <param name="DeclaredFor">The message type or scope the source named.</param>
-/// <param name="SourceType">The definition or attribute type, when the source is one.</param>
+/// <param name="SourceType">The definition, catalog source, or attribute type, when the source is one.</param>
 /// <remarks>
 ///     <para>
 ///         Read through the message metadata by the composition model, which turns each entry into a
@@ -21,10 +21,10 @@ namespace LiteBus.Messaging.Registry;
 ///     <para>
 ///         <paramref name="DeclaredFor" /> is the type the source named, which may be a base type or a marker
 ///         interface covering the message rather than the message itself. <paramref name="SourceType" /> names the
-///         definition class or attribute type when <paramref name="Source" /> is
-///         <see cref="DeclarationSourceKind.Definition" /> or <see cref="DeclarationSourceKind.Attribute" />, and is
-///         <see langword="null" /> for defaults and conventions, which are composition data and functions rather
-///         than types.
+///         definition class, catalog source, or attribute type when <paramref name="Source" /> is
+///         <see cref="DeclarationSourceKind.Definition" />, <see cref="DeclarationSourceKind.Source" />, or
+///         <see cref="DeclarationSourceKind.Attribute" />, and is <see langword="null" /> for defaults and
+///         conventions, which are composition data and functions rather than types.
 ///     </para>
 /// </remarks>
 internal sealed record MessageDeclarationProvenance(

@@ -96,4 +96,14 @@ public static class LiteBusOutboxTelemetry
     ///     Gets the attribute key carrying the stable contract name of an immediate-addressed envelope staged with scheduled visibility.
     /// </summary>
     public const string ImmediateDispatchContractAttributeName = "litebus.contract.name";
+
+    /// <summary>
+    ///     Gets the instrument name incremented for each in-dispatch reaction retry scheduled after a storage conflict.
+    /// </summary>
+    public const string ReactionRetryInstrumentName = "litebus.outbox.reaction_retry.retries";
+
+    /// <summary>
+    ///     Gets the instrument name incremented when a storage conflict meets no further in-dispatch retry.
+    /// </summary>
+    public const string ReactionRetryExhaustedInstrumentName = "litebus.outbox.reaction_retry.exhausted";
 }

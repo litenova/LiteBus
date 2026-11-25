@@ -11,19 +11,27 @@ Runtime serialization converts CLR message objects to payload strings and back. 
 
 ## Stating the Wire Format
 
-The default is `JsonSerializerDefaults.Web`, which is camel case. The serializer decides the wire format of every persisted message, so choosing it is a compose-time decision, stated on `MessageModuleBuilder` the same way `UseTimeProvider` is:
+The default is `JsonSerializerDefaults.Web`, which is camel case. The serializer decides the wire format of every persisted message, so choosing it is a compose-time decision, stated on `MessageModuleBuilder` the same way `UseTimeProvider` is. State options once and every durable feature (outbox, inbox, saga state) serializes through them:
 
 ```csharp
-var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+var options = new JsonSerializerOptions(JsonSerializerDefaults.Web)
+{
+    PropertyNamingPolicy = null
+};
 
 liteBus.AddMessaging(messaging => messaging
-    .UseSerializerInstance(new SystemTextJsonMessageSerializer(options)));
+    .UseSerializerOptions(options));
 ```
 
 | Member | Use when |
 | --- | --- |
-| `UseSerializerInstance(IMessageSerializer)` | The serializer is configured rather than injected, which is the common case |
-| `UseSerializer<TMessageSerializer>(InstanceLifetime)` | The serializer has dependencies and should be constructed by the container |
+| `UseSerializerOptions(JsonSerializerOptions)` | The wire format is fixed options, which is the common case |
+| `UseSerializerOptionsProvider<TProvider>()` | The options are built from configuration or other services |
+| `UseSerializerOptionsProviderInstance(IMessageJsonSerializerOptionsProvider)` | The provider is a pre-created instance |
+| `UseSerializerInstance(IMessageSerializer)` | The whole serializer is replaced, not just its options |
+| `UseSerializer<TMessageSerializer>(InstanceLifetime)` | The replacement serializer has dependencies and should be constructed by the container |
+
+Setting both a custom serializer and custom options fails composition: two payload formats with nothing saying which applies. The composition model reports `IMessageJsonSerializerOptionsProvider` as default or replaced, so CI diffs show which format a host runs.
 
 Replacing the registration after `AddLiteBus` still works, but no composition check and no startup check can detect that choice. Forgetting it renames every property of every durable message on the wire, so every consumer breaks. Nothing fails at startup. Applications whose published payloads are read by other systems should state the format here rather than inherit it.
 
@@ -36,6 +44,7 @@ Existing rows are not rewritten. Changing the serializer of a system with messag
 | `IMessageSerializer.SerializeAsync<TMessage>(...)` | Serializes message instance to payload text |
 | `IMessageSerializer.DeserializeAsync(Type, string, ...)` | Deserializes payload text to CLR message |
 | `SystemTextJsonMessageSerializer(JsonSerializerOptions?)` | Default runtime serializer implementation |
+| `IMessageJsonSerializerOptionsProvider.Options` | The shared options every durable feature serializes message payloads with |
 
 ## Packages
 

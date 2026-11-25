@@ -84,6 +84,8 @@ internal sealed class CompositionModel : ICompositionModel
         new Dictionary<Type, Type?>
         {
             [typeof(IMessageSerializer)] = typeof(SystemTextJsonMessageSerializer),
+            [typeof(IMessageJsonSerializerOptionsProvider)] = typeof(DefaultMessageJsonSerializerOptionsProvider),
+            [typeof(IMessageSampleFactory)] = typeof(DefaultMessageSampleFactory),
             [typeof(IPermissionLookup)] = null,
             [typeof(ISignInInstantSource)] = null,
             [typeof(ITenantMetadataProvider)] = typeof(DefaultTenantMetadataProvider),

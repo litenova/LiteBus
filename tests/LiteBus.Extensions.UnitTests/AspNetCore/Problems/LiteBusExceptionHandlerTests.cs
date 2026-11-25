@@ -185,7 +185,11 @@ public sealed class LiteBusExceptionHandlerTests
         Assert.Equal("Invalid request", problem.RootElement.GetProperty("title").GetString());
         Assert.Equal("urn:litebus:billing:unpaid", problem.RootElement.GetProperty("type").GetString());
         Assert.Equal("the account is unpaid", problem.RootElement.GetProperty("detail").GetString());
-        Assert.Empty(logger.Entries);
+
+        var entry = Assert.Single(logger.Entries);
+        Assert.Equal(LogLevel.Warning, entry.Level);
+        Assert.Contains("billing.unpaid", entry.Message);
+        Assert.Same(exception, entry.Exception);
     }
 
     [Fact]

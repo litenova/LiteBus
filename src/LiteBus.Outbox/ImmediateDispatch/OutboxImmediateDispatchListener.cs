@@ -342,7 +342,8 @@ internal sealed class OutboxImmediateDispatchListener : IUnitOfWorkCommitListene
                 clock,
                 logger,
                 hooks,
-                timeoutSource.Token).ConfigureAwait(false);
+                timeoutSource.Token,
+                OutboxDispatchKind.Immediate).ConfigureAwait(false);
 
             if (updated is null)
             {

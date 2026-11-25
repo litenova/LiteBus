@@ -5,9 +5,11 @@ namespace LiteBus.Messaging.Registry;
 ///     type for the same message.
 /// </summary>
 /// <remarks>
-///     Ordinals encode precedence: a definition wins over an attribute, an attribute over a default, and a default
-///     over a convention. <see cref="MessageMetadata" /> compares them with greater-than when two declarations cover
-///     the same message type, so renumbering changes which source wins.
+///     Ordinals encode precedence: a definition or a catalog source wins over an attribute, an attribute over a
+///     default, and a default over a convention. <see cref="MessageMetadata" /> compares them with greater-than when
+///     two declarations cover the same message type, so renumbering changes which source wins. A source and a
+///     definition for the same message and value type never reach precedence: the registry reports the conflict
+///     first, so the higher ordinal only decides against attributes, defaults, and conventions.
 /// </remarks>
 internal enum MetadataSourceKind
 {
@@ -29,5 +31,10 @@ internal enum MetadataSourceKind
     /// <summary>
     ///     The value was declared by a message definition, which wins over an attribute on the same message type.
     /// </summary>
-    Definition = 3
+    Definition = 3,
+
+    /// <summary>
+    ///     The value was declared by a multi-message declaration source, which stands where a definition stands.
+    /// </summary>
+    Source = 4
 }

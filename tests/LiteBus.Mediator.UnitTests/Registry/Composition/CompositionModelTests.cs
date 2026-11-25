@@ -384,7 +384,8 @@ public sealed class CompositionModelTests : LiteBusTestBase
                 commands.Register<DraftScheduleCommandHandler>();
             });
 
-        model.Sections.Should().ContainSingle().Which.Should().BeSameAs(contributor);
+        model.Sections.Where(section => section.SectionName == contributor.SectionName)
+            .Should().ContainSingle().Which.Should().BeSameAs(contributor);
     }
 
     [Fact]
@@ -431,7 +432,8 @@ public sealed class CompositionModelTests : LiteBusTestBase
                 commands.Register<DraftScheduleCommandHandler>();
             });
 
-        model.Sections.Should().ContainSingle().Which.Should().BeSameAs(contributor);
+        model.Sections.Where(section => section.SectionName == contributor.SectionName)
+            .Should().ContainSingle().Which.Should().BeSameAs(contributor);
     }
 
     [Fact]

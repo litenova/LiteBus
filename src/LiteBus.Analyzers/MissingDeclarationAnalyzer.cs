@@ -25,9 +25,10 @@ namespace LiteBus.Analyzers;
 /// dotnet_diagnostic.LB1020.severity = warning
 ///     </code>
 ///     <para>
-///         A message satisfies the requirement with a definition class declaring the value, with an attribute annotated
-///         <c>[MessageDeclaration(typeof(TValue))]</c>, or with <c>[DeclarationExempt(typeof(TValue), "rationale")]</c>.
-///         A declaration written for a base type or a marker interface covers the messages beneath it.
+///         A message satisfies the requirement with a definition class or a catalog source declaring the value, with an
+///         attribute annotated <c>[MessageDeclaration(typeof(TValue))]</c>, or with
+///         <c>[DeclarationExempt(typeof(TValue), "rationale")]</c>. A declaration written for a base type or a marker
+///         interface covers the messages beneath it.
 ///     </para>
 ///     <para>
 ///         <c>RequireDeclaration&lt;TValue&gt;()</c> on the messaging module enforces the same rule at composition
@@ -85,6 +86,13 @@ public sealed class MissingDeclarationAnalyzer : DiagnosticAnalyzer
             {
                 context.RegisterSyntaxNodeAction(
                     nodeContext => DeclarationAnalysis.AnalyzeDescribeMethod(nodeContext, collector, symbols),
+                    SyntaxKind.MethodDeclaration);
+            }
+
+            if (symbols.DeclarationCatalog is not null && symbols.CatalogSourceContract is not null)
+            {
+                context.RegisterSyntaxNodeAction(
+                    nodeContext => DeclarationAnalysis.AnalyzeCatalogDescribeMethod(nodeContext, collector, symbols),
                     SyntaxKind.MethodDeclaration);
             }
         }

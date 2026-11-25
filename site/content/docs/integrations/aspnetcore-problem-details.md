@@ -66,6 +66,25 @@ services.AddSingleton<IRefusalProblemCatalog>(catalog);
 
 Registrations follow one conflict rule: mapping a pattern that already carries the same status code and title is a no-op that keeps the first contributor, mapping it to a different status code or title throws `LiteBusConfigurationException` naming the pattern and both mappings, and a deliberate override calls `Replace`. `Entries` lists every registered mapping with its contributor, ordered by pattern. `RefusalProblemCatalog.Default` is shared by the process, so an application maps on a catalog built by `CreateDefault` and registers that instance instead of extending the shared default.
 
+## Composing From the Refusal Registry
+
+A host that composes LiteBus messaging registers product codes once, on the messaging builder, and seeds the problem catalog from the composed registry instead of mapping each code twice:
+
+```csharp
+services.AddLiteBus(builder =>
+{
+    builder.AddMessaging(messaging =>
+    {
+        messaging.Refusals.Map("orders.limit-exceeded", RefusalKind.Conflict, "Order limit exceeded", retryable: false, owner: "orders");
+    });
+});
+services.AddRefusalProblemCatalog();
+```
+
+`AddRefusalProblemCatalog` builds the singleton problem catalog from the composed `IRefusalCatalog` when first resolved, so the LiteBus defaults and the product codes arrive together. The optional callback maps HTTP-only codes afterwards, such as a prefix the host answers with one status whatever the neutral kind says. When the application registered its own catalog, that registration wins; when messaging was never composed, resolving the catalog throws naming `AddMessaging` instead of answering from an empty catalog.
+
+Seeding copies each neutral entry through `Map`, so the conflict rule spans both sources: a neutral entry that repeats an HTTP mapping word for word is a no-op, and one that disagrees throws naming both. The entry kind decides the status: a denial answers `403 Forbidden`, invalid input answers `422 Unprocessable Content`, a conflict answers `409 Conflict`, a missing resource answers `404 Not Found`, and a temporarily unavailable dependency answers `503 Service Unavailable`. A caller that is not signed in answers `401 Unauthorized` instead of the denial status, because asking an unsigned caller to authenticate is an HTTP concern the neutral kind cannot express. The entry title and owner carry over as the problem title and contributor. `RefusalProblemCatalog.CreateFrom` builds a catalog from the registry without the service collection, for a host that registers the catalog by hand. See the [refusal catalog](../catalog/mediator/refusal-catalog.md) for the registry, its defaults, and the `refusals` composition section.
+
 ## Refusal Code Extension
 
 Every problem response carries the refusal code as a `code` extension when the refusal supplied one, so one client handler reads the machine-readable code without parsing the detail sentence. Set `RefusalProblemOptions.IncludeRefusalCode` to `false` to omit it:
@@ -228,7 +247,7 @@ A `MessageFaultException` reports a configuration or dependency failure an opera
 
 ## Unmapped Codes
 
-A refusal code with no exact or prefix mapping follows the unmapped-code policy of its outcome on both the result path and the exception path: `UnmappedRefusalCode` for a denial and `UnmappedValidationCode` for an invalid result. `UseFallback`, the default of both, answers the outcome default with the refusal detail. `TreatAsServerError` answers `500 Internal Server Error` with the `about:blank` problem type and logs the unmapped code at error level, for an application whose contract fails fast on missing product mappings. The refusal detail and the `code` extension stay on the response either way.
+A refusal code with no exact or prefix mapping follows the unmapped-code policy of its outcome on both the result path and the exception path: `UnmappedRefusalCode` for a denial and `UnmappedValidationCode` for an invalid result. `UseFallback`, the default of both, answers the outcome default with the refusal detail, and still reports the code: a denied code logs at warning level naming the code and the default it answered, while an invalid code logs at debug level, because per-validator codes are unmapped by design. `TreatAsServerError` answers `500 Internal Server Error` with the `about:blank` problem type and logs the unmapped code at error level, for an application whose contract fails fast on missing product mappings. The refusal detail and the `code` extension stay on the response either way.
 
 ```csharp
 services.AddLiteBusExceptionHandler(options =>

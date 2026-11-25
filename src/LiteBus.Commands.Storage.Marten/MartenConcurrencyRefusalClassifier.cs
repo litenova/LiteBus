@@ -33,7 +33,7 @@ public sealed class MartenConcurrencyRefusalClassifier : IFaultRefusalClassifier
     /// <summary>
     ///     The refusal code reported for a Marten concurrency conflict.
     /// </summary>
-    public const string ConcurrencyConflictCode = "concurrency.conflict";
+    public const string ConcurrencyConflictCode = ConcurrencyRefusalCodes.Conflict;
 
     /// <inheritdoc />
     public bool TryClassify(Exception exception, out Refusal refusal)

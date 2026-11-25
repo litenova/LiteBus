@@ -205,7 +205,7 @@ The Direct project references and Direct package references columns repeat [Gene
 | `LiteBus.Storage.EntityFrameworkCore` | Technology adapter | `LiteBus.DurableMessaging.Abstractions`, `LiteBus.Messaging.Abstractions` | `Microsoft.EntityFrameworkCore`, `Microsoft.EntityFrameworkCore.Relational` |
 | `LiteBus.Analyzers` | Consumer tooling | none | `Microsoft.CodeAnalysis.Analyzers (private)`, `Microsoft.CodeAnalysis.CSharp (private)`, `System.Collections.Immutable (private)` |
 | `LiteBus.Runtime.Extensions.Hosting` | Host adapter | `LiteBus.Runtime.Abstractions` | `Microsoft.Extensions.Hosting.Abstractions` |
-| `LiteBus.Runtime.Extensions.Microsoft.Hosting` | Host adapter | `LiteBus.Runtime.Extensions.Hosting` | `Microsoft.Extensions.DependencyInjection.Abstractions`, `Microsoft.Extensions.Hosting.Abstractions` |
+| `LiteBus.Runtime.Extensions.Microsoft.Hosting` | Host adapter | `LiteBus.Messaging.Abstractions`, `LiteBus.Runtime.Extensions.Hosting` | `Microsoft.Extensions.DependencyInjection.Abstractions`, `Microsoft.Extensions.Hosting.Abstractions` |
 | `LiteBus.Runtime.Extensions.Autofac.Hosting` | Host adapter | `LiteBus.Runtime.Extensions.Hosting` | `Autofac`, `Microsoft.Extensions.Hosting.Abstractions` |
 | `LiteBus` | Aggregate | `LiteBus.Auditing`, `LiteBus.Auditing.Abstractions`, `LiteBus.Commands`, `LiteBus.Commands.Abstractions`, `LiteBus.DurableMessaging.Abstractions`, `LiteBus.Events`, `LiteBus.Events.Abstractions`, `LiteBus.Inbox`, `LiteBus.Inbox.Abstractions`, `LiteBus.Messaging`, `LiteBus.Messaging.Abstractions`, `LiteBus.Outbox`, `LiteBus.Outbox.Abstractions`, `LiteBus.Queries`, `LiteBus.Queries.Abstractions` | none |
 | `LiteBus.Testing` | Consumer tooling | none | none |

@@ -201,7 +201,7 @@ registry.AddCommands(builder =>
 });
 ```
 
-Four sources populate message metadata, and all contribute values keyed by the same value type. An attribute is metadata only if it implements `IMessageDeclarationSource`, which states the value type it declares and converts itself to it:
+Five sources populate message metadata, and all contribute values keyed by the same value type. An attribute is metadata only if it implements `IMessageDeclarationSource`, which states the value type it declares and converts itself to it:
 
 ```csharp
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, Inherited = false)]
@@ -219,7 +219,7 @@ public sealed class RequiresPermissionAttribute : Attribute, IMessageDeclaration
 
 Requiring that is what keeps metadata bounded. A message type carries attributes for serialization, diagnostics and source generators, and collecting all of them would make `Metadata.Contains<T>()` answer questions outside what LiteBus defines. It also puts every source on one key, so the precedence rule below resolves genuine conflicts:
 
-1. **Definitions** win over every other source, so a definition always wins over an attribute declaring the same value type.
+1. **Definitions and catalog sources** win over every other source, so a definition or a source always wins over an attribute declaring the same value type. See [Declaring Many Messages From One Source](#declaring-many-messages-from-one-source).
 2. **Attributes** that declare metadata come next, each converted to the value type it names.
 3. **Defaults** declared with `DeclareDefault` cover a family of messages through a shared base type or marker interface, unless the message states its own value. See [Declaring a Family Default](#declaring-a-family-default).
 4. **Conventions** declared with `DeclareConvention` derive a value from the message type itself for every message that states nothing through the first three sources. See [Deriving a Value From the Message Type](#deriving-a-value-from-the-message-type).
@@ -239,13 +239,36 @@ Open generic message shapes are matched exactly, because assignability between g
 
 One more constraint is worth knowing. A definition must expose a **parameterless constructor**, public or not. Definitions are declarative and are instantiated once during registration, so they cannot take dependencies.
 
+## Declaring Many Messages From One Source
+
+A definition class describes one message type. A consumer that generates its structure from specifications would otherwise emit one definition class per message per concern, hundreds of nearly identical files. One generated class per module implementing `IMultiMessageDefinition` declares every message of that module through the same `IMessageDeclarations` vocabulary:
+
+```csharp
+internal sealed class BillingDeclarations : IMultiMessageDefinition
+{
+    public void Describe(IMessageDeclarationCatalog catalog)
+    {
+        catalog
+            .Describe<ChargeCardCommand>(declarations => declarations.Declare(Permissions.Billing.Charge))
+            .Describe<RefundCommand>(declarations => declarations.Declare(Permissions.Billing.Refund));
+    }
+}
+```
+
+Each `Describe` hands the same collection a definition class uses, so `Declare`, `Authorized`, `AuthorizationExempt`, `Exempt`, and the auditing `Audited` and `NotAudited` extensions all work unchanged, including custom value types and tenancy and idempotency declarations. The type-valued `Describe(Type, ...)` overload exists for generated code where the message type is a value rather than something the call site can name.
+
+Sources register like any other definition, or let assembly scanning find them, because the interface extends the `IMessageDefinition` marker. A source value stands where a definition value stands: it wins over an attribute, a default, and a convention, and the composition model reports it as `Source` with the source class in `SourceType`. A conflicting repeat for the same message and value type fails composition naming both sources, an identical repeat is a no-op, and a deliberate override calls `Replace` on the catalog or `ReplaceDeclaration` on the messaging module. The declaration analyzers accept a source declaration the same way they accept a definition: see [Required Declarations](../catalog/analyzers/required-declarations.md).
+
+A source states explicit per-message values, which is what separates it from a default and a convention. A default states one constant for a scope in composition code and is invisible to the analyzers. A convention derives a value from the message type with no conflict detection. Use a source when each message has its own position and the positions belong together in one generated or central type.
+
 ## Repeated Registrations
 
 Every registration API in LiteBus follows one conflict rule: an identical repeat is a no-op, a conflicting repeat fails composition naming both sources, and a deliberate override calls `Replace`. Identical means value equality (`EqualityComparer<T>.Default`, falling back to reference equality for values without it).
 
 Applied to declarations:
 
-- `DeclareDefault` and `AddDeclaration` compare values. Repeating a default with an identical value returns without effect, so a repeated registration is harmless regardless of order. A different value for the same scope and value type throws `PipelineContractException` naming both sources.
+- `DeclareDefault` and `AddDeclaration` compare values. Repeating a default with an identical value returns without effect, so a repeated registration is harmless regardless of order. A different value for the same scope and value type throws `PipelineContractException` naming both sources. `ReplaceDeclaration` overwrites the recorded value instead.
+- A declaration from a catalog source and one from a definition class for the same message and value type follow the same rule: an identical repeat is a no-op, a conflicting repeat throws `PipelineContractException` naming both sources, and a deliberate override calls `Replace` on the catalog.
 - The event module declares its `IEvent` authorization exemption through `TryAddDeclaration`, which returns `false` when a declaration is already recorded instead of throwing, so the framework default visibly yields to an explicit one.
 - A second convention for one value type keeps throwing `PipelineContractException`, because delegates have no meaningful equality. The error names the single-function rule; combine the two derivations into one function that returns the value or null.
 - A repeated requirement is already a no-op. Only an identical repeat is dropped, while two requirements over the same value type with different scopes both stand.
@@ -450,7 +473,7 @@ Use both. The analyzer reports the omission on the message itself while you are 
 
 ### Reading Which Source Supplied Each Value
 
-Definitions, attributes, defaults, and conventions can all satisfy one requirement, and nothing in the resolved value says which one won. `ICompositionModel.DeclarationsFor` answers that: one `MessageDeclarationRecord` per effective value for a message, in ordinal declaration type name order, or an empty list when the message is unknown or declares nothing:
+Definitions, catalog sources, attributes, defaults, and conventions can all satisfy one requirement, and nothing in the resolved value says which one won. `ICompositionModel.DeclarationsFor` answers that: one `MessageDeclarationRecord` per effective value for a message, in ordinal declaration type name order, or an empty list when the message is unknown or declares nothing:
 
 ```csharp
 registry.AddMessaging(messaging => messaging
@@ -469,9 +492,9 @@ Each record carries the resolved value the pipeline reads together with its sour
 | --- | --- |
 | `DeclarationType` | The metadata value type. |
 | `Value` | The effective value. |
-| `Source` | Which source supplied it: `Attribute`, `Definition`, `Default`, `Convention`, or `Exemption`. |
+| `Source` | Which source supplied it: `Attribute`, `Definition`, `Source`, `Default`, `Convention`, or `Exemption`. |
 | `DeclaredFor` | The type the source named, which may be a base type or a marker interface covering the message rather than the message itself. |
-| `SourceType` | The definition class or attribute type, when the source is one; `null` for defaults and conventions, which are composition data and functions rather than types. |
+| `SourceType` | The definition class, catalog source, or attribute type, when the source is one; `null` for defaults and conventions, which are composition data and functions rather than types. |
 | `Rationale` | The exemption reason, when the source is an exemption; `null` otherwise. |
 
 An exemption set expands into one record per exemption it holds rather than reporting the set itself, because the set is the envelope and the exemptions are what a check asserts over. For an attribute-recorded exemption, `SourceType` names the attribute type that recorded it.

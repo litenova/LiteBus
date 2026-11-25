@@ -123,6 +123,17 @@ public sealed class OutboxModuleBuilder
     private bool _allowPerHandlerDeliveryWithTransportDispatch;
 
     /// <summary>
+    ///     The reaction retry policy registered through <see cref="UseReactionRetryPolicy{TPolicy}" /> or
+    ///     <see cref="UseReactionRetryPolicyInstance" />, as an implementation type or a pre-created instance.
+    /// </summary>
+    private object? _reactionRetryPolicy;
+
+    /// <summary>
+    ///     The lifetime a reaction retry policy implementation type is registered with.
+    /// </summary>
+    private InstanceLifetime _reactionRetryPolicyLifetime = InstanceLifetime.Singleton;
+
+    /// <summary>
     ///     Gets the deferred contract writer. Registrations are applied to the shared
     ///     <see cref="IMessageContractRegistry" /> when the module builds.
     /// </summary>
@@ -147,6 +158,11 @@ public sealed class OutboxModuleBuilder
     ///     Gets the options for the optional outbox retention cleanup loop.
     /// </summary>
     public OutboxCleanupHostOptions CleanupHostOptions { get; } = new();
+
+    /// <summary>
+    ///     Gets the options controlling in-dispatch retries of reactions that met a storage conflict.
+    /// </summary>
+    public OutboxReactionRetryOptions ReactionRetryOptions { get; } = new();
 
     /// <summary>
     ///     Gets a value indicating whether the outbox processor background service is registered.
@@ -208,6 +224,63 @@ public sealed class OutboxModuleBuilder
     }
 
     /// <summary>
+    ///     Configures how the in-process dispatcher retries a reaction that met a storage conflict.
+    /// </summary>
+    /// <param name="configure">An optional callback that adjusts the retry bound and delay curve.</param>
+    /// <returns>The current builder.</returns>
+    /// <remarks>
+    ///     The values shape the default retry curve and the per-dispatch safety bound, which the dispatcher
+    ///     enforces for every policy. A replacement registered through
+    ///     <see cref="UseReactionRetryPolicy{TPolicy}" /> or <see cref="UseReactionRetryPolicyInstance" /> still
+    ///     observes <see cref="OutboxReactionRetryOptions.MaxAttempts" />; raise it when the replacement needs more
+    ///     attempts.
+    /// </remarks>
+    public OutboxModuleBuilder UseReactionRetry(Action<OutboxReactionRetryOptions>? configure = null)
+    {
+        configure?.Invoke(ReactionRetryOptions);
+        return this;
+    }
+
+    /// <summary>
+    ///     Registers the policy that decides whether a conflicted reaction publishes again.
+    /// </summary>
+    /// <typeparam name="TPolicy">The policy implementation, constructed from the dispatch scope.</typeparam>
+    /// <param name="lifetime">The lifetime the implementation is registered with. Singleton by default.</param>
+    /// <returns>The current builder.</returns>
+    /// <remarks>
+    ///     The dispatcher resolves the policy from a fresh dispatch scope per conflict and enforces
+    ///     <see cref="OutboxReactionRetryOptions.MaxAttempts" /> for it, so a policy that always retries cannot
+    ///     hold a lease forever. Calling this after <see cref="UseReactionRetryPolicyInstance" />, or twice with
+    ///     different policies, keeps the latest registration, as every other single-value builder setting does.
+    /// </remarks>
+    public OutboxModuleBuilder UseReactionRetryPolicy<TPolicy>(InstanceLifetime lifetime = InstanceLifetime.Singleton)
+        where TPolicy : class, IOutboxReactionRetryPolicy
+    {
+        _reactionRetryPolicy = typeof(TPolicy);
+        _reactionRetryPolicyLifetime = lifetime;
+        return this;
+    }
+
+    /// <summary>
+    ///     Registers a pre-created policy that decides whether a conflicted reaction publishes again.
+    /// </summary>
+    /// <param name="policy">The policy instance, shared by every dispatch for the life of the process.</param>
+    /// <returns>The current builder.</returns>
+    /// <remarks>
+    ///     The overload to reach for when the policy is configured rather than injected. Calling this after
+    ///     <see cref="UseReactionRetryPolicy{TPolicy}" />, or twice with different policies, keeps the latest
+    ///     registration, as every other single-value builder setting does.
+    /// </remarks>
+    public OutboxModuleBuilder UseReactionRetryPolicyInstance(IOutboxReactionRetryPolicy policy)
+    {
+        ArgumentNullException.ThrowIfNull(policy);
+
+        _reactionRetryPolicy = policy;
+        _reactionRetryPolicyLifetime = InstanceLifetime.Singleton;
+        return this;
+    }
+
+    /// <summary>
     ///     Registers the contract resolver used to select the CLR type for contract lookup during enqueue.
     /// </summary>
     /// <param name="resolver">The resolver that overrides contract lookup type selection.</param>
@@ -227,6 +300,27 @@ public sealed class OutboxModuleBuilder
     internal IMessageContractResolver? CollectContractResolver()
     {
         return _contractResolver;
+    }
+
+    /// <summary>
+    ///     Collects the reaction retry policy registered on this builder, if any.
+    /// </summary>
+    /// <returns>
+    ///     The policy as an implementation type or a pre-created instance, or <see langword="null" /> when none was
+    ///     registered.
+    /// </returns>
+    internal object? CollectReactionRetryPolicy()
+    {
+        return _reactionRetryPolicy;
+    }
+
+    /// <summary>
+    ///     Collects the lifetime a reaction retry policy implementation type is registered with.
+    /// </summary>
+    /// <returns>The lifetime supplied to <see cref="UseReactionRetryPolicy{TPolicy}" />.</returns>
+    internal InstanceLifetime CollectReactionRetryPolicyLifetime()
+    {
+        return _reactionRetryPolicyLifetime;
     }
 
     /// <summary>

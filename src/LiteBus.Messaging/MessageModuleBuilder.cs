@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using LiteBus.Messaging.Abstractions;
 
@@ -74,16 +75,23 @@ public sealed class MessageModuleBuilder
     /// </summary>
     /// <param name="messageRegistry">The message registry shared across LiteBus modules.</param>
     /// <param name="contracts">The message contract registry for persisted inbox and outbox messages.</param>
-    public MessageModuleBuilder(IMessageRegistry messageRegistry, IContractWriter contracts)
+    /// <param name="refusals">The refusal catalog shared across LiteBus modules, or <see langword="null" /> for a fresh default catalog.</param>
+    public MessageModuleBuilder(IMessageRegistry messageRegistry, IContractWriter contracts, IRefusalCatalog? refusals = null)
     {
         _messageRegistry = messageRegistry;
         Contracts = contracts;
+        Refusals = refusals ?? RefusalCatalog.CreateDefault();
     }
 
     /// <summary>
     ///     Gets the message contract writer used to register stable persisted contracts.
     /// </summary>
     public IContractWriter Contracts { get; }
+
+    /// <summary>
+    ///     Gets the refusal writer used to register transport-neutral refusal code meanings.
+    /// </summary>
+    public IRefusalWriter Refusals { get; }
 
     /// <summary>
     ///     Gets the optional time provider registered for messaging and dependent modules.
@@ -646,6 +654,51 @@ public sealed class MessageModuleBuilder
     }
 
     /// <summary>
+    ///     Declares a metadata value for every message assignable to <typeparamref name="TScope" />, overwriting any
+    ///     declaration already recorded for the same scope and value type.
+    /// </summary>
+    /// <typeparam name="TScope">
+    ///     The base type or marker interface the family shares, such as an application's <c>IOrganizationCommand</c>.
+    /// </typeparam>
+    /// <typeparam name="TValue">The metadata value type, which is also its key.</typeparam>
+    /// <param name="value">The value the family declares.</param>
+    /// <returns>The current builder.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="value" /> is <see langword="null" />.</exception>
+    /// <remarks>
+    ///     This is the deliberate override for the registration conflict rule. A conflicting repeat through
+    ///     <see cref="DeclareDefault{TScope, TValue}" /> fails composition naming both sources, while this method
+    ///     overwrites the recorded value.
+    /// </remarks>
+    public MessageModuleBuilder ReplaceDeclaration<TScope, TValue>(TValue value)
+        where TScope : notnull
+        where TValue : notnull
+    {
+        ArgumentNullException.ThrowIfNull(value);
+
+        _messageRegistry.ReplaceDeclaration(MessageDeclarationItem.For<TScope, TValue>(value));
+        return this;
+    }
+
+    /// <summary>
+    ///     Declares a metadata value for a message type, overwriting any declaration already recorded for the same
+    ///     message and value type.
+    /// </summary>
+    /// <param name="declaration">The message type the value covers, the type it is keyed by, and the value.</param>
+    /// <returns>The current builder.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="declaration" /> is <see langword="null" />.</exception>
+    /// <remarks>
+    ///     The generic overload is the one to reach for. This exists for composition code that builds its declarations
+    ///     from configuration, where the types are values rather than something the call site can name.
+    /// </remarks>
+    public MessageModuleBuilder ReplaceDeclaration(MessageDeclarationItem declaration)
+    {
+        ArgumentNullException.ThrowIfNull(declaration);
+
+        _messageRegistry.ReplaceDeclaration(declaration);
+        return this;
+    }
+
+    /// <summary>
     ///     Registers the <see cref="TimeProvider" /> instance exposed through dependency injection.
     /// </summary>
     /// <param name="timeProvider">
@@ -717,6 +770,117 @@ public sealed class MessageModuleBuilder
         ArgumentNullException.ThrowIfNull(messageSerializer);
         Serializer = messageSerializer;
         SerializerLifetime = InstanceLifetime.Singleton;
+        return this;
+    }
+
+    /// <summary>
+    ///     Gets the JSON serializer options source the module registers, as options, a provider instance, or a
+    ///     provider implementation type.
+    /// </summary>
+    /// <value>
+    ///     The options passed to <see cref="UseSerializerOptions" />, the instance passed to
+    ///     <see cref="UseSerializerOptionsProviderInstance" />, the type passed to
+    ///     <see cref="UseSerializerOptionsProvider{TProvider}" />, or <see langword="null" /> to use
+    ///     <see cref="DefaultMessageJsonSerializerOptionsProvider" />.
+    /// </value>
+    internal object? SerializerOptionsProvider { get; private set; }
+
+    /// <summary>
+    ///     Gets the message sample factory the module registers, as an instance or an implementation type.
+    /// </summary>
+    /// <value>
+    ///     The instance passed to <see cref="UseMessageSampleFactoryInstance" />, the type passed to
+    ///     <see cref="UseMessageSampleFactory{TFactory}" />, or <see langword="null" /> to use
+    ///     <see cref="DefaultMessageSampleFactory" />.
+    /// </value>
+    internal object? MessageSampleFactory { get; private set; }
+
+    /// <summary>
+    ///     Registers the JSON serializer options every durable feature serializes message payloads with.
+    /// </summary>
+    /// <param name="options">The shared options. Outbox, inbox, and saga state all serialize through them.</param>
+    /// <returns>The current builder.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="options" /> is <see langword="null" />.</exception>
+    /// <remarks>
+    ///     <para>
+    ///         The simple overload over a constant
+    ///         <see cref="IMessageJsonSerializerOptionsProvider" />: one call at the composition root states the wire
+    ///         format for every durable payload instead of configuring one serializer per feature. The default is web
+    ///         defaults, which is camel case.
+    ///     </para>
+    ///     <para>
+    ///         Setting both a custom serializer through <see cref="UseSerializer{TMessageSerializer}" /> or
+    ///         <see cref="UseSerializerInstance" /> and custom options fails composition: two payload formats with
+    ///         nothing saying which applies.
+    ///     </para>
+    /// </remarks>
+    public MessageModuleBuilder UseSerializerOptions(JsonSerializerOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        SerializerOptionsProvider = options;
+        return this;
+    }
+
+    /// <summary>
+    ///     Registers the <see cref="IMessageJsonSerializerOptionsProvider" /> that supplies the JSON serializer
+    ///     options every durable feature serializes message payloads with.
+    /// </summary>
+    /// <typeparam name="TProvider">The provider implementation to construct from the container.</typeparam>
+    /// <returns>The current builder.</returns>
+    /// <remarks>
+    ///     The overload to reach for when the options are built from configuration or other services. For fixed
+    ///     options, <see cref="UseSerializerOptions" /> states them directly.
+    /// </remarks>
+    public MessageModuleBuilder UseSerializerOptionsProvider<TProvider>()
+        where TProvider : class, IMessageJsonSerializerOptionsProvider
+    {
+        SerializerOptionsProvider = typeof(TProvider);
+        return this;
+    }
+
+    /// <summary>
+    ///     Registers a pre-created <see cref="IMessageJsonSerializerOptionsProvider" /> that supplies the JSON
+    ///     serializer options every durable feature serializes message payloads with.
+    /// </summary>
+    /// <param name="provider">The provider instance, shared by every mediation for the life of the process.</param>
+    /// <returns>The current builder.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="provider" /> is <see langword="null" />.</exception>
+    public MessageModuleBuilder UseSerializerOptionsProviderInstance(IMessageJsonSerializerOptionsProvider provider)
+    {
+        ArgumentNullException.ThrowIfNull(provider);
+        SerializerOptionsProvider = provider;
+        return this;
+    }
+
+    /// <summary>
+    ///     Registers the <see cref="IMessageSampleFactory" /> that creates sample message instances for host
+    ///     validation round-trip checks.
+    /// </summary>
+    /// <typeparam name="TFactory">The factory implementation to construct from the container.</typeparam>
+    /// <returns>The current builder.</returns>
+    /// <remarks>
+    ///     The overload to reach for for message types without a parameterless shape or with invariants sample
+    ///     construction must honor. A factory may delegate to <see cref="DefaultMessageSampleFactory" /> for the
+    ///     types it does not handle itself.
+    /// </remarks>
+    public MessageModuleBuilder UseMessageSampleFactory<TFactory>()
+        where TFactory : class, IMessageSampleFactory
+    {
+        MessageSampleFactory = typeof(TFactory);
+        return this;
+    }
+
+    /// <summary>
+    ///     Registers a pre-created <see cref="IMessageSampleFactory" /> that creates sample message instances for
+    ///     host validation round-trip checks.
+    /// </summary>
+    /// <param name="factory">The factory instance, shared by every validation run for the life of the process.</param>
+    /// <returns>The current builder.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="factory" /> is <see langword="null" />.</exception>
+    public MessageModuleBuilder UseMessageSampleFactoryInstance(IMessageSampleFactory factory)
+    {
+        ArgumentNullException.ThrowIfNull(factory);
+        MessageSampleFactory = factory;
         return this;
     }
 

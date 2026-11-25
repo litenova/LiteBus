@@ -29,6 +29,10 @@ internal static class MessageDefinitionBinder
     /// </summary>
     /// <param name="type">The candidate type.</param>
     /// <returns><see langword="true" /> when the type declares metadata for one or more messages.</returns>
+    /// <remarks>
+    ///     A multi-message declaration source implements the same marker, so assembly scanning discovers it with no
+    ///     new registration API.
+    /// </remarks>
     public static bool IsDefinition(Type type)
     {
         return type is { IsClass: true, IsAbstract: false, IsGenericTypeDefinition: false }
@@ -51,6 +55,11 @@ internal static class MessageDefinitionBinder
         Type definitionType)
     {
         ArgumentNullException.ThrowIfNull(definitionType);
+
+        if (typeof(IMultiMessageDefinition).IsAssignableFrom(definitionType))
+        {
+            return BindSource(definitionType);
+        }
 
         var contracts = new List<Type>();
         var describeContracts = new List<Type>();
@@ -112,6 +121,28 @@ internal static class MessageDefinitionBinder
         }
 
         return declarations;
+    }
+
+    /// <summary>
+    ///     Instantiates a declaration source and reads every value it declares for every message it covers.
+    /// </summary>
+    /// <param name="sourceType">The concrete declaration source type to bind.</param>
+    /// <returns>The declarations the source contributes.</returns>
+    /// <exception cref="MessageDeclarationException">
+    ///     The source has no parameterless constructor or declared nothing.
+    /// </exception>
+    [RequiresUnreferencedCode("Message definition binding reads declaration contracts via reflection.")]
+    private static IReadOnlyList<MessageDeclaration> BindSource(
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors
+                                    | DynamicallyAccessedMemberTypes.NonPublicConstructors
+                                    | DynamicallyAccessedMemberTypes.Interfaces)]
+        Type sourceType)
+    {
+        var instance = (IMultiMessageDefinition) CreateInstance(sourceType);
+        var catalog = new MessageDeclarationCatalog(sourceType);
+        instance.Describe(catalog);
+
+        return catalog.Collect();
     }
 
     /// <summary>

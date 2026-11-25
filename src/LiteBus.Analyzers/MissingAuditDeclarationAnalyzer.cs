@@ -75,6 +75,13 @@ public sealed class MissingAuditDeclarationAnalyzer : DiagnosticAnalyzer
                 SyntaxKind.MethodDeclaration);
         }
 
+        if (symbols.DeclarationCatalog is not null && symbols.CatalogSourceContract is not null)
+        {
+            context.RegisterSyntaxNodeAction(
+                nodeContext => DeclarationAnalysis.AnalyzeCatalogDescribeMethod(nodeContext, collector, symbols),
+                SyntaxKind.MethodDeclaration);
+        }
+
         context.RegisterCompilationEndAction(
             endContext => ReportUndeclared(endContext, collector, symbols, auditDeclaration));
     }

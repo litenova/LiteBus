@@ -188,6 +188,14 @@ public sealed class QueryModuleBuilder
             return true;
         }
 
+        // A declaration source may describe queries alongside commands and events, so it counts for every axis
+        // rather than only for the messages one scan can see. The registry applies each declaration to the message
+        // it names, whatever axis registered the source.
+        if (typeof(IMultiMessageDefinition).IsAssignableFrom(type))
+        {
+            return true;
+        }
+
         return type.GetInterfaces().Any(static contract =>
         {
             if (!contract.IsGenericType)

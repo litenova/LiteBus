@@ -8,6 +8,9 @@ using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Outbox.Abstractions;
 using LiteBus.Outbox.Abstractions.Exceptions;
+using LiteBus.Runtime.Abstractions;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace LiteBus.Outbox.Dispatch.InProcess;
 
@@ -32,7 +35,15 @@ namespace LiteBus.Outbox.Dispatch.InProcess;
 ///         Each dispatch runs as a root mediation: the event is published inside <see cref="RootMediationScope" /> with
 ///         <see cref="EventMediationSettings.Cause" /> set from the envelope correlation and causation identifiers, so
 ///         processor delivery and immediate delivery observe the same lineage and the reaction never nests inside the
-///         mediation that staged the envelope.
+///         mediation that staged the envelope. The dispatcher also stamps one
+///         <see cref="OutboxDispatchContext" /> into the mediation items, so handlers read the envelope attempt, the
+///         cause, the identity, and the delivery path without ambient state.
+///     </para>
+///     <para>
+///         A reaction that meets a storage conflict publishes again inside the same dispatch, bounded by
+///         <see cref="OutboxReactionRetryOptions.MaxAttempts" /> with the delay
+///         <see cref="IOutboxReactionRetryPolicy" /> advises per failure. A business refusal and a configuration
+///         fault never consult the policy: the policy only decides over a classified conflict.
 ///     </para>
 /// </remarks>
 public sealed class EventOutboxDispatcher : IOutboxDispatcher
@@ -75,6 +86,27 @@ public sealed class EventOutboxDispatcher : IOutboxDispatcher
     private readonly InProcessOutboxDispatchOptions _options;
 
     /// <summary>
+    ///     Gets the factory used to create the scope a retry policy evaluation resolves from, or
+    ///     <see langword="null" /> when the dispatcher was constructed without one.
+    /// </summary>
+    private readonly IMessageDispatchScopeFactory? _dispatchScopeFactory;
+
+    /// <summary>
+    ///     Gets the clock retry delays are waited against.
+    /// </summary>
+    private readonly TimeProvider _clock;
+
+    /// <summary>
+    ///     Gets the bound and delay curve for in-dispatch retries of conflicted reactions.
+    /// </summary>
+    private readonly OutboxReactionRetryOptions _reactionRetryOptions;
+
+    /// <summary>
+    ///     Gets the logger used for reaction retry diagnostics.
+    /// </summary>
+    private readonly ILogger<EventOutboxDispatcher> _logger;
+
+    /// <summary>
     ///     Initializes a new instance of the <see cref="EventOutboxDispatcher" /> class.
     /// </summary>
     /// <param name="eventPublisher">The LiteBus event publisher used as the dispatch target.</param>
@@ -82,12 +114,23 @@ public sealed class EventOutboxDispatcher : IOutboxDispatcher
     /// <param name="messageSerializer">The serializer used to hydrate the persisted payload.</param>
     /// <param name="payloadProtector">The optional outbox protector used to decrypt stored payloads before deserialization.</param>
     /// <param name="options">The dispatch options, or null to require a handler for every dispatched message.</param>
+    /// <param name="dispatchScopeFactory">
+    ///     The factory used to create the scope a retry policy evaluation resolves from, or <see langword="null" />
+    ///     to evaluate the default policy without a scope.
+    /// </param>
+    /// <param name="clock">The clock retry delays are waited against, or <see langword="null" /> for the system clock.</param>
+    /// <param name="reactionRetryOptions">The bound and delay curve for in-dispatch retries, or <see langword="null" /> for the defaults.</param>
+    /// <param name="logger">The logger used for reaction retry diagnostics, or <see langword="null" /> to discard it.</param>
     public EventOutboxDispatcher(
         IEventMediator eventPublisher,
         IContractReader contractRegistry,
         IMessageSerializer messageSerializer,
         IOutboxPayloadProtector? payloadProtector = null,
-        InProcessOutboxDispatchOptions? options = null)
+        InProcessOutboxDispatchOptions? options = null,
+        IMessageDispatchScopeFactory? dispatchScopeFactory = null,
+        TimeProvider? clock = null,
+        OutboxReactionRetryOptions? reactionRetryOptions = null,
+        ILogger<EventOutboxDispatcher>? logger = null)
     {
         ArgumentNullException.ThrowIfNull(eventPublisher);
 
@@ -100,6 +143,20 @@ public sealed class EventOutboxDispatcher : IOutboxDispatcher
         _messageSerializer = messageSerializer;
         _payloadProtector = payloadProtector;
         _options = options ?? new InProcessOutboxDispatchOptions();
+        _dispatchScopeFactory = dispatchScopeFactory;
+        _clock = clock ?? TimeProvider.System;
+        _reactionRetryOptions = reactionRetryOptions ?? new OutboxReactionRetryOptions();
+        _logger = logger ?? NullLogger<EventOutboxDispatcher>.Instance;
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    ///     A direct call without a delivery path reports the background processor kind, which is the path that
+    ///     dispatches every envelope the immediate listener does not claim.
+    /// </remarks>
+    public Task DispatchAsync(OutboxEnvelope message, CancellationToken cancellationToken = default)
+    {
+        return DispatchAsync(message, OutboxDispatchKind.Background, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -108,7 +165,10 @@ public sealed class EventOutboxDispatcher : IOutboxDispatcher
     ///     because the dispatch boundary must map every failure to <see cref="LiteBusDispatchException" /> for the
     ///     processor retry policy. Caller-requested cancellation is rethrown unwrapped.
     /// </remarks>
-    public async Task DispatchAsync(OutboxEnvelope message, CancellationToken cancellationToken = default)
+    public async Task DispatchAsync(
+        OutboxEnvelope message,
+        OutboxDispatchKind kind,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(message);
 
@@ -131,19 +191,17 @@ public sealed class EventOutboxDispatcher : IOutboxDispatcher
                 .ConfigureAwait(false);
 
             var messageInstance = await _messageSerializer.DeserializeAsync(messageType, payload, cancellationToken).ConfigureAwait(false);
-            var mediationSettings = CreateMediationSettings(message, _options);
+            var dispatch = CreateDispatchContext(message, kind);
+            var mediationSettings = CreateMediationSettings(message, dispatch, _options);
 
-            using (RootMediationScope.Begin())
-            {
-                if (messageInstance is IEvent liteBusEvent)
-                {
-                    await _eventPublisher.PublishAsync(liteBusEvent, mediationSettings, cancellationToken).ConfigureAwait(false);
-                    return;
-                }
-
-                var publish = PublishDelegateCache.GetOrAdd(messageType, CreatePublishDelegate);
-                await publish(_eventPublisher, messageInstance, mediationSettings, cancellationToken).ConfigureAwait(false);
-            }
+            await PublishWithReactionRetryAsync(
+                    message,
+                    messageType,
+                    messageInstance,
+                    mediationSettings,
+                    dispatch,
+                    cancellationToken)
+                .ConfigureAwait(false);
         }
         catch (LiteBusDispatchException)
         {
@@ -162,6 +220,237 @@ public sealed class EventOutboxDispatcher : IOutboxDispatcher
         {
             throw new LiteBusDispatchException(CreateFailureMessage(message, exception), exception);
         }
+    }
+
+    /// <summary>
+    ///     Publishes one reaction, publishing again inside the same dispatch while a storage conflict meets a retry.
+    /// </summary>
+    /// <param name="message">The outbox envelope being dispatched.</param>
+    /// <param name="messageType">The runtime message type resolved from the outbox contract.</param>
+    /// <param name="messageInstance">The deserialized message instance.</param>
+    /// <param name="mediationSettings">The mediation settings copied from the outbox envelope.</param>
+    /// <param name="dispatch">The delivery the attempts belong to.</param>
+    /// <param name="cancellationToken">A token used to cancel dispatch before the target observes the message.</param>
+    /// <returns>A task that completes when the reaction publishes or its dispatch fails terminally.</returns>
+    /// <exception cref="LiteBusDispatchException">The reaction failed without a further in-dispatch retry.</exception>
+    /// <remarks>
+    ///     Each attempt publishes as a new root mediation with the same cause, so a retry never nests inside the
+    ///     failed attempt. A failure that is not a classified storage conflict, a conflict the bound already spent,
+    ///     and a conflict the policy declines all end the dispatch here; the envelope then follows the ordinary
+    ///     processor retry schedule instead of losing the message.
+    /// </remarks>
+    private async Task PublishWithReactionRetryAsync(
+        OutboxEnvelope message,
+        Type messageType,
+        object messageInstance,
+        EventMediationSettings mediationSettings,
+        OutboxDispatchContext dispatch,
+        CancellationToken cancellationToken)
+    {
+        for (var reactionAttempt = 1; ; reactionAttempt++)
+        {
+            try
+            {
+                using (RootMediationScope.Begin())
+                {
+                    if (messageInstance is IEvent liteBusEvent)
+                    {
+                        await _eventPublisher.PublishAsync(liteBusEvent, mediationSettings, cancellationToken).ConfigureAwait(false);
+                        return;
+                    }
+
+                    var publish = PublishDelegateCache.GetOrAdd(messageType, CreatePublishDelegate);
+                    await publish(_eventPublisher, messageInstance, mediationSettings, cancellationToken).ConfigureAwait(false);
+                    return;
+                }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (LiteBusDispatchException)
+            {
+                throw;
+            }
+#pragma warning disable CA1031 // Publish boundary captures any handler failure so the retry decision sees the conflict it classifies.
+            catch (Exception exception)
+#pragma warning restore CA1031
+            {
+                if (!IsRetryableConflict(exception)
+                    || !_reactionRetryOptions.Enabled
+                    || reactionAttempt >= _reactionRetryOptions.MaxAttempts)
+                {
+                    if (IsRetryableConflict(exception) && _reactionRetryOptions.Enabled)
+                    {
+                        OutboxReactionRetryTelemetry.RecordExhausted();
+                        InProcessOutboxDispatchLogMessages.ReactionRetriesExhausted(_logger, message.Id, reactionAttempt);
+                    }
+
+                    throw new LiteBusDispatchException(CreateFailureMessage(message, exception), exception);
+                }
+
+                var decision = await DecideAsync(
+                        message,
+                        messageInstance,
+                        messageType,
+                        dispatch,
+                        exception,
+                        reactionAttempt,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+
+                if (decision is not OutboxReactionRetryDecision.Retry retry)
+                {
+                    OutboxReactionRetryTelemetry.RecordExhausted();
+                    throw new LiteBusDispatchException(CreateFailureMessage(message, exception), exception);
+                }
+
+                var delay = ClampDelay(retry.Delay);
+
+                OutboxReactionRetryTelemetry.RecordRetry();
+                InProcessOutboxDispatchLogMessages.ReactionRetryScheduled(_logger, message.Id, reactionAttempt, delay);
+
+                await Task.Delay(delay, _clock, cancellationToken).ConfigureAwait(false);
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Asks the reaction retry policy whether a conflicted attempt publishes again.
+    /// </summary>
+    /// <param name="message">The outbox envelope being dispatched.</param>
+    /// <param name="messageInstance">The deserialized message instance.</param>
+    /// <param name="messageType">The runtime message type resolved from the outbox contract.</param>
+    /// <param name="dispatch">The delivery the failed attempt belongs to.</param>
+    /// <param name="failure">The exception that ended the attempt.</param>
+    /// <param name="reactionAttempt">The 1-based in-dispatch attempt that just failed.</param>
+    /// <param name="cancellationToken">A token used to cancel dispatch before the target observes the message.</param>
+    /// <returns>
+    ///     The policy decision, or <see langword="null" /> when the policy threw and the dispatch must end without
+    ///     retrying.
+    /// </returns>
+    /// <remarks>
+    ///     The policy resolves from a fresh dispatch scope per conflict, so a replacement observes the same scoped
+    ///     services the handlers do and a changed registration applies without rebuilding the composition. A policy
+    ///     that throws is logged with the envelope context and treated as a declined retry: the conflicted envelope
+    ///     still follows the ordinary processor schedule instead of losing the message to a faulty port.
+    /// </remarks>
+    private async Task<OutboxReactionRetryDecision?> DecideAsync(
+        OutboxEnvelope message,
+        object messageInstance,
+        Type messageType,
+        OutboxDispatchContext dispatch,
+        Exception failure,
+        int reactionAttempt,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (_dispatchScopeFactory is null)
+            {
+                var fallback = new DefaultOutboxReactionRetryPolicy(_reactionRetryOptions);
+                var fallbackEvaluation = new MessageEvaluationContext(
+                    messageInstance,
+                    messageType,
+                    dispatch.Identity,
+                    EmptyServiceProvider.Instance,
+                    _clock,
+                    _clock.GetUtcNow());
+
+                return await fallback.DecideAsync(
+                        new OutboxReactionRetryContext(fallbackEvaluation, dispatch, failure, reactionAttempt),
+                        cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
+            var scope = _dispatchScopeFactory.CreateScope();
+            await using var configuredScope = scope.ConfigureAwait(false);
+
+            var policy = scope.ServiceProvider.GetService(typeof(IOutboxReactionRetryPolicy)) as IOutboxReactionRetryPolicy
+                ?? new DefaultOutboxReactionRetryPolicy(_reactionRetryOptions);
+
+            var evaluation = new MessageEvaluationContext(
+                messageInstance,
+                messageType,
+                dispatch.Identity,
+                scope.ServiceProvider,
+                _clock,
+                _clock.GetUtcNow());
+
+            return await policy.DecideAsync(
+                    new OutboxReactionRetryContext(evaluation, dispatch, failure, reactionAttempt),
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+#pragma warning disable CA1031 // A throwing policy is logged and treated as a declined retry so a faulty port cannot lose a message.
+        catch (Exception policyException)
+#pragma warning restore CA1031
+        {
+            InProcessOutboxDispatchLogMessages.ReactionRetryPolicyFailed(_logger, message.Id, policyException);
+            return null;
+        }
+    }
+
+    /// <summary>
+    ///     Determines whether a publish failure is a storage conflict the retry policy may decide over.
+    /// </summary>
+    /// <param name="exception">The exception that ended the attempt.</param>
+    /// <returns>
+    ///     <see langword="true" /> for a classified conflict that carries no configuration fault; otherwise,
+    ///     <see langword="false" /> for a refusal without a conflict cause, a configuration fault, and every other
+    ///     failure.
+    /// </returns>
+    /// <remarks>
+    ///     The classification walks the whole exception graph, so a conflict a refusal classifier translated into a
+    ///     typed refusal still shows the storage fault the refusal keeps as its cause, and that fault is what the
+    ///     policy retries. A chain carrying <see cref="MessageFaultException" /> is excluded: a configuration fault
+    ///     ends the dispatch unchanged instead of spending retries on an answer that cannot change.
+    /// </remarks>
+    private static bool IsRetryableConflict(Exception exception)
+    {
+        return MediationExceptionFilters.IsConcurrencyConflict(exception) && !ContainsMessageFault(exception);
+    }
+
+    /// <summary>
+    ///     Determines whether an exception graph carries a configuration fault.
+    /// </summary>
+    /// <param name="exception">The exception to inspect.</param>
+    /// <returns><see langword="true" /> when the graph carries a <see cref="MessageFaultException" />.</returns>
+    private static bool ContainsMessageFault(Exception exception)
+    {
+        if (exception is MessageFaultException)
+        {
+            return true;
+        }
+
+        if (exception is AggregateException aggregate)
+        {
+            foreach (var inner in aggregate.InnerExceptions)
+            {
+                if (ContainsMessageFault(inner))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        return exception.InnerException is not null && ContainsMessageFault(exception.InnerException);
+    }
+
+    /// <summary>
+    ///     Bounds a policy-advised delay at zero from below.
+    /// </summary>
+    /// <param name="delay">The delay the policy advised.</param>
+    /// <returns>The delay, or <see cref="TimeSpan.Zero" /> when the policy advised a negative one.</returns>
+    private static TimeSpan ClampDelay(TimeSpan delay)
+    {
+        return delay < TimeSpan.Zero ? TimeSpan.Zero : delay;
     }
 
     /// <summary>
@@ -243,10 +532,28 @@ public sealed class EventOutboxDispatcher : IOutboxDispatcher
     }
 
     /// <summary>
+    ///     Creates the dispatch context describing one delivery for handlers and retry policies.
+    /// </summary>
+    /// <param name="message">The outbox message being dispatched.</param>
+    /// <param name="kind">The delivery path that started this dispatch.</param>
+    /// <returns>The dispatch context stamped into the mediation items.</returns>
+    private static OutboxDispatchContext CreateDispatchContext(OutboxEnvelope message, OutboxDispatchKind kind)
+    {
+        return new OutboxDispatchContext(
+            message.Id,
+            message.ContractName,
+            message.AttemptCount,
+            CreateMediationCause(message),
+            ExecutionIdentity.ForTenant(message.TenantId),
+            kind);
+    }
+
+    /// <summary>
     ///     Creates event mediation settings with trace metadata, tenant identity, and mediation cause copied from the
     ///     outbox envelope.
     /// </summary>
     /// <param name="message">The outbox message whose correlation, causation, and tenant values should be applied.</param>
+    /// <param name="dispatch">The dispatch context stamped into the mediation items.</param>
     /// <param name="options">The dispatch options that decide how a message with no handler is treated.</param>
     /// <returns>Event mediation settings configured for outbox replay.</returns>
     /// <remarks>
@@ -261,15 +568,18 @@ public sealed class EventOutboxDispatcher : IOutboxDispatcher
     /// </remarks>
     private static EventMediationSettings CreateMediationSettings(
         OutboxEnvelope message,
+        OutboxDispatchContext dispatch,
         InProcessOutboxDispatchOptions options)
     {
         var settings = new EventMediationSettings
         {
             ThrowIfNoHandlerFound = options.RequireHandler,
             Routing = CreateRoutingSettings(message),
-            Identity = ExecutionIdentity.ForTenant(message.TenantId),
-            Cause = CreateMediationCause(message)
+            Identity = dispatch.Identity,
+            Cause = dispatch.Cause
         };
+
+        settings.Items[OutboxDispatchContext.MediationItemsKey] = dispatch;
 
         MessageProcessorDiagnostics.ApplyTraceMetadata(
             settings.Items,

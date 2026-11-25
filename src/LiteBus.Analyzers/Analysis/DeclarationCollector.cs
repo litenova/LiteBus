@@ -53,6 +53,17 @@ internal sealed class DeclarationCollector
     { get; } = new();
 
     /// <summary>
+    ///     Gets the catalog <c>Describe</c> and <c>Replace</c> calls, each pairing the described message with what
+    ///     the lambda declares.
+    /// </summary>
+    internal ConcurrentBag<(
+        INamedTypeSymbol Described,
+        ImmutableArray<ITypeSymbol> DeclaredValues,
+        bool StatesAuditPosition,
+        bool PassesCollector)> CatalogFacts
+    { get; } = new();
+
+    /// <summary>
     ///     Gets the source attribute classes annotated as declaring a value type.
     /// </summary>
     internal ConcurrentBag<(INamedTypeSymbol AttributeClass, INamedTypeSymbol DeclaredValue)>

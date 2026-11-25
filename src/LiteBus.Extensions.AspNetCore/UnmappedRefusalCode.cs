@@ -14,7 +14,7 @@ namespace LiteBus.Extensions.AspNetCore;
 public enum UnmappedRefusalCode
 {
     /// <summary>
-    ///     Answer the denied default with the refusal detail.
+    ///     Answer the denied default with the refusal detail, and log the unmapped code at warning level.
     /// </summary>
     UseFallback = 0,
 

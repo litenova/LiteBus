@@ -15,7 +15,9 @@ namespace LiteBus.Extensions.AspNetCore;
 ///         Both <see cref="MediationResultHttpExtensions" /> and <see cref="LiteBusExceptionHandler" /> write through
 ///         this factory, so the two paths cannot drift: the catalog status and title, the detail sentence, the problem
 ///         type, the request path as the instance, the trace identifier, the refusal code, and the validation errors
-///         extension are built once, and the per-outcome unmapped-code policy applies on both paths.
+///         extension are built once, and the per-outcome unmapped-code policy applies on both paths. An unmapped code
+///         answered from an outcome default is still reported: a denied code logs at warning level and an invalid
+///         code at debug level, because per-validator codes are unmapped by design.
 ///     </para>
 /// </remarks>
 internal static class RefusalProblemDetailsFactory
@@ -38,6 +40,24 @@ internal static class RefusalProblemDetailsFactory
             LogLevel.Error,
             new EventId(4101, "UnmappedRefusalCode"),
             "The refusal code {Code} has no problem mapping, so the refusal is reported as a server error.");
+
+    /// <summary>
+    ///     Logs a denied code that has no problem mapping and is answered from the denied default.
+    /// </summary>
+    private static readonly Action<ILogger, string?, int, Exception?> UnmappedDeniedFallbackMessage =
+        LoggerMessage.Define<string?, int>(
+            LogLevel.Warning,
+            new EventId(4103, "UnmappedDeniedCode"),
+            "The refusal code {Code} has no problem mapping, so the denial is answered from the denied default ({StatusCode}).");
+
+    /// <summary>
+    ///     Logs a validation code that has no problem mapping and is answered from the invalid default.
+    /// </summary>
+    private static readonly Action<ILogger, string?, int, Exception?> UnmappedInvalidFallbackMessage =
+        LoggerMessage.Define<string?, int>(
+            LogLevel.Debug,
+            new EventId(4104, "UnmappedValidationCode"),
+            "The validation code {Code} has no problem mapping, so the invalid refusal is answered from the invalid default ({StatusCode}).");
 
     /// <summary>
     ///     Creates the problem details for a refusal.
@@ -187,6 +207,18 @@ internal static class RefusalProblemDetailsFactory
         }
 
         unmappedServerError = false;
+
+        if (logger is not null && !string.IsNullOrWhiteSpace(code) && !isMapped)
+        {
+            if (outcome == MediationOutcome.Denied)
+            {
+                UnmappedDeniedFallbackMessage(logger, code, mapping.StatusCode, exception);
+            }
+            else if (outcome == MediationOutcome.Invalid)
+            {
+                UnmappedInvalidFallbackMessage(logger, code, mapping.StatusCode, exception);
+            }
+        }
 
         return mapping;
     }

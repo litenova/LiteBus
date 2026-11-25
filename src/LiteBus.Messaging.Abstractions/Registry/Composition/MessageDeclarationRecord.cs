@@ -9,7 +9,7 @@ namespace LiteBus.Messaging.Abstractions;
 /// <param name="Value">The effective value.</param>
 /// <param name="Source">Which source supplied it.</param>
 /// <param name="DeclaredFor">The message type or scope the source named.</param>
-/// <param name="SourceType">The definition or attribute type, when one exists.</param>
+/// <param name="SourceType">The definition, catalog source, or attribute type, when one exists.</param>
 /// <param name="Rationale">The exemption rationale, when the source is an exemption.</param>
 /// <remarks>
 ///     <para>
@@ -20,8 +20,8 @@ namespace LiteBus.Messaging.Abstractions;
 ///     <para>
 ///         <paramref name="DeclaredFor" /> is the type the source named, which may be a base type or a marker interface
 ///         covering the message rather than the message itself. <paramref name="SourceType" /> names the definition
-///         class or attribute type when the source is one, and is <see langword="null" /> for defaults and conventions.
-///         <paramref name="Rationale" /> carries the exemption reason when <paramref name="Source" /> is
+///         class, catalog source, or attribute type when the source is one, and is <see langword="null" /> for defaults
+///         and conventions. <paramref name="Rationale" /> carries the exemption reason when <paramref name="Source" /> is
 ///         <see cref="DeclarationSourceKind.Exemption" />, and is <see langword="null" /> otherwise.
 ///     </para>
 /// </remarks>

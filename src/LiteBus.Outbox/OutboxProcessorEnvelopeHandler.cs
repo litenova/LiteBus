@@ -26,6 +26,7 @@ internal static class OutboxProcessorEnvelopeHandler
     /// <param name="accumulator">The pass accumulator that collects post-transition envelopes.</param>
     /// <param name="logger">The logger used for publication failure diagnostics.</param>
     /// <param name="cancellationToken">A token used to cancel dispatch.</param>
+    /// <param name="kind">The delivery path that started this dispatch.</param>
     /// <returns>
     ///     The post-transition envelope when dispatch finished with a terminal outcome for this attempt; otherwise
     ///     <see langword="null" /> when dispatch was canceled.
@@ -37,9 +38,10 @@ internal static class OutboxProcessorEnvelopeHandler
         TimeProvider clock,
         IProcessorPassRecorder<OutboxEnvelope> accumulator,
         ILogger logger,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        OutboxDispatchKind kind = OutboxDispatchKind.Background)
     {
-        var updated = await DispatchAsync(envelope, dispatcher, options, clock, logger, [], cancellationToken)
+        var updated = await DispatchAsync(envelope, dispatcher, options, clock, logger, [], cancellationToken, kind)
             .ConfigureAwait(false);
 
         if (updated is null)
@@ -61,6 +63,7 @@ internal static class OutboxProcessorEnvelopeHandler
     /// <param name="logger">The logger used for publication failure diagnostics.</param>
     /// <param name="hooks">The orchestration processor envelope hooks invoked before dispatch.</param>
     /// <param name="cancellationToken">A token used to cancel dispatch.</param>
+    /// <param name="kind">The delivery path that started this dispatch.</param>
     /// <returns>
     ///     The post-transition envelope when dispatch finished with a terminal outcome for this attempt; otherwise
     ///     <see langword="null" /> when dispatch was canceled.
@@ -72,7 +75,8 @@ internal static class OutboxProcessorEnvelopeHandler
         TimeProvider clock,
         ILogger logger,
         IReadOnlyList<IProcessorEnvelopeHook> hooks,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        OutboxDispatchKind kind = OutboxDispatchKind.Background)
     {
         MessageProcessorDiagnostics.TryGetParentActivityContext(envelope.TraceContext, out var parentContext);
 
@@ -102,7 +106,7 @@ internal static class OutboxProcessorEnvelopeHandler
             }
 
             var stopwatch = Stopwatch.StartNew();
-            await dispatcher.DispatchAsync(envelope, cancellationToken).ConfigureAwait(false);
+            await dispatcher.DispatchAsync(envelope, kind, cancellationToken).ConfigureAwait(false);
             stopwatch.Stop();
             OutboxProcessorTelemetry.RecordDispatchDuration(stopwatch.Elapsed);
             var published = envelope.AsPublished(clock.GetUtcNow());

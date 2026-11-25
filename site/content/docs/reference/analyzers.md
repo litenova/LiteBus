@@ -33,7 +33,7 @@ Analyzers have no runtime dependency on LiteBus libraries.
 | LB1015 | Warning | Configuration | Transactional EF storage calls `EnforceTransactionalSetup()` without `EnableSaveChangesInterceptor()` |
 | LB1016 | Warning | Inbox | Constructor injects `ITransactionalInboxStore` without a `DbContext` in the same constructor |
 | LB1017 | Warning | Contracts | Type declares `[MessageContract]` but lacks explicit `Contracts.Register` or `RegisterFromAssembly` in the compilation |
-| LB1018 | Warning (disabled by default) | Auditing | Command or query type declares neither `[Audited]` nor `[AuditExempt]` and has no `IAuditDefinition`. This rule is LB1020 with `AuditDeclaration` already configured |
+| LB1018 | Warning (disabled by default) | Auditing | Command or query type declares neither `[Audited]` nor `[AuditExempt]` and has no `IAuditDefinition` or catalog source entry. This rule is LB1020 with `AuditDeclaration` already configured |
 | LB1019 | Warning | Handlers | Shortcut implements `IMessageShortcut<TMessage>` for a message that produces a result |
 | LB1020 | Warning (disabled by default) | Declarations | Command or query type states no position on a metadata value type named in `litebus_required_declarations` |
 | LB1021 | Warning | Declarations | `litebus_required_declarations` names a type that does not resolve in a compilation that references the LiteBus message contracts |
@@ -112,7 +112,7 @@ litebus_required_declarations = App.Security.RequiredPermission, App.Compliance.
 dotnet_diagnostic.LB1020.severity = warning
 ```
 
-A message satisfies the rule with a definition class, with an attribute annotated `[MessageDeclaration(typeof(TValue))]`, or with `[DeclarationExempt(typeof(TValue), "rationale")]`. A declaration written for a base type or marker interface covers the messages that derive from it. With nothing configured the rule reports nothing.
+A message satisfies the rule with a definition class, with a catalog source describing it through `Describe`, with an attribute annotated `[MessageDeclaration(typeof(TValue))]`, or with `[DeclarationExempt(typeof(TValue), "rationale")]`. A declaration written for a base type or marker interface covers the messages that derive from it. With nothing configured the rule reports nothing.
 
 The tenancy attributes (`[TenantRequired]`, `[CrossTenant]`, `[NoTenant]`) declare `TenancyDeclaration`, so the build check for a composition that calls `RequireDeclaration<TenancyDeclaration>()` is this configuration:
 
@@ -125,7 +125,7 @@ dotnet_diagnostic.LB1020.severity = warning
 
 LB1021 reports a configured name that does not resolve in a compilation that references the LiteBus message contracts, the same condition the analyzer uses to look for messages. A name that silently did nothing would disable the requirement it configures, and a typo in `.editorconfig` is the usual cause. In a project with no message contracts and no messages, the rule reports nothing, so a shared configuration cannot raise it there.
 
-`RequireDeclaration<TValue>()` on the messaging module enforces the same rule at composition time, which also covers a message registered from an assembly outside this compilation. LB1020 checks what the message states itself: a definition, a declaring attribute, or an exemption. Defaults, conventions, and Report or Fail enforcement are composition checks. Event requirements are composition-only; LB1020 does not check events. See [Required Declarations](../catalog/analyzers/required-declarations.md).
+`RequireDeclaration<TValue>()` on the messaging module enforces the same rule at composition time, which also covers a message registered from an assembly outside this compilation. LB1020 checks what the message states itself: a definition, a catalog source, a declaring attribute, or an exemption. Defaults, conventions, and Report or Fail enforcement are composition checks. Event requirements are composition-only; LB1020 does not check events. See [Required Declarations](../catalog/analyzers/required-declarations.md).
 
 ## Nested Mediation in Command Handlers (LB1023)
 

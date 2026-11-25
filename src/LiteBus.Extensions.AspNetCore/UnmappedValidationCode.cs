@@ -14,7 +14,7 @@ namespace LiteBus.Extensions.AspNetCore;
 public enum UnmappedValidationCode
 {
     /// <summary>
-    ///     Answer the invalid default with the refusal detail.
+    ///     Answer the invalid default with the refusal detail, and log the unmapped code at debug level.
     /// </summary>
     UseFallback = 0,
 

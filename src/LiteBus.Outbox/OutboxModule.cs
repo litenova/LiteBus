@@ -163,6 +163,20 @@ public sealed class OutboxModule : ICompositeModule, IRequires<MessageModule>
             typeof(OutboxProcessorOptions),
             _builder.ProcessorOptions));
 
+        _builder.ReactionRetryOptions.Validate();
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(OutboxReactionRetryOptions),
+            _builder.ReactionRetryOptions));
+
+        RegisterReactionRetryPolicy(configuration);
+
+        configuration.DependencyRegistry.RegisterCollection(DependencyDescriptor.ForCollection(
+            typeof(ICompositionSectionContributor),
+            new OutboxReactionRetryCompositionSection(
+                _builder.ReactionRetryOptions,
+                _builder.CollectReactionRetryPolicy())));
+
         if (_builder.CollectPayloadEncryptor() is { } outboxEncryptor)
         {
             configuration.DependencyRegistry.Register(new DependencyDescriptor(
@@ -509,6 +523,48 @@ public sealed class OutboxModule : ICompositeModule, IRequires<MessageModule>
                     $"  Subscriber name '{name}' on handler '{handlerType.FullName ?? handlerType.Name}' equals the " +
                     $"full type name of handler '{owner.FullName ?? owner.Name}' for message '{messageName}'.");
             }
+        }
+    }
+
+    /// <summary>
+    ///     Registers the policy that decides whether a conflicted reaction publishes again.
+    /// </summary>
+    /// <param name="configuration">The module configuration receiving the policy registration.</param>
+    /// <exception cref="DurableStorageConfigurationException">
+    ///     The builder holds a reaction retry policy value that is neither an implementation type nor a policy
+    ///     instance.
+    /// </exception>
+    /// <remarks>
+    ///     With no application registration the default policy is marked as the LiteBus default, so the
+    ///     composition model reports whether the port still runs the default or a replacement.
+    /// </remarks>
+    private void RegisterReactionRetryPolicy(IModuleConfiguration configuration)
+    {
+        switch (_builder!.CollectReactionRetryPolicy())
+        {
+            case null:
+                configuration.DependencyRegistry.Register(DependencyDescriptor.ForDefaultPort(
+                    typeof(IOutboxReactionRetryPolicy),
+                    typeof(DefaultOutboxReactionRetryPolicy)));
+                break;
+
+            case Type implementationType:
+                configuration.DependencyRegistry.Register(new DependencyDescriptor(
+                    typeof(IOutboxReactionRetryPolicy),
+                    implementationType,
+                    _builder.CollectReactionRetryPolicyLifetime()));
+                break;
+
+            case IOutboxReactionRetryPolicy instance:
+                configuration.DependencyRegistry.Register(new DependencyDescriptor(
+                    typeof(IOutboxReactionRetryPolicy),
+                    instance));
+                break;
+
+            default:
+                throw new DurableStorageConfigurationException(
+                    "The configured outbox reaction retry policy is neither an "
+                    + $"{nameof(IOutboxReactionRetryPolicy)} instance nor an implementation type.");
         }
     }
 

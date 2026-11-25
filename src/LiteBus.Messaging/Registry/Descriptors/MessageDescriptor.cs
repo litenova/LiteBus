@@ -162,27 +162,36 @@ internal sealed class MessageDescriptor : IMessageDescriptor
     }
 
     /// <summary>
-    ///     Applies a value declared by a message definition or a composition default to this descriptor's metadata.
+    ///     Applies a value declared by a message definition, a catalog source, or a composition default to this
+    ///     descriptor's metadata.
     /// </summary>
     /// <param name="keyType">The metadata key type the declaration was stored under.</param>
     /// <param name="value">The metadata value the declaration contributed.</param>
     /// <param name="declaringMessageType">The message type the declaration was written for.</param>
+    /// <param name="kind">Where the declaration came from.</param>
     /// <param name="sourceType">
-    ///     The definition class that declared the value, or <see langword="null" /> when composition code declared it
-    ///     directly as a default.
+    ///     The definition class or catalog source that declared the value, or <see langword="null" /> when composition
+    ///     code declared it directly as a default.
     /// </param>
-    /// <remarks>
-    ///     A definition type records <see cref="MetadataSourceKind.Definition" />; a <see langword="null" /> source
-    ///     type records <see cref="MetadataSourceKind.Default" />, because only a definition class names its source.
-    /// </remarks>
-    public void ApplyMetadata(Type keyType, object value, Type declaringMessageType, Type? sourceType = null)
+    public void ApplyMetadata(Type keyType, object value, Type declaringMessageType, MetadataSourceKind kind, Type? sourceType = null)
     {
-        _metadata.Set(
-            keyType,
-            value,
-            declaringMessageType,
-            sourceType is null ? MetadataSourceKind.Default : MetadataSourceKind.Definition,
-            sourceType);
+        _metadata.Set(keyType, value, declaringMessageType, kind, sourceType);
+    }
+
+    /// <summary>
+    ///     Applies a replacement value to this descriptor's metadata, overwriting whatever is stored.
+    /// </summary>
+    /// <param name="keyType">The metadata key type the replacement was stored under.</param>
+    /// <param name="value">The replacement value.</param>
+    /// <param name="declaringMessageType">The message type the replacement was written for.</param>
+    /// <param name="kind">Where the replacement came from.</param>
+    /// <param name="sourceType">
+    ///     The definition class or catalog source that declared the value, or <see langword="null" /> when composition
+    ///     code declared it directly as a default.
+    /// </param>
+    public void ReplaceMetadata(Type keyType, object value, Type declaringMessageType, MetadataSourceKind kind, Type? sourceType = null)
+    {
+        _metadata.Replace(keyType, value, declaringMessageType, kind, sourceType);
     }
 
     /// <inheritdoc />

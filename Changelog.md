@@ -272,6 +272,12 @@ This release makes identity and tenancy part of the pipeline, adds composable au
 - A failed audit write is logged at error level and counted on the `litebus.audit.write.failures` counter of the `LiteBus.Auditing` meter (`LiteBus.Auditing.Extensions.OpenTelemetry` registers it), and the mediation's ending stands. `RequireRecord()` makes a successful mediation fail instead when its record cannot be written. Application code writes its own records through the scoped `IAuditTrail`.
 - `IServiceProvider.ValidateLiteBusHost()` validates a built host's container without starting it, for a startup check such as `--validate-composition`; `LiteBusHostValidation.Validate(IServiceCollection)` in `LiteBus.Testing.Hosting` does the same in a unit test.
 - Audit records carry a time-ordered version 7 `Id`, and `Origin` says whether LiteBus produced the record for a mediation or application code wrote it through `IAuditTrail`; a record written without an `Id` is given one on every capture path.
+- Declaration sources: one `IMultiMessageDefinition` declares many message types through `IMessageDeclarationCatalog.Describe<TMessage>`, with the same vocabulary as definition classes. The composition model names the source (`DeclarationSourceKind.Source`), a conflicting declaration from two sources fails composition, and `ReplaceDeclaration` overrides deliberately. Generated per-module declaration classes are one consumer. See [Message Definitions](site/content/docs/concepts/message-definitions.md).
+- Reaction conflict retry: an outbox-dispatched reaction whose mediation meets a storage conflict retries inside the same dispatch through `IOutboxReactionRetryPolicy` (default exponential, bounded by `OutboxReactionRetryOptions.MaxAttempts`), on the processor pass and on immediate dispatch. Business refusals still dead-letter at once. The counters `litebus.outbox.reaction_retry.retries` and `litebus.outbox.reaction_retry.exhausted` and an `outbox-reaction-retry` composition section report it.
+- `OutboxDispatchContext` (envelope id, contract name, store attempt, cause, identity, immediate or background) is stamped into every outbox dispatch, so handlers and policies read it without ambient state.
+- Host validation checks every registered durable message contract by a serialize-and-read round trip through the configured serializer, naming the property that does not survive, and checks that every staged event type has a handler or a declared decision. Each check is switchable through `LiteBusHostValidationOptions`; `IMessageSampleFactory` supplies sample values and can be replaced.
+- One serializer options source: `UseSerializerOptions` and the `IMessageJsonSerializerOptionsProvider` port feed the outbox, inbox and sagas through the default `IMessageSerializer`; a custom serializer together with custom options fails composition.
+- A transport-neutral refusal catalog: `MessageModuleBuilder.Refusals` (`IRefusalCatalog`) registers each refusal code's kind, title and owner once, under the one conflict rule, with a `refusals` composition section. `IMessageDeclarations.Refusals(...)` declares a message's refusal codes and feeds the same catalog. `RefusalProblemCatalog.MapFrom` and `AddRefusalProblemCatalog` seed the ASP.NET Core problem mapping from it. Known fault codes are rejected at registration, and `ConcurrencyRefusalCodes.Conflict` names the shared conflict code.
 
 ### Changed
 
@@ -285,6 +291,9 @@ This release makes identity and tenancy part of the pipeline, adds composable au
 - LB1023 also covers command pre-handlers and post-handlers, and its description names `ForbidNestedCommands()` as the runtime counterpart. The LB1025 message names `ITransactionalOutbox<TContext>` for EF Core storage and `ITransactionalOutbox` for Marten or PostgreSQL storage.
 - `RecentSignIn` compares the sign-in age as a `TimeSpan`, so windows below a second behave as written.
 - A LiteBus default registration yields to an explicit registration of the same service made earlier; a conflicting explicit registration still fails composition unless it calls `Replace`.
+- LB1018 and LB1020 accept a declaration contributed through a declaration source.
+- `RecurringCommandHostOptions.IsConcurrencyOrDatabaseConflict` uses the shared `MediationExceptionFilters.IsConcurrencyConflict` classification, so recurring loops also treat Marten existence races as conflicts.
+- A refusal code with no catalog entry is logged when it is answered from the default (a denied code at warning, an invalid code at debug) instead of silently.
 
 ### Breaking
 

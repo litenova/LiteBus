@@ -441,6 +441,41 @@ outbox.UseInProcessDispatch(dispatch =>
 | `RequireHandler` | `true` | A message with no handler fails the dispatch attempt, retries, and dead-letters |
 | `RequireHandler` | `false`, set by `AllowEnvelopesWithoutHandler(reason)` | A message with no handler completes and is marked `Published`; the reason is logged as a warning at startup and listed in the composition summary |
 
+### Reaction retries on storage conflicts
+
+When a reaction fails with a storage conflict (an optimistic-concurrency fault, a deadlock, a serialization failure, or a lock wait), the dispatcher publishes the reaction again inside the same dispatch instead of waiting for the next lease. The default retries up to 3 attempts per delivery with an exponential delay from 100 milliseconds, capped at 5 seconds with jitter. Both delivery paths run the same loop: the processor pass and immediate dispatch after the commit.
+
+```csharp
+outbox.UseReactionRetry(options =>
+{
+    options.MaxAttempts = 5;
+    options.InitialDelay = TimeSpan.FromMilliseconds(200);
+});
+```
+
+| Option | Default | Role |
+| --- | --- | --- |
+| `Enabled` | `true` | `false` keeps conflicts on the ordinary envelope retry schedule |
+| `MaxAttempts` | `3` | In-dispatch attempts per delivery, including the first; enforced for every policy |
+| `InitialDelay` | 100 ms | Delay before the first in-dispatch retry; doubles per attempt |
+| `MaxDelay` | 5 seconds | Cap on the calculated delay |
+| `UseJitter` | `true` | Applies a random +-20% factor to the calculated delay |
+
+The retry only answers a classified conflict. A business refusal dead-letters on the first attempt as before, and a configuration fault (`MessageFaultException`) follows the ordinary envelope schedule. A conflict that a refusal classifier translated into a typed refusal still retries: the refusal keeps the storage fault as its cause, and the dispatcher reads through it. Each attempt publishes as a new root mediation with the same cause.
+
+When the bound or the delay must vary per evaluation (per tenant, per contract, per time of day), implement `IOutboxReactionRetryPolicy` and register it with `UseReactionRetryPolicy<TPolicy>()` or `UseReactionRetryPolicyInstance(policy)`. The policy decides per failure with the failure, the in-dispatch attempt number, the message evaluation context, and the dispatch context. Whatever it decides, `MaxAttempts` still bounds the delivery.
+
+Every dispatch stamps an `OutboxDispatchContext` into the mediation items: the envelope id and contract, the store attempt number, the cause, the identity the reaction runs as, and whether the delivery is immediate or background. Handlers read it without ambient state:
+
+```csharp
+if (OutboxDispatchContext.TryGet(AmbientExecutionContext.Current.Items, out var dispatch))
+{
+    // dispatch.Kind is Immediate right after the commit, Background from the processor pass.
+}
+```
+
+Two counters report the loop: `litebus.outbox.reaction_retry.retries` counts each scheduled in-dispatch retry, and `litebus.outbox.reaction_retry.exhausted` counts each dispatch where a conflict met no further in-dispatch retry. The `outbox-reaction-retry` composition section names the effective policy, whether it is the default, and the bound and curve.
+
 ### Per-Handler Delivery
 
 `EnablePerHandlerDelivery` writes 1 envelope per subscribed main handler of each enqueued event, instead of 1 envelope per event. Each reaction then gets its own retry, dead letter, and replay. While the healthy reactions publish, a failing reaction retries alone.

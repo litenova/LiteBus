@@ -121,6 +121,20 @@ For detail, see the [AMQP](../integrations/amqp.md), [Kafka](../integrations/kaf
 
 Use inbox ingress when you need idempotency, store-backed retries, and dead-lettering. Use raw consumers only when the application owns retry caps, poison queues, and idempotent handlers.
 
+## Size Database Connections
+
+Each host holds PostgreSQL connections from these holders. Size the pool per host (`Max Pool Size` on the data source) from their sum, not from the driver default:
+
+| Holder | Connections | Notes |
+| :--- | :--- | :--- |
+| Work-signal listener | 1 per axis | Inbox and outbox each hold one dedicated `LISTEN` connection while their processor loop runs |
+| Processor pass | Short borrows | Lease, heartbeat renewal, and terminal persist each borrow one pooled connection per execution and return it |
+| Dispatched handlers | Up to `DispatcherConcurrency` per axis | Each concurrent in-process handler holds its own handler connections (Marten session, `DbContext`) for the handler duration |
+| Immediate dispatch | On the mediation path | Runs after the unit of work commits and leases and dispatches the staged envelopes there, sharing that path's connections plus handler-held ones |
+| Cleanup loop | Short borrows | One borrow per retention pass when cleanup is enabled |
+
+A host running inbox and outbox processors with `DispatcherConcurrency = 4` on each holds 2 listener connections plus up to 8 concurrent handler connections at peak, plus request traffic and short operation borrows. Cap each host's pool so the sum of the hosts stays under the server `max_connections`: with two hosts against a 100-connection server, 30 per host leaves headroom for traffic bursts.
+
 ## Collect Escalation Data
 
 - LiteBus package versions and the `LiteBusHostManifest` probe list

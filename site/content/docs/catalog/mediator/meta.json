@@ -21,6 +21,7 @@
                   "polymorphic-dispatch",
                   "queries",
                   "recurring-commands",
+                  "refusal-catalog",
                   "unit-of-work"
               ]
 }

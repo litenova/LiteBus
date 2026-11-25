@@ -34,7 +34,7 @@ public static class LiteBusHostValidation
     ///         the host's own build when it is disposed first.
     ///     </para>
     ///     <para>
-    ///         Inside a host, call <see cref="LiteBusHostValidationExtensions.ValidateLiteBusHost" /> on the built host's
+    ///         Inside a host, call <see cref="LiteBusHostValidationExtensions.ValidateLiteBusHost(IServiceProvider)" /> on the built host's
     ///         <c>Services</c> instead.
     ///     </para>
     /// </remarks>
@@ -46,6 +46,37 @@ public static class LiteBusHostValidation
     ///     before this exception is thrown.
     /// </exception>
     public static void Validate(IServiceCollection services)
+    {
+        Validate(services, options: null);
+    }
+
+    /// <summary>
+    ///     Builds the service provider with scope and build validation enabled, then validates the LiteBus host
+    ///     composition from the root provider.
+    /// </summary>
+    /// <param name="services">The service collection holding the LiteBus composition to validate.</param>
+    /// <param name="options">
+    ///     The checks to run, or <see langword="null" /> to run every check. Each check is individually switchable.
+    /// </param>
+    /// <remarks>
+    ///     <para>
+    ///         This method builds and disposes its own provider, so call it on a composition built only for the test,
+    ///         never on a collection the host builds afterwards. A provider that holds state from the composition breaks
+    ///         the host's own build when it is disposed first.
+    ///     </para>
+    ///     <para>
+    ///         Inside a host, call <see cref="LiteBusHostValidationExtensions.ValidateLiteBusHost(IServiceProvider, LiteBusHostValidationOptions)" /> on the built host's
+    ///         <c>Services</c> instead.
+    ///     </para>
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">
+    ///     Thrown when <paramref name="services" /> is <see langword="null" />.
+    /// </exception>
+    /// <exception cref="LiteBusHostValidationException">
+    ///     Thrown when the provider cannot be built or a check fails. Every failure is collected before this exception
+    ///     is thrown.
+    /// </exception>
+    public static void Validate(IServiceCollection services, LiteBusHostValidationOptions? options)
     {
         ArgumentNullException.ThrowIfNull(services);
 
@@ -77,7 +108,7 @@ public static class LiteBusHostValidation
 
         using (provider)
         {
-            provider.ValidateLiteBusHost();
+            provider.ValidateLiteBusHost(options);
         }
     }
 

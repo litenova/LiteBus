@@ -10,10 +10,10 @@ namespace LiteBus.Messaging.Registry;
 ///     Type-keyed metadata collected for one message type during registration.
 /// </summary>
 /// <remarks>
-///     Four sources declare metadata, and several may cover the same message: an attribute on the message type, a
-///     definition declared for the message type or for something it derives from, a family default stated in
-///     composition code, and a convention derived from the message type. Provenance is tracked alongside each
-///     value so that precedence is a stated rule rather than an accident of registration order.
+///     Five sources declare metadata, and several may cover the same message: an attribute on the message type, a
+///     definition or a catalog source declared for the message type or for something it derives from, a family
+///     default stated in composition code, and a convention derived from the message type. Provenance is tracked
+///     alongside each value so that precedence is a stated rule rather than an accident of registration order.
 /// </remarks>
 internal sealed class MessageMetadata : IMessageMetadata
 {
@@ -101,17 +101,17 @@ internal sealed class MessageMetadata : IMessageMetadata
     /// <param name="declaringMessageType">The message type the declaration was written for.</param>
     /// <param name="kind">Where the declaration came from.</param>
     /// <param name="sourceType">
-    ///     The definition class or attribute type that declared the value, or <see langword="null" /> when the source
-    ///     is a composition default, a convention, or an aggregated exemption set rather than one type.
+    ///     The definition class, catalog source, or attribute type that declared the value, or <see langword="null" />
+    ///     when the source is a composition default, a convention, or an aggregated exemption set rather than one type.
     /// </param>
     /// <exception cref="MessageDeclarationException">
     ///     Thrown when the value does not match its key type, or when two declarations cover this message and neither is
     ///     more derived than the other.
     /// </exception>
     /// <remarks>
-    ///     A declaration written for the message itself beats one written for a base type or interface, and a definition
-    ///     beats an attribute on the same message type. Anything else is ambiguous and is reported rather than resolved
-    ///     by registration order.
+    ///     A declaration written for the message itself beats one written for a base type or interface, and a
+    ///     definition or a catalog source beats an attribute on the same message type. Anything else is ambiguous and
+    ///     is reported rather than resolved by registration order.
     /// </remarks>
     public void Set(Type keyType, object value, Type declaringMessageType, MetadataSourceKind kind, Type? sourceType = null)
     {
@@ -177,6 +177,40 @@ internal sealed class MessageMetadata : IMessageMetadata
     }
 
     /// <summary>
+    ///     Stores a replacement value, overwriting whatever is stored without comparing precedence.
+    /// </summary>
+    /// <param name="keyType">The CLR type used as the metadata key.</param>
+    /// <param name="value">The replacement value to store.</param>
+    /// <param name="declaringMessageType">The message type the replacement was written for.</param>
+    /// <param name="kind">Where the replacement came from.</param>
+    /// <param name="sourceType">
+    ///     The definition class or catalog source that declared the value, or <see langword="null" /> when
+    ///     composition code declared it directly as a default.
+    /// </param>
+    /// <exception cref="MessageDeclarationException">The value does not match its key type.</exception>
+    /// <remarks>
+    ///     A replacement is a deliberate override, so specificity and source rank do not apply: the caller already
+    ///     decided this value wins. The registry removes the recorded declaration it replaces before calling here,
+    ///     so the stored provenance always names the replacement.
+    /// </remarks>
+    public void Replace(Type keyType, object value, Type declaringMessageType, MetadataSourceKind kind, Type? sourceType = null)
+    {
+        ArgumentNullException.ThrowIfNull(keyType);
+        ArgumentNullException.ThrowIfNull(value);
+        ArgumentNullException.ThrowIfNull(declaringMessageType);
+
+        if (!keyType.IsInstanceOfType(value))
+        {
+            throw new MessageDeclarationException(
+                $"A replacement for '{_messageType.Name}' produced a value of type '{value.GetType().Name}', "
+                + $"but declared its metadata key as '{keyType.Name}'.");
+        }
+
+        _values[keyType] = value;
+        _sources[keyType] = (declaringMessageType, kind, sourceType);
+    }
+
+    /// <summary>
     ///     Maps a registration source kind to the composition source kind the model reports.
     /// </summary>
     /// <param name="kind">The registration source kind stored with the value.</param>
@@ -194,6 +228,7 @@ internal sealed class MessageMetadata : IMessageMetadata
             MetadataSourceKind.Default => DeclarationSourceKind.Default,
             MetadataSourceKind.Attribute => DeclarationSourceKind.Attribute,
             MetadataSourceKind.Definition => DeclarationSourceKind.Definition,
+            MetadataSourceKind.Source => DeclarationSourceKind.Source,
             _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unknown metadata source kind."),
         };
     }

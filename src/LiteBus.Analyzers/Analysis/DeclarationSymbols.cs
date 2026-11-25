@@ -49,6 +49,16 @@ internal sealed class DeclarationSymbols
     private const string MessageDeclarationsMetadataName = "LiteBus.Messaging.Abstractions.IMessageDeclarations";
 
     /// <summary>
+    ///     The metadata name of the multi-message declaration source contract.
+    /// </summary>
+    private const string CatalogSourceMetadataName = "LiteBus.Messaging.Abstractions.IMultiMessageDefinition";
+
+    /// <summary>
+    ///     The metadata name of the declaration catalog passed to a source <c>Describe</c>.
+    /// </summary>
+    private const string DeclarationCatalogMetadataName = "LiteBus.Messaging.Abstractions.IMessageDeclarationCatalog";
+
+    /// <summary>
     ///     The metadata name of the audit declaration value type.
     /// </summary>
     private const string AuditDeclarationMetadataName = "LiteBus.Auditing.Abstractions.AuditDeclaration";
@@ -87,6 +97,8 @@ internal sealed class DeclarationSymbols
         DefinitionContract = compilation.GetTypeByMetadataName(MessageDefinitionMetadataName);
         DescribingContract = compilation.GetTypeByMetadataName(DescribingDefinitionMetadataName);
         Declarations = compilation.GetTypeByMetadataName(MessageDeclarationsMetadataName);
+        CatalogSourceContract = compilation.GetTypeByMetadataName(CatalogSourceMetadataName);
+        DeclarationCatalog = compilation.GetTypeByMetadataName(DeclarationCatalogMetadataName);
         AuditDeclaration = compilation.GetTypeByMetadataName(AuditDeclarationMetadataName);
         AuthorizationDeclaration = compilation.GetTypeByMetadataName(AuthorizationDeclarationMetadataName);
         MessageDeclarationAnnotation = compilation.GetTypeByMetadataName(MessageDeclarationAttributeMetadataName);
@@ -122,6 +134,16 @@ internal sealed class DeclarationSymbols
     ///     Gets the declaration collector passed to <c>Describe</c>, when referenced.
     /// </summary>
     internal INamedTypeSymbol? Declarations { get; }
+
+    /// <summary>
+    ///     Gets the multi-message declaration source contract, when referenced.
+    /// </summary>
+    internal INamedTypeSymbol? CatalogSourceContract { get; }
+
+    /// <summary>
+    ///     Gets the declaration catalog passed to a source <c>Describe</c>, when referenced.
+    /// </summary>
+    internal INamedTypeSymbol? DeclarationCatalog { get; }
 
     /// <summary>
     ///     Gets the audit declaration value type, when referenced.

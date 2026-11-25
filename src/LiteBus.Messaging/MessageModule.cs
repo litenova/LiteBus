@@ -60,10 +60,11 @@ public sealed class MessageModule : IModule
         // Create or get the message registry shared by all messaging-related modules in this configuration.
         var messageRegistry = configuration.GetOrCreateContext<IMessageRegistry>(() => new MessageRegistry());
         var messageContractRegistry = configuration.GetOrCreateContext(() => new MessageContractRegistry());
+        var refusalCatalog = configuration.GetOrCreateContext(() => RefusalCatalog.CreateDefault());
         var startIndex = messageRegistry.Handlers.Count;
 
         // Configure the message module using the builder.
-        var moduleBuilder = new MessageModuleBuilder(messageRegistry, messageContractRegistry);
+        var moduleBuilder = new MessageModuleBuilder(messageRegistry, messageContractRegistry, refusalCatalog);
 
         foreach (var configure in _builders)
         {
@@ -83,13 +84,21 @@ public sealed class MessageModule : IModule
             moduleBuilder.TimeProvider,
             moduleBuilder.Serializer,
             moduleBuilder.SerializerLifetime,
+            moduleBuilder.SerializerOptionsProvider,
+            moduleBuilder.MessageSampleFactory,
             moduleBuilder.FaultRefusalClassifiers);
+        RegisterRefusalCatalog(configuration, refusalCatalog);
         ModuleRegistration.RegisterNewHandlers(configuration, messageRegistry, startIndex);
 
         foreach (var step in moduleBuilder.BuildSteps)
         {
             step(configuration);
         }
+
+        // Deferred past the build steps so convention-supplied refusal declarations are harvested, and before the
+        // composition checks so the refusals section reports every harvested entry.
+        configuration.RegisterCompositionValidation(
+            () => RefusalCatalog.HarvestDeclarations(messageRegistry, refusalCatalog));
 
         // Registered now and filled in after every module has built, because none of the counts exist yet. Sharing
         // the instance is what lets the axis modules record their own message counts into it.
@@ -315,6 +324,8 @@ public sealed class MessageModule : IModule
     /// <param name="timeProvider">The optional time provider registered for messaging services.</param>
     /// <param name="messageSerializer">The serializer instance or implementation type, or null for the built-in one.</param>
     /// <param name="messageSerializerLifetime">The lifetime a serializer implementation type is registered with.</param>
+    /// <param name="serializerOptionsProvider">The options, provider instance, or provider type, or null for the built-in one.</param>
+    /// <param name="messageSampleFactory">The sample factory instance or implementation type, or null for the built-in one.</param>
     /// <param name="faultRefusalClassifiers">The classifier implementation types and instances, in registration order.</param>
     private static void RegisterMessagingServices(
         IModuleConfiguration configuration,
@@ -323,6 +334,8 @@ public sealed class MessageModule : IModule
         TimeProvider? timeProvider,
         object? messageSerializer,
         InstanceLifetime messageSerializerLifetime,
+        object? serializerOptionsProvider,
+        object? messageSampleFactory,
         IReadOnlyList<object> faultRefusalClassifiers)
     {
         // Register message registry as singleton.
@@ -378,7 +391,8 @@ public sealed class MessageModule : IModule
             typeof(IContractWriter),
             messageContractRegistry));
 
-        RegisterMessageSerializer(configuration, messageSerializer, messageSerializerLifetime);
+        RegisterMessageSerializer(configuration, messageSerializer, messageSerializerLifetime, serializerOptionsProvider);
+        RegisterMessageSampleFactory(configuration, messageSampleFactory);
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(TimeProvider),
@@ -441,27 +455,70 @@ public sealed class MessageModule : IModule
     }
 
     /// <summary>
+    ///     Registers the shared refusal catalog for transports and the composition model.
+    /// </summary>
+    /// <param name="configuration">The module configuration.</param>
+    /// <param name="refusalCatalog">The catalog the messaging builder collected registrations into.</param>
+    /// <remarks>
+    ///     The catalog instance also contributes the <c>refusals</c> composition section, so the export names every
+    ///     entry with its owner.
+    /// </remarks>
+    private static void RegisterRefusalCatalog(IModuleConfiguration configuration, RefusalCatalog refusalCatalog)
+    {
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IRefusalCatalog),
+            refusalCatalog));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IRefusalReader),
+            refusalCatalog));
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IRefusalWriter),
+            refusalCatalog));
+
+        configuration.DependencyRegistry.RegisterCollection(DependencyDescriptor.ForCollection(
+            typeof(ICompositionSectionContributor),
+            refusalCatalog));
+    }
+
+    /// <summary>
     ///     Registers the serializer that produces and reads persisted message payloads.
     /// </summary>
     /// <param name="configuration">The module configuration.</param>
     /// <param name="messageSerializer">The serializer instance or implementation type, or null for the built-in one.</param>
     /// <param name="lifetime">The lifetime an implementation type is registered with.</param>
-    /// <exception cref="LiteBusConfigurationException">The builder held a value that is not a serializer.</exception>
+    /// <param name="serializerOptionsProvider">The options, provider instance, or provider type, or null for the built-in one.</param>
+    /// <exception cref="LiteBusConfigurationException">
+    ///     The builder held a value that is not a serializer, or held both a custom serializer and custom options.
+    /// </exception>
     /// <remarks>
-    ///     Falling back to <see cref="SystemTextJsonMessageSerializer" /> keeps the default wire format unchanged for
-    ///     applications that never state one.
+    ///     Falling back to <see cref="SystemTextJsonMessageSerializer" /> built from the resolved options provider
+    ///     keeps the default wire format unchanged for applications that never state one. A custom serializer together
+    ///     with custom options fails composition, because two payload formats would apply with nothing saying which.
     /// </remarks>
     private static void RegisterMessageSerializer(
         IModuleConfiguration configuration,
         object? messageSerializer,
-        InstanceLifetime lifetime)
+        InstanceLifetime lifetime,
+        object? serializerOptionsProvider)
     {
+        if (messageSerializer is not null && serializerOptionsProvider is not null)
+        {
+            throw new LiteBusConfigurationException(
+                "The composition sets both a custom message serializer and custom serializer options. "
+                + "A custom serializer carries its own format, so the options would never apply; state the wire "
+                + "format once, either as a serializer or as options.");
+        }
+
+        RegisterSerializerOptionsProvider(configuration, serializerOptionsProvider);
+
         switch (messageSerializer)
         {
             case null:
                 configuration.DependencyRegistry.Register(DependencyDescriptor.ForDefaultPort(
                     typeof(IMessageSerializer),
-                    typeof(SystemTextJsonMessageSerializer)));
+                    provider => new SystemTextJsonMessageSerializer(ResolveSerializerOptions(provider))));
                 break;
 
             case Type implementationType:
@@ -481,6 +538,103 @@ public sealed class MessageModule : IModule
                 throw new LiteBusConfigurationException(
                     $"The configured message serializer '{messageSerializer.GetType().Name}' is neither an "
                     + $"{nameof(IMessageSerializer)} instance nor an implementation type.");
+        }
+    }
+
+    /// <summary>
+    ///     Registers the JSON serializer options provider every durable feature serializes message payloads with.
+    /// </summary>
+    /// <param name="configuration">The module configuration.</param>
+    /// <param name="serializerOptionsProvider">The options, provider instance, or provider type, or null for the built-in one.</param>
+    /// <exception cref="LiteBusConfigurationException">The builder held a value that is not serializer options.</exception>
+    /// <remarks>
+    ///     Always registered, so the composition model names the effective source and the default serializer factory
+    ///     resolves it. Fixed options wrap in a constant provider, which is what the simple
+    ///     <c>UseSerializerOptions</c> overload registers over.
+    /// </remarks>
+    private static void RegisterSerializerOptionsProvider(IModuleConfiguration configuration, object? serializerOptionsProvider)
+    {
+        switch (serializerOptionsProvider)
+        {
+            case null:
+                configuration.DependencyRegistry.Register(DependencyDescriptor.ForDefaultPort(
+                    typeof(IMessageJsonSerializerOptionsProvider),
+                    typeof(DefaultMessageJsonSerializerOptionsProvider)));
+                break;
+
+            case System.Text.Json.JsonSerializerOptions options:
+                configuration.DependencyRegistry.Register(new DependencyDescriptor(
+                    typeof(IMessageJsonSerializerOptionsProvider),
+                    new FixedMessageJsonSerializerOptionsProvider(options)));
+                break;
+
+            case Type implementationType:
+                configuration.DependencyRegistry.Register(new DependencyDescriptor(
+                    typeof(IMessageJsonSerializerOptionsProvider),
+                    implementationType,
+                    InstanceLifetime.Singleton));
+                break;
+
+            case IMessageJsonSerializerOptionsProvider instance:
+                configuration.DependencyRegistry.Register(new DependencyDescriptor(
+                    typeof(IMessageJsonSerializerOptionsProvider),
+                    instance));
+                break;
+
+            default:
+                throw new LiteBusConfigurationException(
+                    $"The configured serializer options '{serializerOptionsProvider.GetType().Name}' are neither "
+                    + "'JsonSerializerOptions', nor an 'IMessageJsonSerializerOptionsProvider' instance, nor an "
+                    + "implementation type.");
+        }
+    }
+
+    /// <summary>
+    ///     Resolves the JSON serializer options the default serializer serializes message payloads with.
+    /// </summary>
+    /// <param name="provider">The service provider holding the composed options provider.</param>
+    /// <returns>The shared options.</returns>
+    /// <exception cref="LiteBusDependencyResolutionException">No options provider is registered.</exception>
+    private static System.Text.Json.JsonSerializerOptions ResolveSerializerOptions(IServiceProvider provider)
+    {
+        return ((IMessageJsonSerializerOptionsProvider?) provider.GetService(
+                typeof(IMessageJsonSerializerOptionsProvider))
+            ?? throw new LiteBusDependencyResolutionException(typeof(IMessageJsonSerializerOptionsProvider))).Options;
+    }
+
+    /// <summary>
+    ///     Registers the sample factory host validation round-trip checks sample message contracts with.
+    /// </summary>
+    /// <param name="configuration">The module configuration.</param>
+    /// <param name="messageSampleFactory">The sample factory instance or implementation type, or null for the built-in one.</param>
+    /// <exception cref="LiteBusConfigurationException">The builder held a value that is not a sample factory.</exception>
+    private static void RegisterMessageSampleFactory(IModuleConfiguration configuration, object? messageSampleFactory)
+    {
+        switch (messageSampleFactory)
+        {
+            case null:
+                configuration.DependencyRegistry.Register(DependencyDescriptor.ForDefaultPort(
+                    typeof(IMessageSampleFactory),
+                    typeof(DefaultMessageSampleFactory)));
+                break;
+
+            case Type implementationType:
+                configuration.DependencyRegistry.Register(new DependencyDescriptor(
+                    typeof(IMessageSampleFactory),
+                    implementationType,
+                    InstanceLifetime.Singleton));
+                break;
+
+            case IMessageSampleFactory instance:
+                configuration.DependencyRegistry.Register(new DependencyDescriptor(
+                    typeof(IMessageSampleFactory),
+                    instance));
+                break;
+
+            default:
+                throw new LiteBusConfigurationException(
+                    $"The configured message sample factory '{messageSampleFactory.GetType().Name}' is neither an "
+                    + $"{nameof(IMessageSampleFactory)} instance nor an implementation type.");
         }
     }
 }

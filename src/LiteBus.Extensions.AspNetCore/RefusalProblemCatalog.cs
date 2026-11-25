@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Messaging.Abstractions.Authorization;
 using LiteBus.Runtime.Abstractions.Exceptions;
 using Microsoft.AspNetCore.Http;
 
@@ -109,6 +110,61 @@ public sealed class RefusalProblemCatalog : IRefusalProblemCatalog
             LiteBusContributor);
 
         return catalog;
+    }
+
+    /// <summary>
+    ///     Creates a catalog carrying the mappings of a transport-neutral refusal registry.
+    /// </summary>
+    /// <param name="refusals">The composed refusal catalog to read.</param>
+    /// <returns>A new catalog the caller may extend with <see cref="Map" /> without affecting other hosts.</returns>
+    /// <remarks>
+    ///     <para>
+    ///         The path for a host that composes LiteBus messaging: product codes registered on
+    ///         <c>MessageModuleBuilder.Refusals</c> arrive here with the LiteBus defaults, so one registration
+    ///         answers on every transport. A host that never composes messaging keeps using
+    ///         <see cref="CreateDefault" />.
+    ///     </para>
+    /// </remarks>
+    public static RefusalProblemCatalog CreateFrom(IRefusalCatalog refusals)
+    {
+        ArgumentNullException.ThrowIfNull(refusals);
+
+        var catalog = new RefusalProblemCatalog();
+        catalog.MapFrom(refusals);
+
+        return catalog;
+    }
+
+    /// <summary>
+    ///     Copies the mappings of a transport-neutral refusal registry into this catalog.
+    /// </summary>
+    /// <param name="refusals">The composed refusal catalog to read.</param>
+    /// <returns>The catalog for chaining.</returns>
+    /// <remarks>
+    ///     <para>
+    ///         Each entry maps through <see cref="Map" />, so the conflict rule spans both sources: a neutral
+    ///         entry that repeats an HTTP mapping word for word is a no-op, and one that disagrees throws naming
+    ///         both, exactly as two HTTP registrations do.
+    ///     </para>
+    ///     <para>
+    ///         The entry kind decides the status: a denial answers <c>403 Forbidden</c>, invalid input answers
+    ///         <c>422 Unprocessable Content</c>, a conflict answers <c>409 Conflict</c>, a missing resource answers
+    ///         <c>404 Not Found</c>, and a temporarily unavailable dependency answers <c>503 Service
+    ///         Unavailable</c>. A caller that is not signed in answers <c>401 Unauthorized</c> instead of the
+    ///         denial status, because asking an unsigned caller to authenticate is an HTTP concern the neutral
+    ///         kind cannot express. The entry title and owner carry over as the problem title and contributor.
+    ///     </para>
+    /// </remarks>
+    public IRefusalProblemCatalog MapFrom(IRefusalCatalog refusals)
+    {
+        ArgumentNullException.ThrowIfNull(refusals);
+
+        foreach (var entry in refusals.Entries)
+        {
+            Map(entry.Pattern, StatusFor(entry), entry.Title, entry.Owner);
+        }
+
+        return this;
     }
 
     /// <inheritdoc />
@@ -268,6 +324,30 @@ public sealed class RefusalProblemCatalog : IRefusalProblemCatalog
     public string ExportJson(JsonSerializerOptions? options = null)
     {
         return JsonSerializer.Serialize(Export(), options ?? JsonSerializerOptions.Web);
+    }
+
+    /// <summary>
+    ///     Resolves the HTTP status a transport-neutral entry answers.
+    /// </summary>
+    /// <param name="entry">The neutral entry.</param>
+    /// <returns>The HTTP status code.</returns>
+    private static int StatusFor(RefusalEntry entry)
+    {
+        if (string.Equals(entry.Pattern, AuthorizationPolicyRefusalCodes.NotSignedIn, StringComparison.Ordinal))
+        {
+            return StatusCodes.Status401Unauthorized;
+        }
+
+        return entry.Kind switch
+        {
+            RefusalKind.DeniedKind => StatusCodes.Status403Forbidden,
+            RefusalKind.InvalidKind => StatusCodes.Status422UnprocessableEntity,
+            RefusalKind.ConflictKind => StatusCodes.Status409Conflict,
+            RefusalKind.NotFoundKind => StatusCodes.Status404NotFound,
+            RefusalKind.UnavailableKind => StatusCodes.Status503ServiceUnavailable,
+            _ => throw new InvalidOperationException(
+                $"The refusal kind '{entry.Kind.GetType().Name}' names no HTTP status, so the '{entry.Pattern}' mapping cannot be answered."),
+        };
     }
 
     /// <summary>

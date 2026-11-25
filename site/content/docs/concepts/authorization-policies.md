@@ -357,6 +357,24 @@ await mediator.SendAsync(new PurgeExpiredEntriesCommand(before), settings, cance
 
 Pair the identity with `TenancyDeclaration.Required()` on the message and a `System()` policy, and the mediation passes both guards together: the tenancy guard sees the tenant, and the authorization guard sees no principal. Without the tenant, the same mediation is denied with `tenancy.required`.
 
+## Commands That Reactions Send
+
+A reaction (an outbox-dispatched event handler) runs as a principal-less system identity in the envelope tenant: in-process dispatch restores the tenant without the calling principal. A command policy written only for callers, such as `All(SignedIn(), Permission("books.post-entry"), Tenant())`, refuses every reaction send as signed out, and the refusal surfaces as a failed outbox delivery.
+
+Compose the caller branch and the system branch explicitly for commands that both callers and reactions send:
+
+```csharp
+policies.Add("books.post-entry", MessagePolicy.All(
+    MessagePolicy.Any(
+        MessagePolicy.All(
+            MessagePolicy.SignedIn(),
+            MessagePolicy.Permission("books.post-entry")),
+        MessagePolicy.System()),
+    MessagePolicy.Tenant()));
+```
+
+A signed-in caller with the permission passes the first branch, a reaction passes the second, and both still need the tenant. Keep `System()` out of policies for commands reactions never send, so a system run cannot reach a caller-only use case. See [In-Process Dispatch](../reliable-messaging/outbox.md#in-process-dispatch) for the identity dispatch restores.
+
 ## Evaluation Order
 
 One authorized message runs one fixed order: every registered condition in registration order, then the policy registered under the declared name. The first deny wins, and a fault ends the evaluation as a fault rather than a refusal. Exempt and undeclared messages never reach the policies. An exemption allows in the base guard, and a message declaring nothing is denied with the `declaration.missing` code, because a use case nobody considered must not pass a check nobody wrote for it. Undeclared events are exempt by the event module default, so they publish.

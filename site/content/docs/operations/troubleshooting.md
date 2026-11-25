@@ -33,6 +33,14 @@ Cause: a refusal and a missing handler produce the same outcome on every attempt
 
 Fix: read the dead-letter error text. `LiteBusMessageDeniedException` and `LiteBusMessageInvalidException` are decisions about the message itself. `NoHandlerFoundException` means nothing is registered to handle it. Fix the registration or the message instead of raising the retry count.
 
+### Lease-Loss Errors After the Database Drops Connections
+
+After a snapshot restore, restart, or failover, the processor logs `LoopFailed` at Error (event 1001 inbox, 2001 outbox) or `LeaseLossPersistFailed` at Error (event 1008 inbox, 2008 outbox) for a while, with connection errors attached.
+
+Cause: terminating connections fails the in-flight lease query or terminal persist. Nothing is lost: the rows keep their state, their leases expire, and later passes re-lease them.
+
+Fix: when the errors stop and passes complete (`PassCompleted` at Information), do nothing. When they persist, check store connectivity and the work-signal reconnect logs, then follow [Production Runbook](runbook.md).
+
 ### Command with Result Scheduled to Inbox
 
 When `IInbox.AcceptAsync` receives a command that implements `ICommand<TResult>`, you see analyzer error `LB1004` or a runtime failure.

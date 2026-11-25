@@ -275,6 +275,27 @@ app.Run();
 
 A CI step runs `dotnet run -- --validate-composition`. Scope validation comes from the host's own `ServiceProviderOptions`, which is on by default in the Development environment. The method makes no database or broker connection unless a service's constructor makes one.
 
+### Durable Composition Checks
+
+The same validation call also runs two durable checks through the composition model. The contract round-trip check builds a sample of every registered durable message contract, serializes and deserializes it through the configured `IMessageSerializer`, and compares every readable public property. A property the serializer drops, such as a typed identifier that comes back empty, fails the test naming the message type, the contract name and version, and the property. The event-consistency check requires every event the outbox stages through the domain-event collector to have a registered message contract and a subscribed handler; a staged event with neither handler nor declared ignore is a fault naming the event type.
+
+Both checks report through the same `Failures` list, and each is individually switchable with `LiteBusHostValidationOptions`:
+
+```csharp
+LiteBusHostValidation.Validate(
+    services,
+    new LiteBusHostValidationOptions { ValidateEventConsistency = false });
+```
+
+Message types without a parameterless shape need a sample the default factory cannot build. Register an `IMessageSampleFactory` through the message module builder; it may delegate to `DefaultMessageSampleFactory` for the types it does not handle itself:
+
+```csharp
+builder.AddMessaging(messaging => messaging
+    .UseMessageSampleFactoryInstance(new OrderSampleFactory()));
+```
+
+When the factory returns `null` for a type, the round-trip check fails naming the type instead of silently skipping it.
+
 ## Integration Testing with `WebApplicationFactory`
 
 Each `AddLiteBus` call builds a fresh `IMessageRegistry` scoped to that module configuration, so `WebApplicationFactory` tests do not share handler registrations across factories in the same process. Register handlers inside `ConfigureTestServices` (or in the application under test) for each factory instance.

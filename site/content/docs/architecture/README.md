@@ -190,6 +190,8 @@ Ingress counters use the same `LiteBus.Inbox` meter as inbox processor metrics, 
 | `LiteBus.Outbox` | `litebus.outbox.processor.dispatch_duration` | `LiteBusOutboxTelemetry.ProcessorDispatchDurationInstrumentName` | Histogram in milliseconds per publication attempt |
 | `LiteBus.Outbox` | `litebus.outbox.processor.leases_acquired` | `LiteBusOutboxTelemetry.ProcessorLeasesAcquiredInstrumentName` | Sum of outbox messages leased at the start of a pass |
 | `LiteBus.Outbox` | `litebus.outbox.processor.persist_rejected` | `LiteBusOutboxTelemetry.ProcessorPersistRejectedInstrumentName` | Terminal persist rejected an update because the lease was lost |
+| `LiteBus.Outbox` | `litebus.outbox.reaction_retry.retries` | `LiteBusOutboxTelemetry.ReactionRetryInstrumentName` | One per in-dispatch reaction retry scheduled after a storage conflict |
+| `LiteBus.Outbox` | `litebus.outbox.reaction_retry.exhausted` | `LiteBusOutboxTelemetry.ReactionRetryExhaustedInstrumentName` | One per dispatch where a storage conflict met no further in-dispatch retry |
 | `LiteBus.Auditing` | `litebus.audit.write.failures` | `LiteBusAuditingTelemetry.WriteFailuresInstrumentName` | Counter of audit records that could not be written, unit `{record}`, with tags `litebus.audit.outcome` and `litebus.audit.action` |
 | `LiteBus.Transport` | `litebus.transport.circuit_breaker.open` | `LiteBusTransportTelemetry.CircuitBreakerOpenInstrumentName` | `1` when any publisher circuit is open or half-open, with tag `litebus.transport.broker` |
 | `LiteBus.Transport` | `litebus.transport.circuit_breaker.failure_count` | `LiteBusTransportTelemetry.CircuitBreakerFailureCountInstrumentName` | Current failure sum across publisher destinations, with tag `litebus.transport.broker` |

@@ -33,13 +33,13 @@ Use the full metadata name of each value type. Separate several with commas or s
 `LB1020` reports a command, query, or stream query type when every condition below holds:
 
 - The type is declared in the analyzed assembly and is not abstract.
-- No definition class declares the required value type for the type or for a base type or interface it implements, in either definition shape.
+- No definition class or catalog source declares the required value type for the type or for a base type or interface it implements, in either definition shape or through a `Describe` call.
 - The type carries no attribute annotated `[MessageDeclaration(typeof(TValue))]` for the required value type.
 - The type carries no `[DeclarationExempt(typeof(TValue), "rationale")]` for the required value type.
 
 ## Analyzer and Composition Split
 
-`LB1020` checks what the message states itself: a definition, a declaring attribute, or an exemption. Composition checks cover the family mechanisms: defaults declared with `DeclareDefault`, conventions declared with `DeclareConvention`, and `RequireDeclaration` enforcement in Report or Fail mode. A default or convention that satisfies the composition check does not satisfy the analyzer, because composition calls are invisible to the compilations the analyzer sees.
+`LB1020` checks what the message states itself: a definition, a catalog source, a declaring attribute, or an exemption. Composition checks cover the family mechanisms: defaults declared with `DeclareDefault`, conventions declared with `DeclareConvention`, and `RequireDeclaration` enforcement in Report or Fail mode. A default or convention that satisfies the composition check does not satisfy the analyzer, because composition calls are invisible to the compilations the analyzer sees.
 
 Event requirements are composition-only. `LB1020` does not check events; `RequireDeclaration` enforces event positions at composition time.
 
