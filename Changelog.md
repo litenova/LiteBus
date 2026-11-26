@@ -2,6 +2,26 @@
 
 This file records the notable changes in each LiteBus release.
 
+## v8.0.0-preview.8
+
+Changes since [v8.0.0-preview.7](https://github.com/litenova/LiteBus/releases/tag/v8.0.0-preview.7). The [v8.0.0](#v800) section describes the whole 8.0.0 line. Previews of one line carry no compatibility promise between each other, so this section lists what changed without upgrade steps.
+
+### Added
+
+- Declaration sources: `IMultiMessageDefinition` declares many message types through `IMessageDeclarationCatalog`, named in the composition model and held to the one conflict rule.
+- Reaction conflict retry: an outbox-dispatched reaction that meets a storage conflict retries inside the dispatch through `IOutboxReactionRetryPolicy`.
+- `OutboxDispatchContext` gives handlers and policies the dispatch facts without ambient state.
+- Host validation round-trips every durable contract through the configured serializer and checks every staged event type for a handler or a declared decision.
+- One serializer options source (`UseSerializerOptions`, `IMessageJsonSerializerOptionsProvider`) feeds the outbox, inbox and sagas.
+- A transport-neutral refusal catalog (`MessageModuleBuilder.Refusals`, `IMessageDeclarations.Refusals(...)`) seeds the ASP.NET Core problem mapping through `AddRefusalProblemCatalog`.
+- The default message sample factory builds validating constructors, static factories and abstract closed sets; `RegisterSample<T>` and `ReplaceSample<T>` give a type its sample; lenient mode reports an unsampleable contract as not run.
+
+### Changed
+
+- LB1018 and LB1020 accept a declaration contributed through a declaration source.
+- Recurring loops classify conflicts through `MediationExceptionFilters.IsConcurrencyConflict`, so Marten existence races count as conflicts.
+- A refusal code with no catalog entry is logged when it is answered from the default.
+
 ## v8.0.0-preview.7
 
 Changes since [v8.0.0-preview.6](https://github.com/litenova/LiteBus/releases/tag/v8.0.0-preview.6). The [v8.0.0](#v800) section describes the whole 8.0.0 line. Previews of one line carry no compatibility promise between each other, so this section lists what changed without upgrade steps.
