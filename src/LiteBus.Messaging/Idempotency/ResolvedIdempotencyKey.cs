@@ -16,4 +16,4 @@ namespace LiteBus.Messaging.Idempotency;
 ///     selects none. The shortcut claims with it so the store can tell the same request from a different request
 ///     reusing the key.
 /// </param>
-public readonly record struct ResolvedIdempotencyKey(string Key, IdempotencyDeclaration Declaration, string? Fingerprint = null);
+public readonly record struct ResolvedIdempotencyKey(string Key, KeyedIdempotencyDeclaration Declaration, string? Fingerprint = null);

@@ -66,8 +66,9 @@ public sealed class DeclarationDefaultTests : LiteBusTestBase
         // The default is declared against the interface, but the key selector runs against the concrete command, so
         // the cast inside has to hold for the message the declaration reaches.
         accessor.TryGet<KeyedTransferCommand, IdempotencyDeclaration>(out var declaration).Should().BeTrue();
-        declaration!.KeySelector.Should().NotBeNull();
-        declaration.KeySelector!(new KeyedTransferCommand { IdempotencyKey = "key-1" }).Should().Be("key-1");
+        var keyedDeclaration = declaration.Should().BeOfType<KeyedIdempotencyDeclaration>().Subject;
+        keyedDeclaration.KeySelector.Should().NotBeNull();
+        keyedDeclaration.KeySelector!(new KeyedTransferCommand { IdempotencyKey = "key-1" }).Should().Be("key-1");
     }
 
     [Fact]

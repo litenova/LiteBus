@@ -89,8 +89,9 @@ public sealed class DeclarationConventionTests : LiteBusTestBase
             .GetRequiredService<IMessageMetadataAccessor>();
 
         accessor.TryGet<KeyedTransferCommand, IdempotencyDeclaration>(out var keyed).Should().BeTrue();
-        keyed!.KeySelector.Should().NotBeNull();
-        keyed.KeySelector!(new KeyedTransferCommand { IdempotencyKey = "key-1" }).Should().Be("key-1");
+        var keyedDeclaration = keyed.Should().BeOfType<KeyedIdempotencyDeclaration>().Subject;
+        keyedDeclaration.KeySelector.Should().NotBeNull();
+        keyedDeclaration.KeySelector!(new KeyedTransferCommand { IdempotencyKey = "key-1" }).Should().Be("key-1");
         accessor.TryGet<DraftScheduleCommand, IdempotencyDeclaration>(out _).Should().BeFalse();
     }
 

@@ -2,6 +2,18 @@
 
 This file records the notable changes in each LiteBus release.
 
+## v8.0.0-preview.9
+
+Changes since [v8.0.0-preview.8](https://github.com/litenova/LiteBus/releases/tag/v8.0.0-preview.8). The [v8.0.0](#v800) section describes the whole 8.0.0 line. Previews of one line carry no compatibility promise between each other, so this section lists what changed without upgrade steps.
+
+### Added
+
+- `IdempotencyDeclaration.Exempt(rationale)` declares a command deliberately exempt from idempotency through `IIdempotencyDefinition<TMessage>`. The exempt declaration satisfies `RequireDeclaration<IdempotencyDeclaration>()` and the idempotency shortcut passes the command through without claiming a key, so a project that requires an idempotency position of every command writes every definition through the one typed interface instead of falling back to `IMessageDefinition<TMessage>` with `declarations.Exempt<IdempotencyDeclaration>(rationale)`.
+
+### Changed
+
+- `IdempotencyDeclaration` is a closed hierarchy, matching `AuthorizationDeclaration`: `KeyedIdempotencyDeclaration` carries the key selector, fingerprint, scope and replay setting, and `IdempotencyExemptDeclaration` carries the rationale. `KeyedBy<TMessage>` and `KeyedByContext()` return `KeyedIdempotencyDeclaration`, so `with { Scope = ... }` and `WithFingerprint<TMessage>` keep working on their result. `RequiresIdempotency` tells the two apart without a type test.
+
 ## v8.0.0-preview.8
 
 Changes since [v8.0.0-preview.7](https://github.com/litenova/LiteBus/releases/tag/v8.0.0-preview.7). The [v8.0.0](#v800) section describes the whole 8.0.0 line. Previews of one line carry no compatibility promise between each other, so this section lists what changed without upgrade steps.

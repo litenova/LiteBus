@@ -42,7 +42,7 @@ public sealed class IdempotencyKeyResolver
     /// </param>
     /// <returns>
     ///     The declaration with its resolved key and fingerprint, or <see langword="null" /> when the message declares
-    ///     none. The fingerprint is <see langword="null" /> when the declaration selects none.
+    ///     none or declares an <see cref="IdempotencyExemptDeclaration" />. The fingerprint is <see langword="null" /> when the declaration selects none.
     /// </returns>
     /// <exception cref="IdempotencyConfigurationException">
     ///     The selector produced a blank key, the declaration sets a blank scope, or the message declares a
@@ -59,7 +59,8 @@ public sealed class IdempotencyKeyResolver
 
         var messageType = message.GetType();
 
-        if (!_metadata.TryGet<IdempotencyDeclaration>(messageType, out var declaration))
+        if (!_metadata.TryGet<IdempotencyDeclaration>(messageType, out var declared)
+            || declared is not KeyedIdempotencyDeclaration declaration)
         {
             return null;
         }
