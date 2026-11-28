@@ -42,10 +42,14 @@ public sealed class ProcessorTimeProviderTests
         await WaitForConditionAsync(() => store.RenewCount >= 1, TimeSpan.FromSeconds(5)).ConfigureAwait(false);
         store.RenewCount.Should().Be(1);
 
+        // The renew loop arms its next delay only after the renewal it counts, so each advance waits for that
+        // timer; an advance that lands before it is armed would be lost and the next renewal would never come.
+        await WaitForConditionAsync(() => clock.HasTimerDueIn(TimeSpan.FromSeconds(1)), TimeSpan.FromSeconds(5)).ConfigureAwait(false);
         clock.Advance(TimeSpan.FromSeconds(1));
         await WaitForConditionAsync(() => store.RenewCount >= 2, TimeSpan.FromSeconds(5)).ConfigureAwait(false);
         store.RenewCount.Should().Be(2);
 
+        await WaitForConditionAsync(() => clock.HasTimerDueIn(TimeSpan.FromSeconds(1)), TimeSpan.FromSeconds(5)).ConfigureAwait(false);
         clock.Advance(TimeSpan.FromSeconds(1));
         await WaitForConditionAsync(() => store.RenewCount >= 3, TimeSpan.FromSeconds(5)).ConfigureAwait(false);
         store.RenewCount.Should().Be(3);
@@ -186,6 +190,16 @@ public sealed class ProcessorTimeProviderTests
             lock (_sync)
             {
                 return _utcNow;
+            }
+        }
+
+        /// <summary>Whether a live timer is due exactly the given span after the current time.</summary>
+        public bool HasTimerDueIn(TimeSpan span)
+        {
+            lock (_sync)
+            {
+                var due = _utcNow.Add(span);
+                return _timers.Exists(timer => !timer.Disposed && timer.Due == due);
             }
         }
 
