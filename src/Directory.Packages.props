@@ -2,23 +2,46 @@
     <ItemGroup>
         <PackageVersion Include="Autofac" Version="9.3.4"/>
         <PackageVersion Include="Autofac.Extensions.DependencyInjection" Version="11.0.2"/>
-        <!-- EF Core 10 removed SetPropertyCalls<T>, so assemblies built against EF Core 9 fail at runtime on EF Core 10 (#167). -->
-        <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.14"/>
-        <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.14"/>
-        <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.14"/>
-        <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.14"/>
-        <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.14"/>
-        <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks" Version="10.0.14"/>
-        <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.14"/>
         <PackageVersion Include="OpenTelemetry" Version="1.20.1"/>
         <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.403" PrivateAssets="All"/>
         <!-- Floor stays on Npgsql 9.x: Marten 9 is built against Npgsql 9, and LiteBus uses no Npgsql 10 API. The tests run on Npgsql 10. -->
         <PackageVersion Include="Npgsql" Version="9.0.5"/>
         <PackageVersion Include="Marten" Version="9.57.0"/>
         <PackageVersion Include="AWSSDK.SQS" Version="4.0.100.23"/>
+        <PackageVersion Include="AWSSDK.S3" Version="4.0.104.12"/>
         <PackageVersion Include="Azure.Messaging.ServiceBus" Version="7.21.0"/>
+        <PackageVersion Include="Azure.Storage.Blobs" Version="12.30.1"/>
+        <PackageVersion Include="Cronos" Version="0.13.0"/>
         <PackageVersion Include="Confluent.Kafka" Version="2.16.0"/>
         <PackageVersion Include="RabbitMQ.Client" Version="7.2.2"/>
         <PackageVersion Include="StyleCop.Analyzers" Version="1.2.0-beta.556"/>
+    </ItemGroup>
+
+    <!--
+        Every package from the .NET release train follows the target framework. Each target compiles against the major
+        that applications on that framework run, because an assembly built against one EF Core major can fail at
+        runtime on the next: EF Core 10 removed SetPropertyCalls<T>, which broke the EF Core 9 builds (#167).
+    -->
+    <ItemGroup Condition="'$(TargetFramework)' != 'net11.0'">
+        <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.14"/>
+        <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.14"/>
+        <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.14"/>
+        <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.14"/>
+        <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.14"/>
+        <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks" Version="10.0.14"/>
+        <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.14"/>
+        <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.14"/>
+        <PackageVersion Include="System.Security.Cryptography.Pkcs" Version="10.0.14"/>
+    </ItemGroup>
+    <ItemGroup Condition="'$(TargetFramework)' == 'net11.0'">
+        <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="11.0.0"/>
+        <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="11.0.0"/>
+        <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="11.0.0"/>
+        <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="11.0.0"/>
+        <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="11.0.0"/>
+        <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks" Version="11.0.0"/>
+        <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="11.0.0"/>
+        <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="11.0.0"/>
+        <PackageVersion Include="System.Security.Cryptography.Pkcs" Version="11.0.0"/>
     </ItemGroup>
 </Project>

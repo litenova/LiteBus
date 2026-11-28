@@ -53,6 +53,20 @@ The [API Design Reference](api-design.md) defines the suffix taxonomy, CLR shape
 
 The [Mediation Layer Design Rules](mediation-design.md) define the stage model, contract shapes, vocabulary, and the point at which each class of configuration error is rejected. Read that page before you add a pipeline stage, a role, or an axis.
 
+## Feature Design Rules
+
+Every feature follows the same rules, so a new product's needs fit through extension rather than a change to the core:
+
+- **Each value is decided at the latest stage that can know it.** The deployment shape is set at composition, a message type's intent in its declaration, and the caller, tenant, clock and data at evaluation.
+- **Each built-in behavior is a port with a registered default.** It is resolved from the mediation scope per evaluation, is asynchronous, and receives the evaluation context.
+- **One conflict rule covers every registry.** An identical repeat is a no-op, a conflicting repeat fails composition naming both sources, and `Replace` overrides deliberately.
+- **A configuration fault is never a refusal.** It ends the mediation as `Failed` through `MessageFaultException` and maps to HTTP 500.
+- **Work LiteBus starts is a root mediation.** It has a declared identity and a `Cause` (correlation and causation), and never inherits the ambient context of whatever triggered it. `Parent` means synchronous nesting only.
+- **A feature that persists state is store-neutral.** It defines a storage port, proven by shared contract tests and implemented by one thin adapter per store.
+- **Nothing fails silently, and composition explains itself.** The composition model lists where each declaration came from and which implementation each port uses.
+
+`AGENTS.md` holds the full rule list that contributors and agents apply.
+
 ## Storage Axis
 
 A storage adapter implements a set of small store interfaces against one logical table or DbSet. PostgreSQL, EF Core, and InMemory implementations register one singleton instance for all roles on that store.
@@ -140,7 +154,7 @@ Retention deletes terminal rows by finish time, not by accept time. Cleanup call
 
 ### OpenTelemetry Metric Catalog
 
-Instrument names are stable public constants on `LiteBusMediationTelemetry`, `LiteBusInboxTelemetry`, `LiteBusOutboxTelemetry`, `LiteBusInboxIngressTelemetry`, and `LiteBusTransportTelemetry`. Register meters with `AddLiteBusMediationMetrics()`, `AddLiteBusInboxMetrics()`, `AddLiteBusOutboxMetrics()`, and `AddLiteBusTransportMetrics()` from the matching `*.Extensions.OpenTelemetry` packages.
+Instrument names are stable public constants on `LiteBusMediationTelemetry`, `LiteBusInboxTelemetry`, `LiteBusOutboxTelemetry`, `LiteBusInboxIngressTelemetry`, `LiteBusTransportTelemetry`, and `LiteBusAuditingTelemetry`. Register meters with `AddLiteBusMediationMetrics()`, `AddLiteBusInboxMetrics()`, `AddLiteBusOutboxMetrics()`, `AddLiteBusTransportMetrics()`, and `AddLiteBusAuditingMetrics()` from the matching `*.Extensions.OpenTelemetry` packages.
 
 Ingress counters use the same `LiteBus.Inbox` meter as inbox processor metrics, so `AddLiteBusInboxMetrics()` exports both. LiteBus records transport circuit breaker gauges on the shared `LiteBus.Transport` meter, with the `litebus.transport.broker` dimension identifying the active adapter (`amqp`, `kafka`, `sqs`, `azure_service_bus`, `inmemory`). `AddLiteBusAmqpMetrics()` registers the same shared meter for backward compatibility.
 
@@ -167,6 +181,7 @@ Ingress counters use the same `LiteBus.Inbox` meter as inbox processor metrics, 
 | `LiteBus.Outbox` | `litebus.outbox.processor.persist_failed` | `LiteBusOutboxTelemetry.ProcessorPersistFailedInstrumentName` | Terminal persist threw after successful broker publish |
 | `LiteBus.Outbox` | `litebus.outbox.immediate_dispatch.count` | `LiteBusOutboxTelemetry.ImmediateDispatchCountInstrumentName` | One per envelope handled by immediate dispatch after a commit, tagged with `litebus.outbox.immediate_dispatch.outcome` (`published`, `failed`, `skipped`, `timed_out`) |
 | `LiteBus.Outbox` | `litebus.outbox.immediate_dispatch.duration` | `LiteBusOutboxTelemetry.ImmediateDispatchDurationInstrumentName` | Histogram in seconds of immediate dispatch after one commit |
+| `LiteBus.Outbox` | `litebus.outbox.immediate_dispatch.skipped_scheduled` | `LiteBusOutboxTelemetry.ImmediateDispatchSkippedScheduledInstrumentName` | One per immediate-addressed envelope staged with scheduled visibility, tagged with `litebus.contract.name` |
 | `LiteBus.Outbox` | `litebus.outbox.diagnostics.unavailable` | `LiteBusOutboxTelemetry.DiagnosticsUnavailableInstrumentName` | Queue depth probe failed against the backing store |
 | `LiteBus.Outbox` | `litebus.outbox.queue.depth` | `LiteBusOutboxTelemetry.QueueDepthInstrumentName` | Observable gauge with tag `litebus.outbox.status` |
 | `LiteBus.Outbox` | `litebus.outbox.processor.state` | `LiteBusOutboxTelemetry.ProcessorStateInstrumentName` | Same encoding as inbox processor state |
@@ -175,6 +190,9 @@ Ingress counters use the same `LiteBus.Inbox` meter as inbox processor metrics, 
 | `LiteBus.Outbox` | `litebus.outbox.processor.dispatch_duration` | `LiteBusOutboxTelemetry.ProcessorDispatchDurationInstrumentName` | Histogram in milliseconds per publication attempt |
 | `LiteBus.Outbox` | `litebus.outbox.processor.leases_acquired` | `LiteBusOutboxTelemetry.ProcessorLeasesAcquiredInstrumentName` | Sum of outbox messages leased at the start of a pass |
 | `LiteBus.Outbox` | `litebus.outbox.processor.persist_rejected` | `LiteBusOutboxTelemetry.ProcessorPersistRejectedInstrumentName` | Terminal persist rejected an update because the lease was lost |
+| `LiteBus.Outbox` | `litebus.outbox.reaction_retry.retries` | `LiteBusOutboxTelemetry.ReactionRetryInstrumentName` | One per in-dispatch reaction retry scheduled after a storage conflict |
+| `LiteBus.Outbox` | `litebus.outbox.reaction_retry.exhausted` | `LiteBusOutboxTelemetry.ReactionRetryExhaustedInstrumentName` | One per dispatch where a storage conflict met no further in-dispatch retry |
+| `LiteBus.Auditing` | `litebus.audit.write.failures` | `LiteBusAuditingTelemetry.WriteFailuresInstrumentName` | Counter of audit records that could not be written, unit `{record}`, with tags `litebus.audit.outcome` and `litebus.audit.action` |
 | `LiteBus.Transport` | `litebus.transport.circuit_breaker.open` | `LiteBusTransportTelemetry.CircuitBreakerOpenInstrumentName` | `1` when any publisher circuit is open or half-open, with tag `litebus.transport.broker` |
 | `LiteBus.Transport` | `litebus.transport.circuit_breaker.failure_count` | `LiteBusTransportTelemetry.CircuitBreakerFailureCountInstrumentName` | Current failure sum across publisher destinations, with tag `litebus.transport.broker` |
 | `LiteBus.Transport` | `litebus.transport.circuit_breaker.failure_recorded` | `LiteBusTransportTelemetry.CircuitBreakerFailureRecordedInstrumentName` | One per failure recorded while the circuit is closed, with no tags |
@@ -465,7 +483,7 @@ inbox.UseAmqpDispatch(options =>
 
 ## Module Composition
 
-Parent modules use `ICompositeModule` to declare storage, dispatch, ingress, and saga children. Child membership is collected before build. `BuildOrder()` validates every `IRequires<TModule>` edge, inserts composite children, and topologically sorts the complete graph before any `Build()` call. Configuration context stores shared configuration objects only. Duplicate registration of the same module type throws `LiteBusConfigurationException` at compose time.
+Parent modules use `ICompositeModule` to declare storage, dispatch, ingress, and saga children. Child membership is collected before build. `BuildOrder()` validates every `IRequires<TModule>` edge, inserts composite children, and topologically sorts the complete graph before any `Build()` call. Configuration context stores shared configuration objects only. Calling an `Add*` registration extension twice configures the same module again instead of registering a second one, so each application module adds to one composition; registering the same module type twice through `Modules.Register` directly still throws `LiteBusConfigurationException` at compose time. See [Application Modules](application-modules.md).
 
 Register adapters inside the parent builder:
 
@@ -490,6 +508,14 @@ builder.Services.AddLiteBus(builder =>
 ```
 
 Do not add top-level `IModuleRegistry` shortcuts that bypass the parent builder. Storage and dispatcher registration belongs on nested `Use*` extensions.
+
+### Composition Checks
+
+Composition rejects configurations that would silently do the wrong thing at runtime. Immediate dispatch without per-handler delivery rejects handler-level attributes: when `EnableImmediateDispatch` is set without per-handler delivery and any registered main handler class carries `[DispatchImmediately]`, composition throws `LiteBusConfigurationException` naming the handler types, because the attribute is ignored without per-handler envelopes. Call `EnablePerHandlerDelivery()` so each handler gets its own envelope, or move `[DispatchImmediately]` to the event type for event-level immediacy. An envelope addressed to an attributed event or handler that is staged with scheduled visibility is never dispatched immediately; the envelope factory writes a Debug log and adds 1 to the `litebus.outbox.immediate_dispatch.skipped_scheduled` counter tagged with `litebus.contract.name`, and the processor delivers the envelope on its normal pass.
+
+In-process outbox dispatch treats an envelope with no handler as a failure unless the application acknowledges it. `AllowEnvelopesWithoutHandler(string reason)` on `InProcessOutboxDispatchOptionsBuilder` records the acknowledgement; the options keep a get-only `RequireHandler` and carry the reason as `MissingHandlerReason`. A startup task logs the reason at Warning level, and `LiteBusCompositionSummary` lists the relaxed safeguard, so the choice stays visible in production logs and in the startup summary.
+
+Entity Framework Core storage modules verify their database context before serving traffic. The outbox and inbox EF Core storage modules register a startup task that resolves the configured `TContext` from a new scope and fails startup with a message naming the missing `AddDbContextFactory<TContext>` registration when it cannot be resolved. Resolving `ITransactionalOutbox<X>` for a context with no `UseDbContext<X>()` call throws `LiteBusConfigurationException` naming that call instead of failing on the first enqueue.
 
 ### Planned Capabilities
 

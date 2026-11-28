@@ -36,17 +36,16 @@ public sealed record PlaceOrderCommand(Guid CartId) : ICommand<OrderId>;
 Use a [definition](message-definitions.md) when you want real types and shared constants:
 
 ```csharp
-public sealed class PlaceOrderCommandDefinition : IAuditDefinition<PlaceOrderCommand>
+public sealed class PlaceOrderCommandAuditDefinition : IAuditDefinition<PlaceOrderCommand>
 {
-    public AuditDeclaration Audit => AuditDeclaration.Audited(AuditActions.Orders.Place) with
-    {
-        Category = AuditCategories.Money,
-        TargetKind = "order"
-    };
+    public AuditDeclaration Audit => AuditDeclaration.Audited(
+        AuditActions.Orders.Place,
+        category: AuditCategories.Money,
+        targetKind: "order");
 }
 ```
 
-When both are present, the definition wins.
+When both are present, the definition wins. Keep one definition class per concern: an audit position lives in `{Message}AuditDefinition`, separate from the authorization or idempotency definitions for the same message. The registry tolerates one class implementing several definition interfaces, but that layout mixes unrelated decisions.
 
 Messages that are not audited say so, and say why:
 
@@ -66,15 +65,16 @@ Two checks enforce the declaration, and they cover different gaps, so keep both:
 ```csharp
 services.AddLiteBus(liteBus =>
 {
-    liteBus.AddMessaging(messaging => messaging
-        .RequireDeclaration<AuditDeclaration, ICommand>()
-        .RequireUniqueAuditActions()
-        .RequireAuditActionFormat());
+    liteBus.AddMessaging(messaging => messaging.RequireDeclaration<AuditDeclaration, ICommand>());
+    liteBus.Modules.AddAuditing(auditing => auditing
+        .ForCommands()
+        .RequireUniqueActions()
+        .RequireActionFormat());
 });
 ```
 
 - `LB1018` reports an undeclared command or query at build time. It reads `[Audited]`, `[AuditExempt]`, keyed `IAuditDefinition<TMessage>` definitions, and `Audited`/`NotAudited` calls in a `Describe` body, but only for definitions in the assembly being compiled. It treats a `Describe` body it cannot read as declared. See [Required Declarations](../catalog/analyzers/required-declarations.md).
-- `RequireDeclaration<AuditDeclaration, ICommand>()` fails composition for any registered command without a position, whatever shape declared it and whichever assembly holds the definition. `RequireUniqueAuditActions()` fails composition when two messages share an action code. `RequireAuditActionFormat()` fails composition when an action code does not match `MessageModuleBuilder.DefaultAuditActionPattern` (`category.kebab-action`) or the pattern you pass.
+- `RequireDeclaration<AuditDeclaration, ICommand>()` fails composition for any registered command without a position, whatever shape declared it and whichever assembly holds the definition. `RequireUniqueActions()` on the auditing builder fails composition when two messages share an action code. `RequireActionFormat()` fails composition when an action code does not match `AuditingModuleBuilder.DefaultActionPattern` (`category.kebab-action`) or the pattern you pass.
 
 The composition checks cover every shape and every assembly. The analyzer reports earlier for the shapes it can see.
 
@@ -104,27 +104,32 @@ public sealed class PlaceOrderCommandHandler : ICommandHandler<PlaceOrderCommand
 
 The scope holds no state of its own. It reads and writes the ambient execution context, which flows with the mediation and is discarded when it ends. Two concurrent mediations never see each other. Calling one of its methods outside a mediation raises `NoExecutionContextException`, because there is no record for the value to reach.
 
-`IAuditScope` is registered by `AddMessaging`, not by `EnableAuditing()`, so it resolves whether or not an axis produces records. An application that wants the declaration model and its own writer can inject the scope, read declarations through [`IMessageMetadataAccessor`](message-definitions.md#reading-metadata), and never call `EnableAuditing()`. Nothing reads the scope in that configuration, so values a handler sets are discarded. That is the intended behavior, not a misconfiguration the framework should report.
+`IAuditScope` is registered by the auditing module. An application that wants the declaration model and its own record shape replaces the writer with `UseRecordWriter<T>()` on the auditing builder, injects the scope, and reads declarations through [`IMessageMetadataAccessor`](message-definitions.md#reading-metadata).
 
 ### Declaring What the Message Already Knows
 
 Not every variable value needs the handler. When the target or the reason can be read from the message itself, declare that on the definition and skip the scope call in every handler:
 
 ```csharp
-public sealed class RefundOrderCommandDefinition : IAuditDefinition<RefundOrderCommand>
+public sealed class RefundOrderCommandAuditDefinition : IAuditDefinition<RefundOrderCommand>
 {
-    public AuditDeclaration Audit => AuditDeclaration.Audited("orders.refund-order")
+    public AuditDeclaration Audit => AuditDeclaration.Audited(
+            "orders.refund-order",
+            category: "money",
+            targetKind: "order",
+            reasonRequired: true)
         .WithTargetFrom<RefundOrderCommand>(command => command.OrderId)
-        .WithReasonFrom<RefundOrderCommand>(command => command.Justification)
-        with { Category = "money", TargetKind = "order", ReasonRequired = true };
+        .WithReasonFrom<RefundOrderCommand>(command => command.Justification);
 }
 ```
+
+Pass `category`, `targetKind`, and `reasonRequired` to `Audited` so the target and reason selectors chain directly on the returned declaration. A `with` expression cannot take a member access without parentheses, so `Audited("...") with { ... }.WithTargetFrom<T>(...)` does not compile. The parenthesized form `(Audited("...") with { ... }).WithTargetFrom<T>(...)` compiles, but the parameters above avoid the `with` expression entirely and match `IMessageDeclarations.Audited(action, category, targetKind, reasonRequired)`.
 
 The writer consults the scope first and runs a selector only when the scope holds no value, so a value a handler supplies overrides the selector. For the reason, the pipeline decision sits between the two. A guard denial or an answer explanation describes the ending, while the selector describes the intent, and the ending is what a `Denied` record must explain.
 
 A selector result that is null or blank means the message carries no value, and `ReasonRequired` applies to the final value, so a required reason may come from the scope or the selector alike. A selector that throws fails the record write, the same way a throwing actor resolver does. A projection bug that silently produced evidence without its target or justification would be worse than a failed mediation.
 
-Selectors are delegates, so attributes cannot carry them. A message that reads its target or reason from itself needs a definition. In a `Describe` body, where the `Audited` helper takes only constants, declare the value directly with `declarations.Declare<AuditDeclaration>(AuditDeclaration.Audited("orders.refund-order").WithReasonFrom<RefundOrderCommand>(command => command.Justification))`. This is the shape described under [Declaring a Value Computed From the Message](message-definitions.md#declaring-a-value-computed-from-the-message), where a delegate computes the value from the message. The selector is built once at registration, so it can only project from the message and cannot resolve services.
+Selectors are delegates, so attributes cannot carry them. A message that reads its target or reason from itself needs a definition. In a `Describe` body, where the `Audited` helper takes only the constant facts, declare a selector position directly with `declarations.Declare<AuditDeclaration>(AuditDeclaration.Audited("orders.refund-order", category: "money", targetKind: "order", reasonRequired: true).WithReasonFrom<RefundOrderCommand>(command => command.Justification))`. This is the shape described under [Declaring a Value Computed From the Message](message-definitions.md#declaring-a-value-computed-from-the-message), where a delegate computes the value from the message. The selector is built once at registration, so it can only project from the message and cannot resolve services.
 
 Some actions are only accountable with a justification. Declare `ReasonRequired = true` and the writer refuses to produce an incomplete record for a successful action, raising `AuditReasonMissingException` instead. A required justification that silently goes missing defeats the requirement, so it is reported rather than recorded as absent.
 
@@ -132,50 +137,42 @@ The throw happens at `HandlerPriorities.Observability`, which is before the comm
 
 ## Audit Configuration
 
-Auditing is one decision, made in one place:
+Auditing is one decision, made in one place: the auditing module in the `LiteBus.Auditing` package. Message assemblies that declare audit positions reference `LiteBus.Auditing.Abstractions`, which holds `[Audited]`, `[AuditExempt]`, the declarations and the record types.
 
 ```csharp
 services.AddLiteBus(registry =>
 {
-    registry.AddMessaging(messaging => messaging.AddAuditing(auditing => auditing
-        .UseTrail<PostgresAuditTrail>()
-        .UseActorResolver<RequestActorResolver>()
-        .ForCommands()
-        .ForQueries()));
-
+    registry.AddMessaging(_ => { });
     registry.AddCommands(builder => builder.RegisterFromAssembly(typeof(PlaceOrderCommand).Assembly));
     registry.AddQueries(builder => builder.RegisterFromAssembly(typeof(ExportOrdersQuery).Assembly));
+
+    registry.Modules.AddAuditing(auditing => auditing
+        .ForCommands()
+        .ForQueries()
+        .UseTrail<PostgresAuditTrail>()
+        .UseActorResolver<RequestActorResolver>());
 });
 ```
 
-The feature has a shared half and a per-axis half. A trail, an actor resolver, and an outcome mapper belong to every axis, and the completion handler that writes a record belongs to each one. `AddAuditing` keeps that from becoming two or three decisions a consumer could make inconsistently. Configuring a trail and selecting no axis fails composition, because no probe can report that at runtime. Nothing is ever audited, so nothing ever fails.
+`ForCommands()`, `ForQueries()`, `ForEvents()` and `ForAllAxes()` select which mediations produce records. The auditing module registers one completion handler per selected axis, so the command, query and event modules carry no audit code. Configuring auditing and selecting no axis fails composition, because no probe can report that at runtime: nothing is ever audited, so nothing ever fails.
 
-The per-axis switches remain, and `AddAuditing` composes them. Use them directly only when the axes are genuinely configured in separate places:
+The records go to one receiver. `UseTrail<T>()` sends them to the application's own `IAuditTrail`, and an audit store (`UseMartenStore`, `UsePostgreSqlStore`, `UseEntityFrameworkCoreStore`, `UseInMemoryStore`) sends them to LiteBus's stores with capture modes and the hash chain. Configuring both fails composition.
 
-```csharp
-registry.AddMessaging(messaging => messaging.UseAuditTrail<PostgresAuditTrail>());
-registry.AddCommands(builder => builder.EnableAuditing());
-registry.AddQueries(builder => builder.EnableAuditing());
-registry.AddEvents(builder => builder.EnableAuditing());
-```
-
-`UseAuditTrail<T>()` lets the container build the trail, so it may take dependencies of its own, and registers it as **scoped**. That lifetime suits a trail wrapping a database session, which is why it is the default.
-
-To use another lifetime, pass it explicitly:
+`UseTrail<T>()` lets the container build the trail, so it may take dependencies of its own, and registers it as **scoped**. That lifetime suits a trail wrapping a database session, which is why it is the default. To use another lifetime, pass it explicitly:
 
 ```csharp
-registry.AddMessaging(messaging => messaging.UseAuditTrail<HttpAuditTrail>(InstanceLifetime.Singleton));
+registry.Modules.AddAuditing(auditing => auditing
+    .ForCommands()
+    .UseTrail<HttpAuditTrail>(InstanceLifetime.Singleton));
 ```
 
-`UseAuditTrailInstance(trail)` registers a trail you already hold. A pre-created instance can only be a singleton, which the method name signals. A trail built there with a database session captures that one session for the life of the process, with no other hint at the call site.
+`UseTrailInstance(trail)` registers a trail you already hold. A pre-created instance can only be a singleton, which the method name signals. A trail built there with a database session captures that one session for the life of the process, with no other hint at the call site.
 
 The `litebus.audit.trail` probe reports the lifetime it observes as `trailIsSingleton`. It resolves the trail from two dispatch scopes and compares the instances, which is the only way to see the lifetime from outside the container. A singleton trail wrapping a scoped session raises nothing at startup and misbehaves later under load, so the probe reports the lifetime while the application is still starting.
 
-Registering `IAuditTrail` directly with the application container also works, and the probe accepts either route.
+LiteBus decides when a record is produced and what it contains. Where it is written, and with what durability, is your decision.
 
-`IAuditTrail` is the only thing you must supply. LiteBus decides when a record is produced and what it contains. Where it is written, and with what durability, is your decision.
-
-An application that authorizes by throwing its own exception type registers an outcome mapper beside the trail, through `UseOutcomeMapper<T>()` on the auditing builder. The mapper records the refusal as `AuditOutcome.Denied` rather than `AuditOutcome.Failed`. An application that denies through a guard or a validator needs no mapper. The pipeline already reports those as decisions, and the code the guard supplied is recorded as the record's `FailureCode`.
+An application that authorizes by throwing its own exception type registers an outcome mapper through `UseOutcomeMapper<T>()` on the auditing builder. The mapper records the refusal as `AuditOutcome.Denied` rather than `AuditOutcome.Failed`. An application that denies through a guard or a validator needs no mapper. The pipeline already reports those as decisions, and the code the guard supplied is recorded as the record's `FailureCode`.
 
 ### Actor Resolution
 
@@ -184,15 +181,31 @@ An application that authorizes by throwing its own exception type registers an o
 ```csharp
 internal sealed class RequestActorResolver : IAuditActorResolver
 {
-    public AuditActor? Resolve(MessageCompletionContext context) => context.Message switch
+    public AuditActor? Resolve(MessageCompletionContext context)
     {
-        IActingAccountCommand acting => AuditActor.User(acting.ActingAccountId.ToString()),
-        _ => AuditActor.System(ProcessNameOf(context.Message.GetType()))
-    };
+        if (context.Message is IActingAccountCommand acting)
+        {
+            return AuditActor.User(acting.ActingAccountId.ToString());
+        }
+
+        var id = context.Identity.Principal?.FindFirst(ClaimTypes.NameIdentifier)?.Value
+            ?? context.Identity.Principal?.FindFirst("sub")?.Value;
+
+        if (!string.IsNullOrWhiteSpace(id))
+        {
+            return AuditActor.User(id);
+        }
+
+        return context.Identity.HasTenant
+            ? AuditActor.For("tenant", context.Identity.TenantId!)
+            : AuditActor.System(ProcessNameOf(context.Message.GetType()));
+    }
 }
 ```
 
 It runs at the completion stage, which makes it the right extension point rather than a pre-stage handler. A denied command produces a record, and "who tried" is the most useful thing that record can say. A pre-handler never runs when a guard denies, so resolving at the completion stage means attribution survives every path. It covers success, denial, invalid input, failure, and cancellation.
+
+The context carries the identity the mediation ran for as `MessageCompletionContext.Identity`, copied from `IExecutionContext.Identity` when the completion context is built. The two generic views expose the same value, and a context built by hand carries `ExecutionIdentity.Anonymous` until set. A resolver that attributes from the caller reads the principal or the tenant from there rather than from ambient state, which keeps the attribution rule visible in the resolver signature instead of hiding it in a static read the signature never mentions.
 
 `AuditActor` carries a required `Id` and `Kind`, plus an optional `DisplayName` and `OnBehalfOf`. `Kind` exists so a query can separate the actions people took from the actions a process took. Every review draws that distinction, and an identifier alone cannot express it. It is required because a query cannot use an actor that states no kind. `OnBehalfOf` records a delegated action. It separates support staff acting as a customer from the customer acting, and a device acting on a key from the person who authorized that key.
 
@@ -215,9 +228,9 @@ That line costs the same as an extra argument but forces a deliberate choice. A 
 `AuditRecord` is the handoff to `IAuditTrail`, not a persistence schema. What your store writes down, including its columns and any integrity chaining, is yours to decide. If you also want a different record shape passed to the trail, replace the writer:
 
 ```csharp
-registry.AddMessaging(messaging => messaging.AddAuditing(auditing => auditing
-    .UseRecordWriter<AuditDocumentWriter>()
-    .ForAllAxes()));
+registry.Modules.AddAuditing(auditing => auditing
+    .ForAllAxes()
+    .UseRecordWriter<AuditDocumentWriter>());
 ```
 
 `IAuditRecordWriter.WriteAsync(MessageCompletionContext, CancellationToken)` is the entire contract between the pipeline and auditing. A replacement keeps the completion-stage placement, the observability priority, and the per-axis selection, and replaces exactly the record building. There is no generic `AuditRecord<T>`, deliberately. A type parameter there would spread through five surfaces. Every application wanting the default would pay for the few that do not, and it would add nothing a writer cannot already do.
@@ -234,17 +247,17 @@ A replacement owns everything the built-in writer does, and all of it is public:
 
 Skipping an undeclared message is part of that contract rather than a detail. If you leave it out, every message on the selected axes produces a record.
 
-Your writer does not have to use an `IAuditTrail`, so the `litebus.audit.trail` probe stops asserting one is registered and reports the writer instead. LiteBus cannot know what a writer it did not build needs. The composition summary names it too, because a replacement writer owns all of record building, and a misregistration would otherwise look exactly like working auditing.
+Your writer does not have to use an `IAuditTrail`, so the `litebus.audit.trail` probe stops asserting one is registered and reports the writer instead. LiteBus cannot know what a writer it did not build needs. The composition model's `auditing` section names it too as `recordWriter`, because a replacement writer owns all of record building, and a misregistration would otherwise look exactly like working auditing.
 
 Returning `null` is legitimate and means nothing established an actor. Do not invent one. A fabricated identifier in evidence is worse than a gap a review can see. When the application knows a process acted, say so with `AuditActor.System`, because a scheduled job and an unattributed action are different answers.
 
 `IAuditScope.WithActor` overrides the resolver for the case only the handler knows, such as an actor established by exchanging a token mid-handler. Attribution that is the same for every message belongs in the resolver, which also covers the paths a handler never reaches.
 
-Without a resolver, records are still written and every one has no actor. The `litebus.audit.trail` probe reports that as `Degraded` rather than unhealthy. A trail that says what happened is worth writing even when it cannot say who is answerable. That limitation should not surface for the first time during a review.
+Without a resolver, the writer falls back to the principal carried on the completion identity. It reads the identifier from the `NameIdentifier` claim, falling back to the `sub` claim, and reports it as `AuditActor.User` with the display name read from the `Name` claim. When the principal carries no usable identifier claim, the record keeps no actor. That fallback applies only when no resolver is registered: an explicit resolver states the attribution rule, and a principal-derived actor must not silently replace an attribution the resolver deliberately left absent. The `litebus.audit.trail` probe still reports a missing resolver as `Degraded` rather than unhealthy, because the fallback covers only the claims case. A trail that says what happened is worth writing even when it cannot say who is answerable. That limitation should not surface for the first time during a review.
 
 ### Auditing Events
 
-`EnableAuditing` exists on the event module too. A domain fact is frequently the thing a review most wants recorded, and it is not always the consequence of an audited command. An event raised by an inbox replay, a scheduled reconciliation, or an integration from another system has no command behind it.
+`ForEvents()` audits event publications too. A domain fact is frequently the thing a review most wants recorded, and it is not always the consequence of an audited command. An event raised by an inbox replay, a scheduled reconciliation, or an integration from another system has no command behind it.
 
 LiteBus writes one record per publish, not one per handler. The mediation is the unit being audited, and the broadcast strategy reports one outcome for the whole publish. A record per subscriber would multiply one fact into as many entries as there are reactions, and the count would change whenever a handler is added.
 
@@ -287,7 +300,9 @@ public sealed class UseCaseAuditOutcomeMapper : IAuditOutcomeMapper
     };
 }
 
-registry.AddMessaging(messaging => messaging.UseAuditOutcomeMapper(new UseCaseAuditOutcomeMapper()));
+registry.Modules.AddAuditing(auditing => auditing
+    .ForCommands()
+    .UseOutcomeMapper(new UseCaseAuditOutcomeMapper()));
 ```
 
 Refusing through a guard or a validator needs no mapper.
@@ -298,6 +313,8 @@ Refusing through a guard or a validator needs no mapper.
 
 | Field | Holds |
 | --- | --- |
+| `Id` | A time-ordered version 7 identifier LiteBus assigns, or the one application code set; the stored document keeps it |
+| `Origin` | `Mediation` for a record LiteBus produced, `Application` for one application code wrote through `IAuditTrail` |
 | `Action` | Use-case identity, such as `orders.place-order` |
 | `Actor` | Who did it, from the actor resolver or the audit scope |
 | `Outcome` | `Succeeded`, `Denied`, `Invalid`, `Failed`, or `Canceled` (an early answer is a success) |
@@ -315,6 +332,18 @@ Two things are deliberately absent. The record holds neither the message itself 
 A stored payload would turn an audit table into an erasure liability under data-protection law, and it would be redundant, because the domain event stream already records what changed under its own retention rule. The trail records who is answerable and why.
 
 For the same reason, do not put personal data in `Properties`. A trail that holds pseudonymous identifiers can serve an erasure request by breaking the identity mapping, which leaves the records meaningful and the person unidentifiable. A trail full of names cannot serve that request.
+
+## Application Types Named AuditRecord or AuditOutcome
+
+Every audit type lives in the `LiteBus.Auditing.Abstractions` namespace, so a file imports that namespace to use the framework record. An application with its own audit model can still collide: its own `AuditRecord` in the same namespace, or its own `AuditOutcome` brought into scope, makes the name ambiguous. Dropping the alias that dodged the old collision breaks those files.
+
+Drop the alias only when nothing else in scope defines the name. When the application defines the name itself, keep the alias and retarget it to `LiteBus.Auditing.Abstractions`:
+
+```csharp
+using LiteBusAuditRecord = LiteBus.Auditing.Abstractions.AuditRecord;
+```
+
+That keeps both types usable in one file: the alias names the framework record, and the unqualified name keeps meaning the application type. See [Audit Code Moved to the Auditing Packages](../migration/v8.md#audit-code-moved-to-the-auditing-packages).
 
 ## Building the Catalogue from the Declarations
 
@@ -414,6 +443,77 @@ The commit belongs in the completion stage rather than in a post-handler. A post
 
 Plan for two consequences. A record for a refusal or a failure has to be written out of band, as above. That write has to survive whatever caused the failure. Anything your commit handler does after the commit, such as dispatching the domain events the aggregates recorded, runs with `CancellationToken.None`, because the completion stage is not cancellable.
 
+## When a Record Cannot Be Written
+
+A record can fail to write: the audit store is unreachable, or a record mapper's query throws. LiteBus logs the failure at error level (event id 2720) with the action, outcome and tenant, and counts it on the `litebus.audit.write.failures` counter of the `LiteBus.Auditing` meter, with the outcome and action as attributes.
+
+By default the mediation's own ending stands. A denied command still reaches the caller as a denial, and a successful command still commits, without its record. A broken audit store does not take the application down or change the answer a caller receives. Alert on the counter, because every count is a gap in the trail.
+
+When an action that is not on record must not happen, require the record:
+
+```csharp
+registry.Modules.AddAuditing(auditing => auditing
+    .ForCommands()
+    .UseMartenStore()
+    .RequireRecord());
+```
+
+With `RequireRecord()`, a successful mediation whose record cannot be written ends as a fault (`MessageFaultException` with the code `audit.record-not-written`, answered as HTTP 500), and the unit of work does not commit its change. A denial, failure or cancellation changed nothing, so its record failing cannot undo anything: it is logged and counted, and the caller still receives the original denial or failure. A replaced record writer (`UseRecordWriter`) applies its own policy.
+
+Register the meter with `AddLiteBusAuditingMetrics()` from `LiteBus.Auditing.Extensions.OpenTelemetry`, or with `AddMeter(LiteBusAuditingTelemetry.MeterName)` on any meter provider.
+
+## Writing a Record From Application Code
+
+Some events are not the result of one mediation, such as an operator correcting data in a tool or a retention job deleting a segment. Inject `IAuditTrail` and write an `AuditRecord`. It goes through the configured store and capture mode, so the code does not depend on one store's classes:
+
+```csharp
+public sealed class SegmentRetention
+{
+    private readonly IAuditTrail _trail;
+
+    public SegmentRetention(IAuditTrail trail) => _trail = trail;
+
+    public Task RecordDeletionAsync(string segment, string tenantId, CancellationToken cancellationToken) =>
+        _trail.WriteAsync(new AuditRecord
+        {
+            Action = "retention.segment-deleted",
+            Outcome = AuditOutcome.Succeeded,
+            OccurredAt = DateTimeOffset.UtcNow,
+            TenantId = tenantId,
+            TargetKind = "audit-segment",
+            TargetId = segment
+        }, cancellationToken);
+}
+```
+
+`IAuditTrail` is scoped. A `Succeeded` record is staged on the scope's business session, so it commits when the application saves that session; any other outcome is written at once on a short session of its own. Outside a unit of work that links after commit, the link sweep positions the record.
+
+The record reaches the same record mapper and segmenter as every mediation record. A mapper usually derives storage choices from mediation facts, such as a retention class from the category or a year from the business time, and an application-written record has no mediation behind it. `AuditRecord.Origin` tells the two apart: a record application code builds is `AuditRecordOrigin.Application` by default, and LiteBus marks the records it produces `AuditRecordOrigin.Mediation`. Carry the storage choices in `Properties` and branch on the origin in the mapper:
+
+```csharp
+public async ValueTask<WorkspaceAuditDocument> MapAsync(
+    AuditRecord record,
+    AuditMappingContext context,
+    CancellationToken cancellationToken)
+{
+    if (record.Origin == AuditRecordOrigin.Application)
+    {
+        return new WorkspaceAuditDocument
+        {
+            Id = record.Id,
+            Action = record.Action,
+            RetentionClass = record.Properties["retention-class"],
+            Year = int.Parse(record.Properties["year"], CultureInfo.InvariantCulture),
+            OccurredAt = record.OccurredAt
+        };
+    }
+
+    return await MapMediationRecordAsync(record, context, cancellationToken).ConfigureAwait(false);
+}
+```
+
+Leave `Id` unset and LiteBus assigns a version 7 identifier. Set it when a retried write must find the first one, for example from the identifier of the checkpoint a retention job cut: the store holds one document per identifier, so the retry overwrites instead of adding a second record.
+
 ## Auditing Command Batches
 
 When commands run through `ICommandBatchMediator`, each command's record is built exactly as above but buffered instead of written. The audit writer adds the record to the batch's buffer rather than calling `IAuditTrail.WriteAsync`, and every buffered record carries the property `litebus.batch.id` with the batch identifier, a GUID string generated once per batch. That property lets a review group the records one batch produced:
@@ -436,12 +536,527 @@ On rollback the buffer is rewritten before it is written. Each buffered record w
 
 A trail that writes into the rolled-back transaction loses these rollback records with the transaction. That matches what happens to a failed single command whose trail rides the transaction being rolled back: the record cannot survive the rollback it describes. When the rollback records must survive, write them out of band, as the `MartenAuditTrail` above writes refusals and failures to its archive.
 
+## Hash-Chained Audit Storage
+
+A record that can be edited after the fact proves nothing. The auditing module can chain its records so a review can prove that no record was removed, reordered, or altered: each record in a segment carries a sequence number and a hash over its own content plus the hash of its predecessor. Altering a record breaks its hash, and recomputing that hash breaks the link the next record carries, so any alteration surfaces at verification no later than the altered record.
+
+Each segment holds one linear chain. LiteBus chains whole segments instead of building a Merkle tree: inclusion proofs serve public logs with untrusted readers, while an in-database trail verifies whole segments and anchors them with checkpoints. Each segment is independent, so retention can expire whole segments while the rest still verify. A chained document carries `Segment`, `Sequence` starting at one, `PreviousHash`, `Hash`, and `HashScheme`. `IAuditChain` operates on the trail the same way on every store: `VerifyAsync`, `VerifyFromAsync`, `CutCheckpointAsync`, `ListSegmentsAsync`, `ListUnpublishedCheckpointsAsync`, `ExpireSegmentAsync`, and `EraseAsync`.
+
+### Audit Package Family
+
+All audit code lives in the auditing package family. Messaging owns the concerns that decide how a mediation ends, and auditing only observes how it ended, so it reaches the pipeline through completion handlers and generic declarations rather than living in `LiteBus.Messaging`:
+
+| Package | Role | Holds |
+| --- | --- | --- |
+| `LiteBus.Auditing.Abstractions` | Mediation contracts | `[Audited]`, `[AuditExempt]`, the declarations and their `Audited` and `NotAudited` extensions, `AuditRecord`, `IAuditTrail`, `IAuditScope` and the recording ports, `AuditCapture`, `AuditLink`, chain and checkpoint contracts, `IAuditChainStore<TDocument>` |
+| `LiteBus.Auditing` | Core implementation | The auditing module and builder, the record writer and per-axis completion handlers, Capture orchestration, linker and sweep, chain engine, streaming verifier, checkpoint lifecycle and publish retrier, framing link rule, hashers, C2SP checkpoint codec, checkpoint policies |
+| `LiteBus.Auditing.Storage.Marten` | Feature bridge | Marten audit trail, documents, chain store adapter |
+| `LiteBus.Auditing.Storage.PostgreSql` | Feature bridge | Npgsql audit tables, chain store adapter, schema |
+| `LiteBus.Auditing.Storage.EntityFrameworkCore` | Feature bridge | EF Core entities, model configuration, chain store adapter |
+| `LiteBus.Auditing.Extensions.Microsoft.DependencyInjection`, `LiteBus.Auditing.Extensions.Autofac` | Host adapter | Empty install shells, matching every other module |
+
+### Capture: When a Record Is Written
+
+Capture is when and where the record is written, relative to the business commit. It is a variant record, `AuditCapture`, set on the auditing builder with `Capture` and overridable per message by declaration. The timing decides what a record may truthfully claim:
+
+| Variant | Behavior | What the record claims |
+| --- | --- | --- |
+| `AuditCapture.WithChange(link)` | Written in the business transaction or session; commits or rolls back with the change | The change happened, atomically true. Default when the audit store can join the business transaction |
+| `AuditCapture.AfterCommitThroughOutbox()` | Enqueued through the transactional outbox in the business transaction, delivered to the audit store after commit, at least once, idempotent by record id | The change happened, eventually and reliably. Chosen automatically when the store cannot join the transaction, and listed in the composition model |
+| `AuditCapture.BeforeAndOutcome()` | An intent record is written in its own transaction before the handler runs; an outcome record follows when the mediation ends | The command was attempted by the caller; the outcome record states the result. A record written before commit never claims success |
+
+```csharp
+auditing.Capture(AuditCapture.WithChange());
+auditing.Capture(AuditCapture.WithChange(AuditLink.InTransaction));
+auditing.Capture(AuditCapture.AfterCommitThroughOutbox());
+auditing.Capture(AuditCapture.BeforeAndOutcome());
+```
+
+Denial, invalid, and failure records always take the out-of-band path, in every mode, because there is no business change to commit with and they must survive the rollback. The `BeforeAndOutcome` intent record carries `AuditOutcome.Intent` with zero duration and no failure code.
+
+A message that needs a different timing than the builder default declares one through `IAuditCaptureDefinition<TMessage>` in a definition class beside the message:
+
+```csharp
+public sealed class PlaceOrderCommandCaptureDefinition : IAuditCaptureDefinition<PlaceOrderCommand>
+{
+    public AuditCaptureDeclaration Capture => new(AuditCapture.BeforeAndOutcome());
+}
+```
+
+There is no attribute form, because an `AuditCapture` is not an attribute-compatible constant. A message with no override is captured with the builder capture, and a message that is not audited ignores the declaration.
+
+### Linking: When a Record Joins the Chain
+
+Linking is when the chain position (sequence, previous hash, hash) is assigned. It applies only with the chain on:
+
+| Linking | Behavior | Cost |
+| --- | --- | --- |
+| `AuditLink.AfterCommit` | Records commit unlinked; a linker assigns positions in commit order right after commit, with a background sweep for crash leftovers; verification reports an `Unlinked` break past a configured age | No contention on the business path |
+| `AuditLink.InTransaction` | The segment head is updated inside the business transaction | Every audited command in a segment contends on one row |
+| `AuditLink.AtWrite` | Whoever writes the record links it in its own transaction | Natural when the audit store is a separate system |
+
+Valid combinations: `WithChange` defaults to `AfterCommit` linking and allows `InTransaction`. `AfterCommitThroughOutbox` and `BeforeAndOutcome` link `AtWrite`. Composition rejects any other pair with a `LiteBusConfigurationException`.
+
+The default is `WithChange` with `AfterCommit` linking. Composition picks `AfterCommitThroughOutbox` when the store cannot join the business transaction, and it does so visibly in the composition model, never as a silent downgrade. The `AfterCommit` sweep runs on `AuditLinkSweepHostOptions`: enabled by default, one pass per minute, linking records staged over a minute ago, well before verification reports a record left unlinked past `AuditHashChainOptions.DefaultUnlinkedAfter` (five minutes).
+
+### Enabling Auditing and the Chain
+
+```csharp
+services.AddLiteBus(registry =>
+{
+    registry.Modules.AddAuditing(auditing => auditing
+        .ForCommands()
+        .Capture(AuditCapture.WithChange())
+        .UseMartenStore()
+        .UseHashChain(chain => chain
+            .CheckpointStaleAfter(TimeSpan.FromDays(1))));
+});
+```
+
+`AddAuditing` registers the auditing module; calling it twice configures one module instead of registering a second one. The store choice (`UseMartenStore`, `UsePostgreSqlStore`, `UseEntityFrameworkCoreStore<TContext>`) records the open-generic trail and chain store the module closes over the configured document type. Register one audit store per composition: registering a second store throws `LiteBusConfigurationException`.
+
+Each store splits its work by lifetime. The chain store is a singleton: the linker, the checkpoint lifecycle, the verifier, the segment manager and the two background loops share it, and it opens its own short session, context or connection for every operation. The trail is scoped: it stages a successful mediation's record on the business session of that mediation, so the record commits or rolls back with the change, and it writes a denial, failure or cancellation on a short session of its own. Neither part holds a session longer than one operation, so a host with the Development container validation (`ValidateScopes` and `ValidateOnBuild`) starts with any store.
+
+| Store | The trail stages on | The chain store opens |
+| --- | --- | --- |
+| Marten | The scoped `IDocumentSession` | A lightweight session from `IDocumentStore` |
+| Entity Framework Core | The scoped `IAuditDbContext` | A context from `IAuditDbContextFactory` |
+| PostgreSQL | The transaction the scope's `IPostgreSqlTransactionProvider` reports, or its own connection when none is active | A pooled connection from the audit data source |
+
+`UseEntityFrameworkCoreStore<TContext>()` registers both context ports as defaults: `IAuditDbContext` as the scope's `TContext`, and `IAuditDbContextFactory` over `IDbContextFactory<TContext>`. Register the context with `AddDbContextFactory<TContext>()`, which supplies both; an explicit registration of either port wins over the default.
+
+Without `UseHashChain`, auditing writes plain records with no sequence numbers and no hash chain. With it, every piece below has a default, so a chain that needs nothing special writes no further code: `sha256-v2` framing, a checkpoint every 100 records, and an `Unlinked` report past five minutes. The composition model reports the requested and effective capture, the selection reason, the linking mode, and every chain piece under the `auditing` section, so a build can show which capture the store forced and which ports were replaced.
+
+### Chain Pieces and Defaults
+
+Every part of how the chain is formed, hashed, segmented, checkpointed, and verified is a replaceable piece with a LiteBus default, so an application that needs nothing special writes no code and an application with its own retention or signing rules replaces only the pieces it owns:
+
+| Piece | What the application decides | Default |
+| --- | --- | --- |
+| `IAuditRecordMapper<TDocument>` | The stored document: map LiteBus's `AuditRecord` to the application's own type, with `MapAsync` resolved from the mediation's scope and given the store's write session | The store default document and mapper (`MartenAuditRecord`, `PostgreSqlAuditRecord`, `EfCoreAuditRecord`) |
+| `IAuditSegmenter<TDocument>` | The segment key per record, whether a segment opens with a genesis record, and the head metadata through `DescribeSegment` | Category and year with no genesis record, carrying the tenant and the `category` and `year` attributes |
+| `IAuditCanonicalizer<TDocument>` | The exact business bytes hashed: which fields, their order, the encoding, how nulls and times are written | Canonical JSON of every field through the store default canonicalizer |
+| `AuditHashScheme<TDocument>` | The named combination of canonicalizer, link rule, and hasher, selected with `UseScheme` | `sha256-v2`: `FramedLinkRule` binding scheme, segment, sequence, and previous hash around the canonical bytes, hashed with `Sha256AuditHasher` |
+| `ICheckpointPolicy` | When a checkpoint is cut | Every 100 records through `CheckpointPolicies.EveryRecords(100)` |
+| `ICheckpointSigner` | How a checkpoint is signed; every signer signs every checkpoint, so signatures coexist | None |
+| `ICheckpointPublisher` | Where checkpoints go; every publisher receives every checkpoint | None beyond the stored checkpoint, which verification reads through the store source |
+| `ICheckpointSource` | Which extra checkpoints verification compares against; the store source is always first | The store source only |
+
+LiteBus owns the rest once: conditional appends under the versioned segment head, and the verify, checkpoint, segment, and erasure operations every application needs. Pieces are given as types resolved from the container when the chain runs: `StoreAs<TDocument, TMapper>()`, `SegmentBy<TSegmenter>()`, `SignCheckpointsWith<TSigner>()`, `PublishCheckpointsTo<TPublisher>()`, and `VerifyAgainst<TSource>()`. The write scheme is named with `UseScheme(name)`, the policy is given as an instance or a type with `CheckpointWhen`, and the verification thresholds are values: `UnlinkedAfter(age)`, `CheckpointStaleAfter(age)`, and `PublishErasureNotices()`. Registering the same signer, publisher, or source twice is a no-op. An explicit `StoreAs` or `SegmentBy` call always wins over the store defaults, regardless of call order.
+
+### Storing a Custom Document
+
+An application whose audit model carries fields LiteBus does not know, such as a workspace, a retention class, or a refusal code, stores its own document type. The type implements `IAuditChainDocument`, and the chain writer fills the chain fields when it appends:
+
+```csharp
+public sealed class WorkspaceAuditDocument : IAuditChainDocument
+{
+    public Guid Id { get; set; }
+    public string Action { get; set; } = string.Empty;
+    public string Workspace { get; set; } = string.Empty;
+    public string? RefusalCode { get; set; }
+    public DateTimeOffset OccurredAt { get; set; }
+    public string? Segment { get; set; }
+    public long Sequence { get; set; }
+    public string? PreviousHash { get; set; }
+    public string? Hash { get; set; }
+    public string? HashScheme { get; set; }
+}
+
+public sealed class WorkspaceAuditMapper : AuditRecordMapper<WorkspaceAuditDocument>
+{
+    public override WorkspaceAuditDocument Map(AuditRecord record)
+    {
+        ArgumentNullException.ThrowIfNull(record);
+
+        record.Properties.TryGetValue("workspace", out var workspace);
+
+        return new WorkspaceAuditDocument
+        {
+            Id = record.Id,
+            Action = record.Action,
+            Workspace = workspace ?? "default",
+            RefusalCode = record.FailureCode,
+            OccurredAt = record.OccurredAt
+        };
+    }
+}
+```
+
+`IAuditRecordMapper<TDocument>` has one member, `MapAsync(record, AuditMappingContext, cancellationToken)`. A mapper that needs no services derives from `AuditRecordMapper<TDocument>` and implements only the synchronous `Map`, as above. When mapping needs services, such as creating a pseudonym for the actor or reading a tenant's time zone, implement `IAuditRecordMapper<TDocument>` and its `MapAsync` directly. Every audit store awaits `MapAsync`, on the success path and on the out-of-band path that records denials, failures and cancellations. The mapper is registered scoped and resolved from the mediation's scope, so its constructor may take scoped services. The context describes the mediation through `Evaluation` (its message, identity, clock and execution context), with `Services` and `Identity` repeated for direct reads.
+
+Store every document under `record.Id`. LiteBus gives each record a time-ordered version 7 identifier, so a mapper keeps time order without stamping its own, and the store holds one document per identifier, so a record redelivered through the outbox, or a retried application write that sets its own identifier, overwrites instead of being stored twice. A mapper that stamps its own identifier loses that protection.
+
+`AuditMappingContext.Features` holds the session the record is written on, so a row the mapper writes through it commits or rolls back with the record:
+
+| Store | Feature |
+| --- | --- |
+| Marten | `IDocumentSession` |
+| Entity Framework Core | `DbContext` |
+| PostgreSQL | `NpgsqlConnection` and, inside a transaction, `NpgsqlTransaction` |
+
+On the success path that session is the business session, so a pseudonym created for a successful command commits with the command's change. On the out-of-band path it is the record's own short session, so a pseudonym created for a denied command survives the rollback together with the denial record:
+
+```csharp
+public sealed class PseudonymizingAuditMapper : IAuditRecordMapper<WorkspaceAuditDocument>
+{
+    private readonly IPseudonymRepository _pseudonyms;
+
+    public PseudonymizingAuditMapper(IPseudonymRepository pseudonyms) => _pseudonyms = pseudonyms;
+
+    public async ValueTask<WorkspaceAuditDocument> MapAsync(
+        AuditRecord record,
+        AuditMappingContext context,
+        CancellationToken cancellationToken)
+    {
+        var session = context.Features.Get<IDocumentSession>();
+        var pseudonym = await _pseudonyms
+            .FindOrCreateAsync(session, record.Actor?.Id, cancellationToken)
+            .ConfigureAwait(false);
+
+        return new WorkspaceAuditDocument
+        {
+            Id = record.Id,
+            Action = record.Action,
+            Actor = pseudonym,
+            OccurredAt = record.OccurredAt
+        };
+    }
+}
+```
+
+A record written outside a mediation, such as one delivered through the `AfterCommitThroughOutbox` capture mode or written to `IAuditTrail` directly by application code, is mapped in the scope that writes it, with the record itself as the evaluation's message. The chain writer fills the chain fields after mapping either way.
+
+
+The segmenter names the segment per record. Returning a document from `CreateGenesis` opens each new segment with a genesis record at sequence one; returning `null` opens segments without one. `DescribeSegment` records the `AuditSegmentInfo` stored on the head: the key, the tenant, the attributes, and when the segment opened. The default implementation records the key with no tenant and no attributes; override it when listing, expiry, or erasure must select segments without parsing keys:
+
+```csharp
+public sealed class WorkspaceAuditSegmenter : IAuditSegmenter<WorkspaceAuditDocument>
+{
+    public string SegmentOf(WorkspaceAuditDocument document)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+
+        return string.Concat(
+            document.Workspace,
+            "/",
+            document.OccurredAt.Year.ToString(CultureInfo.InvariantCulture));
+    }
+
+    public WorkspaceAuditDocument? CreateGenesis(string segment, WorkspaceAuditDocument first)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(segment);
+        ArgumentNullException.ThrowIfNull(first);
+
+        return new WorkspaceAuditDocument
+        {
+            Id = Guid.CreateVersion7(),
+            Action = "audit.segment-opened",
+            Workspace = first.Workspace,
+            OccurredAt = first.OccurredAt
+        };
+    }
+}
+```
+
+A chain that opens segments without a genesis record and needs no segment metadata passes a delegate instead of a segmenter, with any audit store: `SegmentBy<WorkspaceAuditDocument>(document => document.Workspace)`.
+
+The canonicalizer produces the exact bytes hashed. It describes the record only: under `sha256-v2` the framed link rule binds the scheme name, the segment, the sequence and the previous hash around the canonical bytes, so the canonicalizer leaves those chain fields out. Including them is redundant but harmless, and a `sha256-v1` chain, whose link rule only prefixes the previous hash, must include the segment and sequence to bind them. The canonicalizer must exclude `Hash` and be deterministic: the same document always yields the same bytes:
+
+```csharp
+public sealed class WorkspaceAuditCanonicalizer : IAuditCanonicalizer<WorkspaceAuditDocument>
+{
+    public byte[] Canonicalize(WorkspaceAuditDocument document)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+
+        var fields = new SortedDictionary<string, string?>(StringComparer.Ordinal)
+        {
+            ["action"] = document.Action,
+            ["id"] = document.Id.ToString(),
+            ["occurred-at"] = document.OccurredAt.ToString("O", CultureInfo.InvariantCulture),
+            ["refusal-code"] = document.RefusalCode,
+            ["workspace"] = document.Workspace
+        };
+
+        return Encoding.UTF8.GetBytes(JsonSerializer.Serialize(fields));
+    }
+}
+```
+
+The scheme names the combination of canonical form, link rule, and hasher. The chain ships two schemes for every document type: `sha256-v1` keeps the pass-through `PreviousHashLinkRule`, so records written before framing verify unchanged, and `sha256-v2` binds the chain position in a `FramedLinkRule`, so the canonicalizer only ever describes the record. Both hash with `Sha256AuditHasher`, and the chain selects the write scheme by name with `UseScheme`. The canonicalizer is resolved per document type from the container: a storage package registers the default for its document as a replaceable LiteBus default, and an application with its own document registers its own. Naming a scheme the registry does not know fails composition, and a scheme whose canonicalizer, link rule or hasher cannot be resolved fails host startup, before any record is written unlinked.
+
+An application that must bind its hashes to a secret defines its own scheme with `AddScheme(name, hasher, linkRule)` and writes with it through `UseScheme(name)`. `HmacSha256AuditHasher` takes a fixed key, or a provider that returns the current key per operation. The link rule defaults to the framed rule of `sha256-v2`, and the scheme reads documents through the same canonicalizer as the shipped schemes:
+
+```csharp
+registry.Modules.AddAuditing(auditing => auditing
+    .ForCommands()
+    .UseMartenStore()
+    .UseHashChain(chain => chain
+        .AddScheme("hmac-sha256-2026", new HmacSha256AuditHasher(GetAuditKeyAsync))
+        .UseScheme("hmac-sha256-2026")));
+
+async ValueTask<byte[]> GetAuditKeyAsync(CancellationToken cancellationToken) =>
+    await secretStore.GetAuditKeyAsync(cancellationToken).ConfigureAwait(false);
+```
+
+Each record stores its scheme name, so records written before a switch keep verifying with their own scheme. A key rotation that must not change how old records verify is a new scheme name. Defining a name twice with the same hasher and link rule instances is a no-op; defining it with different pieces, or reusing a shipped name, fails composition, and the startup check builds the write scheme so a scheme that cannot be built fails before the first record.
+
+The signer and the publisher are the application's own. The signer owns the key and the scheme, and the publisher decides where checkpoints go, such as an append-only file store:
+
+```csharp
+public sealed class HmacCheckpointSigner : ICheckpointSigner
+{
+    private readonly byte[] _key;
+
+    public HmacCheckpointSigner(byte[] key) => _key = key;
+
+    public ValueTask<AuditCheckpointSignature> SignAsync(AuditCheckpoint checkpoint, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(checkpoint);
+
+        return ValueTask.FromResult(new AuditCheckpointSignature("hmac-sha256", Compute(checkpoint)));
+    }
+
+    public ValueTask<bool> VerifyAsync(AuditCheckpoint checkpoint, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(checkpoint);
+
+        foreach (var signature in checkpoint.Signatures)
+        {
+            if (signature.Scheme == "hmac-sha256"
+                && CryptographicOperations.FixedTimeEquals(
+                    Encoding.UTF8.GetBytes(signature.Value),
+                    Encoding.UTF8.GetBytes(Compute(checkpoint))))
+            {
+                return ValueTask.FromResult(true);
+            }
+        }
+
+        return ValueTask.FromResult(false);
+    }
+
+    private string Compute(AuditCheckpoint checkpoint)
+    {
+        var bytes = Encoding.UTF8.GetBytes(string.Concat(
+            checkpoint.Segment,
+            ":",
+            checkpoint.Sequence.ToString(CultureInfo.InvariantCulture),
+            ":",
+            checkpoint.Hash));
+
+        return Convert.ToHexStringLower(HMACSHA256.HashData(_key, bytes));
+    }
+}
+
+public sealed class FileCheckpointPublisher : ICheckpointPublisher
+{
+    private readonly string _directory;
+
+    public FileCheckpointPublisher(string directory) => _directory = directory;
+
+    public async ValueTask PublishAsync(AuditCheckpoint checkpoint, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(checkpoint);
+
+        var name = string.Concat(
+            checkpoint.Segment.Replace("/", "-", StringComparison.Ordinal),
+            ".checkpoints.jsonl");
+
+        await File.AppendAllTextAsync(
+            Path.Combine(_directory, name),
+            JsonSerializer.Serialize(checkpoint) + Environment.NewLine,
+            cancellationToken).ConfigureAwait(false);
+    }
+}
+```
+
+The builder assembles the pieces. Customizing the stored document starts with `StoreAs`, and the segmenter must handle the configured document type:
+
+```csharp
+services.AddLiteBus(registry => registry.Modules.AddAuditing(auditing => auditing
+    .ForCommands()
+    .UseMartenStore()
+    .UseHashChain(chain => chain
+        .StoreAs<WorkspaceAuditDocument, WorkspaceAuditMapper>()
+        .SegmentBy<WorkspaceAuditSegmenter>()
+        .UseScheme("sha256-v2")
+        .CheckpointWhen(CheckpointPolicies.Any(
+            CheckpointPolicies.EveryRecords(100),
+            CheckpointPolicies.Every(TimeSpan.FromDays(1))))
+        .SignCheckpointsWith<HmacCheckpointSigner>()
+        .PublishCheckpointsTo<FileCheckpointPublisher>()
+        .VerifyAgainst<FileCheckpointSource>())));
+```
+
+Every piece is given as a type resolved from the container when the chain runs. The canonicalizer for the custom document is registered separately in the application container, because the scheme registry resolves it per document type. An application that checkpoints on its own rhythm passes `CheckpointPolicies.Never()` and cuts explicitly with `CutCheckpointAsync(segment, label)` instead, so the chain stays silent between explicit cuts and each explicit checkpoint carries the label its signers and publishers switch on, such as `manual` for an operator's cut.
+
+### Checkpoints and Publication
+
+A hash chain proves internal consistency, but an attacker who rewrites a whole suffix and recomputes every hash still passes verification. Published checkpoints close that gap. A checkpoint anchors the position and hash a segment reached:
+
+| Field | Holds |
+| --- | --- |
+| `Id` | The checkpoint identifier, stable across publish retries so anchors never diverge |
+| `Segment` | The segment the checkpoint covers |
+| `Sequence` | The sequence of the last document the checkpoint covers |
+| `Count` | The number of documents in the segment at the checkpoint, which proves coverage |
+| `Hash` | The hash of the document at `Sequence` |
+| `HashScheme` | The scheme that document was written with |
+| `Kind` | `Regular` for a checkpoint cut while the segment stays open, `Final` for the last checkpoint of an expired segment |
+| `CreatedAt` | When the checkpoint was cut |
+| `Label` | The free-form label distinguishing checkpoints cut on different rhythms, or `null` |
+| `Signatures` | Every signature over the checkpoint, so a log signature, a timestamp, and witness cosignatures coexist |
+| `PublishState` | `Pending` while the checkpoint waits for publication, `Published` once it reached every publisher |
+| `PublishAttempts`, `LastPublishError` | How many publish attempts were made, and the last error |
+
+The count is what proves coverage: records 1 through N are all present, not just linked. Verification compares the segment against the latest checkpoint it finds, so a missing record before the head fails the count comparison even when the remaining links are consistent.
+
+A checkpoint is cut, stored as `Pending`, signed, and then published from a background retrier. Publication never runs inside an append. A failed attempt stays pending with the attempt count increased and the error recorded, and `ListUnpublishedCheckpointsAsync` lists what still waits. The retrier runs on `CheckpointPublishHostOptions`: one pass per minute, waiting with backoff after a failed pass instead of spinning. A product whose web host and worker host compose the same modules turns the loop off in every host but one with `ConfigureCheckpointPublishing(publishing => publishing.Enabled = false)` on the auditing builder, so the time-based cutter and the retrier run once; explicit cuts, expiry and verification still work in every host. `ConfigureLinkSweep` sets the link sweep the same way, and the composition model's `auditing` section shows both switches as `checkpointPublishingEnabled` and `linkSweepEnabled`. The checkpoint identity stays stable across retries, so anchors never diverge.
+
+Checkpoints render in the C2SP `tlog-checkpoint` signed-note shape, so witnesses, timestamping authorities, and generic verifiers consume them without LiteBus code. The origin line carries the segment, the tree size carries the covered count, the root hash carries the checkpoint hash, and LiteBus fields the shape has no room for travel as extension lines a generic verifier ignores. Each signature renders as one signed-note line.
+
+The chain asks the checkpoint policy after every append. A time-based policy can also become due without a new write, so it reports `IsTimeBased` as `true` and the background service cuts for segments whose policy reports due on its pass too. `CutCheckpointAsync(segment)` and `CutCheckpointAsync(segment, label)` cut a checkpoint of a segment now, outside the policy.
+
+### Checkpoint Policies
+
+`CheckpointPolicies` builds the policies a chain cuts with:
+
+| Policy | Due when |
+| --- | --- |
+| `Never()` | Never; only explicit cuts produce checkpoints |
+| `EveryRecords(count, label)` | The segment advanced `count` sequences past its last checkpoint |
+| `Every(interval, label)` | The segment holds records and `interval` passed since the last checkpoint |
+| `Any(policies)` | Any of the given policies is due |
+| `OnSchedule(schedule, label)` | The shared schedule reached its next occurrence |
+| `DailyAt(time, zone, label)` / `WeeklyOn(day, time, zone, label)` | Once a day or once a week at a fixed local time, defaulting to UTC |
+| `DailyAt(time, zoneOf, label)` / `WeeklyOn(day, time, zoneOf, label)` | Once a day or once a week at a fixed local time read in each tenant zone |
+| `DailyInTenantZone(time, label)` / `WeeklyInTenantZone(day, time, label)` | Once a day or once a week at a fixed local time read in each tenant's zone from `ITenantMetadataProvider` when the policy decides |
+
+Every factory takes an optional label, stored on the checkpoint a due cut produces, so each signer and publisher can switch on it. The calendar factories default the label to their rhythm (`daily`, `weekly`). The schedule contract (`ISchedule`, `Schedules.Every`/`DailyAt`/`WeeklyOn`, and the per-tenant zone form) lives in a contract package shared with recurring commands, so neither feature depends on the other. The tenant-zone factories read the tenant from the segment head's `AuditSegmentInfo` and the zone from the tenant metadata provider in the scope of each checkpoint pass, so a tenant's zone change is followed without a restart; a tenant whose metadata names no zone reads UTC, and a pass with no provider fails with `AuditConfigurationException`, logged per segment, instead of reading every tenant as UTC. A policy that reads services overrides the async `IsDueAsync`; the synchronous `IsDue` stays for callers that evaluate without input and output. `AuditCheckpointCandidate.Services` carries the scope of the deciding pass for such a policy. An application with its own rhythm implements `ICheckpointPolicy` over `AuditCheckpointCandidate`.
+
+### Anchoring Checkpoints
+
+Where a checkpoint goes is the application decision. LiteBus ships three anchors, each publishing every cut checkpoint and reading it back as a verification source:
+
+| Anchor | Package | Holds |
+| --- | --- | --- |
+| S3-compatible object storage with Object Lock retention | `LiteBus.Auditing.Anchors.S3` | `S3CheckpointPublisher`, `S3CheckpointSource`, registered with `PublishCheckpointsToS3` |
+| Azure Blob Storage with immutability policies and legal hold | `LiteBus.Auditing.Anchors.AzureBlob` | `AzureBlobCheckpointPublisher`, `AzureBlobCheckpointSource`, registered with `PublishCheckpointsToAzureBlob` |
+| RFC 3161 timestamping authority | `LiteBus.Auditing.Anchors.Timestamping` | `Rfc3161CheckpointSigner`, registered with `TimestampCheckpoints(authority)`, returning the token as one more signature |
+
+The S3 anchor stores C2SP checkpoint text, so generic verifiers read anchors without LiteBus code. The timestamp signer posts the checkpoint hash to the authority and stores the issued token under the `rfc3161` scheme beside the log signature. See [S3 Checkpoint Anchor](../integrations/auditing-s3-anchor.md), [Azure Blob Checkpoint Anchor](../integrations/auditing-azure-blob-anchor.md), and [RFC 3161 Timestamps](../integrations/auditing-rfc3161-timestamp.md).
+
+### Verifying a Segment
+
+Resolve `IAuditChain` and verify a segment, then read the comparison against its checkpoints:
+
+```csharp
+var chain = provider.GetRequiredService<IAuditChain>();
+var verification = await chain.VerifyAsync("workspace-a/2026", cancellationToken).ConfigureAwait(false);
+
+if (!verification.IsChainIntact)
+{
+    foreach (var @break in verification.Breaks)
+    {
+        Console.WriteLine($"Sequence {@break.Sequence}: {@break.Kind}: {@break.Detail}");
+    }
+
+    return;
+}
+
+foreach (var comparison in verification.Comparisons)
+{
+    Console.WriteLine($"{comparison.SourceName}: hash {comparison.HashMatches}, count {comparison.CountMatches}.");
+}
+```
+
+Verification streams records by pages, so a large segment verifies without loading it whole. `VerifyFromAsync(segment, checkpointId)` reads the checkpoint with that identifier from the store and checks only the records after it, which is how a nightly job verifies from its last checkpoint instead of re-reading the segment from its first record. It trusts the stored checkpoint; the comparison against each registered anchor (`VerifyAgainst<TSource>()`) is what proves the stored checkpoint matches what was published. Every configured source adds one comparison: the store source first, then each registered anchor. A source that cannot be reached is reported with `SourceUnreachable` as a warning, separate from a source that disagrees. The verification stays intact but the gap is visible.
+
+### Verification Results
+
+`VerifyAsync` returns an `AuditChainVerification` that reports every break with its sequence and reason, not only the first:
+
+| Field | Holds |
+| --- | --- |
+| `Segment` | The verified segment |
+| `IsIntact` | Whether the segment has no break of either category |
+| `IsChainIntact` | Whether no break reports that the chain or a checkpoint was altered; coverage breaks do not count |
+| `RecordCount` | The number of documents read from the segment |
+| `HeadSequence`, `HeadHash` | The last document, or `null` for an empty segment |
+| `Breaks` | Every problem found, in sequence order |
+| `LatestCheckpoint` | The checkpoint the segment was compared against, or `null` when none exists |
+| `MatchesLatestCheckpoint` | Whether the chain matches the latest checkpoint's hash and count, or `null` when there is no checkpoint |
+| `CheckpointSignatureValid` | Whether the latest checkpoint's signature is valid, or `null` when no signer is configured or there is no checkpoint |
+| `Comparisons` | One comparison per checkpoint source the segment was checked against |
+
+Each break names its sequence, its kind, its category, and a sentence describing the problem for an operator. The category separates two questions: `Integrity` breaks mean the chain or a checkpoint was altered or does not match, and `Coverage` breaks mean a checkpoint, publication or link has not happened yet or stopped happening. A tamper alarm reads `IsChainIntact`; a monitor of the checkpoint loop reads the coverage breaks.
+
+| Kind | Category | Meaning |
+| --- | --- | --- |
+| `Gap` | Integrity | A sequence number is missing |
+| `Duplicate` | Integrity | A sequence number appears more than once, or out of order |
+| `PreviousHashMismatch` | Integrity | The stored previous hash does not match the hash of the document before it |
+| `HashMismatch` | Integrity | The stored hash does not match the hash recomputed from the document |
+| `UnknownHashScheme` | Integrity | The document names a hash scheme the chain does not accept |
+| `CheckpointHashMismatch` | Integrity | The hash at the latest checkpoint's sequence differs from the checkpoint's hash |
+| `CheckpointCountMismatch` | Integrity | The segment holds fewer documents up to the checkpoint than the checkpoint counted |
+| `CheckpointSignatureInvalid` | Integrity | The latest checkpoint's signature is missing or invalid |
+| `CheckpointMissing` | Coverage | The segment holds no checkpoint although its checkpoint policy would already have cut one, or the checkpoint `VerifyFromAsync` was asked to trust does not exist. The verifier asks the policy with the segment head, so a segment under 100 records with the default policy, or one opened today under a daily policy, has none and verifies intact |
+| `CheckpointStale` | Coverage | The last checkpoint is older than the configured age while records exist after it |
+| `CheckpointUnpublished` | Coverage | A stored checkpoint still waits for publication |
+| `Unlinked` | Coverage | A record was staged but remains unlinked past the configured age |
+
+`AuditChainVerifier<TDocument>` runs the hash pass without any storage: the caller reads the ordered documents of one segment and its latest checkpoint, and the verifier recomputes every hash with the same canonical form, link rule, and hasher the writer used. Storage adapters for other databases reuse it. The documents must be the whole segment in ascending sequence order: a partial page reports its missing head as gaps, and an unordered list reports the misplaced documents as duplicates.
+
+### Hash Framing and Scheme Changes
+
+Under `sha256-v2`, the link rule hashes a length-prefixed frame (scheme, segment, sequence, previous hash) plus the canonical business bytes. The frame is the scheme name as a four-byte big-endian byte count followed by its UTF-8 bytes, the segment the same way, the sequence as eight bytes big-endian, and the previous hash length-prefixed or the four bytes `FF FF FF FF` with nothing after them when there is no previous hash. The null marker keeps a first record distinct from a record carrying an empty previous hash, and the length prefixes keep every field boundary unambiguous. A consumer that writes its own canonical form over business fields only still gets a linked chain: records cannot be reordered, moved between segments, or replaced without a break.
+
+Each record stores the name of the scheme it was written with, and verification picks the scheme per record, so a chain moves to a new scheme without rewriting history: new records carry the new name, old records keep theirs, and both verify. `sha256-v1` keeps verifying. Records written before schemes existed carry no name and verify unchanged under `sha256-v1`, which carries the same field set the chain always hashed. Two different schemes sharing one name fail composition, because verification could not tell them apart; a deliberate override calls `Replace`.
+
+A composition self-test proves that the write scheme binds the chain position into every hash: it changes the segment, the sequence, and the previous hash of a fixed sample and fails composition when any of them leaves the output unchanged, so a misbound scheme never reaches runtime.
+
+### Segments, Expiry, and Erasure
+
+`AuditSegmentInfo` holds the key, the tenant, the attributes, and when the segment opened, and it is stored on the head, so listing, expiry, and erasure select segments without parsing keys. `ListSegmentsAsync(filter)` lists the segments matching an `AuditSegmentFilter`: one tenant, required attribute values, segments opened before an instant, and whether expired segments are included. The segment head carries the stored identity with the position it reached: the last sequence and hash, the document count, the last checkpoint sequence and time, whether the segment expired, and the version the store checks on a conditional write.
+
+Retention deletes whole expired segments, and verification must survive that. `ExpireSegmentAsync(segment)` cuts a `Final` checkpoint, then deletes every document of the segment and marks the head expired, so the remaining segments still verify and the final checkpoint proves what the deleted segment held:
+
+```csharp
+var chain = provider.GetRequiredService<IAuditChain>();
+var final = await chain.ExpireSegmentAsync("workspace-a/2024", cancellationToken).ConfigureAwait(false);
+```
+
+Expiring an empty segment throws `InvalidOperationException`, because there is nothing to anchor. A second call returns the stored final checkpoint instead of cutting another one, and a call after an attempt that stopped part-way reuses the final checkpoint that attempt stored, because a segment's final checkpoint has an identifier derived from the segment. A retention job stays safe to retry. Appending to an expired segment throws `InvalidOperationException`.
+
+Erasure is a different legal act from expiry: expiry keeps a final checkpoint proving what was removed, while erasure leaves nothing identifying, including anchors that describe the data. `EraseAsync(filter, reason, cancellationToken)` deletes the records, heads, and stored checkpoints matching a filter, and publishes nothing by default:
+
+```csharp
+var erased = await chain.EraseAsync(
+    new AuditSegmentFilter(TenantId: "workspace-a"),
+    "workspace closed",
+    cancellationToken).ConfigureAwait(false);
+```
+
+An optional erasure notice carries no hash: turn on `PublishErasureNotices` and every registered `IErasureNoticePublisher` receives one `AuditErasureNotice` per erased segment, naming the segment, the document count it held, the reason, and when it was erased. A notice that carried a hash would anchor exactly what must go. A publisher that throws fails the erasure it was called from, so a lost notice surfaces instead of passing silently.
+
+The command that erases a scope is usually audited itself, and its own record must not land in the scope it erases: a success record staged in the business session maps to the same tenant and would open a fresh segment for it. Route the erasing command's record to a segment outside the erased scope in the segmenter, such as a platform erasure log:
+
+```csharp
+public string SegmentOf(WorkspaceAuditDocument document) =>
+    document.Action == "workspaces.erase-trail"
+        ?  platform-erasure-log/{document.OccurredAt.Year}"
+        : /{document.OccurredAt.Year}";
+```
+
 ## Application Responsibilities
 
 - Your `IAuditTrail` implementation owns record storage and integrity. A hash chain, an append-only database role, and a retention job are all worth having there rather than in a messaging library.
 - Your application owns the transaction boundary. LiteBus never opens or owns the transaction itself: it calls the application's `BeginAsync`, `CommitAsync`, and `RollbackAsync` at defined pipeline points, and the application opens, commits, and rolls back the transaction inside those methods. It does guarantee a position you can commit from, described under [Making a Record Atomic With Its Change](#making-a-record-atomic-with-its-change) above.
-- Your trail implementation owns actor capture. LiteBus does not model identity. Capture the acting account from whatever ambient principal your host provides.
+- Your trail implementation owns actor capture. LiteBus does not model identity. Capture the acting account through `IAuditActorResolver`, reading the caller from `MessageCompletionContext.Identity`.
+- LiteBus does not own checkpoint backends, timestamping authorities, key management for crypto-shredding, retention law, or erasure across the rest of an application data set. It anchors checkpoints where you point it and deletes what its own store holds; the authority, the keys, and the law stay yours.
 
 ## Next
 
-Read [Message Definitions](message-definitions.md) for the declaration mechanism, and [The Handler Pipeline](handler-pipeline.md) for the completion stage this is built on. [In-Process Idempotency](idempotency.md) uses the same declaration model and the same commit position, so the two configure together.
+Read [Message Definitions](message-definitions.md) for the declaration mechanism, and [The Handler Pipeline](handler-pipeline.md) for the completion stage this is built on. [In-Process Idempotency](idempotency.md) uses the same declaration model and the same commit position, so the two configure together. For the stores, read [Marten Audit Storage](../integrations/auditing-marten.md), [PostgreSQL Audit Storage](../integrations/auditing-postgresql.md), and [Entity Framework Core Audit Storage](../integrations/auditing-entity-framework-core.md). For the anchors, read [S3 Checkpoint Anchor](../integrations/auditing-s3-anchor.md), [Azure Blob Checkpoint Anchor](../integrations/auditing-azure-blob-anchor.md), and [RFC 3161 Timestamps](../integrations/auditing-rfc3161-timestamp.md).

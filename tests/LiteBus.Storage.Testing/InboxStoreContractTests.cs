@@ -204,8 +204,8 @@ public abstract class InboxStoreContractTests
         tenantA.Outcome.Should().Be(InboxAcceptOutcome.Accepted);
         tenantB.Outcome.Should().Be(InboxAcceptOutcome.Accepted);
         tenantA.Envelope.Id.Should().NotBe(tenantB.Envelope.Id);
-        JsonDocument.Parse(tenantA.Envelope.Payload).RootElement.GetProperty("tenant").GetString().Should().Be("a");
-        JsonDocument.Parse(tenantB.Envelope.Payload).RootElement.GetProperty("tenant").GetString().Should().Be("b");
+        JsonElement.Parse(tenantA.Envelope.Payload).GetProperty("tenant").GetString().Should().Be("a");
+        JsonElement.Parse(tenantB.Envelope.Payload).GetProperty("tenant").GetString().Should().Be("b");
     }
 
     /// <summary>

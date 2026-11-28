@@ -92,7 +92,7 @@ It throws `DurableStorageConfigurationException` when a second dispatcher module
 | Package | `LiteBus.Outbox.Dispatch.InProcess` |
 | Registers | `EventOutboxDispatcher` as the `IOutboxDispatcher`, through `EventOutboxDispatchModule` |
 | Requires | `AddEvents` and contract registration for published event types |
-| Options | `RequireHandler` (default `true`) fails the attempt when no handler is registered |
+| Options | `RequireHandler` (default `true`) fails the attempt when no handler is registered; `AllowEnvelopesWithoutHandler(reason)` turns it off |
 
 ### Broker `Use*Dispatch` Extensions (Inbox and Outbox)
 

@@ -427,6 +427,12 @@ public sealed class PostgreSqlOutboxStore :
         ArgumentException.ThrowIfNullOrWhiteSpace(request.LeaseOwner);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(request.LeaseDuration, TimeSpan.Zero);
 
+        if (request.MaxPerTenant is { } maxPerTenant)
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(maxPerTenant, 0);
+            return await LeasePendingCappedAsync(request, maxPerTenant, cancellationToken).ConfigureAwait(false);
+        }
+
         var sql = $"""
                    WITH candidates AS (
                        SELECT message_id
@@ -462,6 +468,81 @@ public sealed class PostgreSqlOutboxStore :
         command.Parameters.AddWithValue("batch_size", request.BatchSize);
         command.Parameters.AddWithValue("lease_owner", request.LeaseOwner);
         command.Parameters.AddWithValue("lease_duration", request.LeaseDuration);
+        AddNullableTextParameter(command, "tenant_id", NormalizeTenantFilter(request.TenantId));
+
+        return await ReadManyAsync(command, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    ///     Leases pending envelopes with at most a configured number of envelopes per tenant.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         The ranked common table expression numbers eligible rows oldest first within each tenant partition, so
+    ///         the cap keeps the oldest envelopes of every tenant instead of the oldest rows overall. The candidates
+    ///         expression then re-selects from the base table, because the skip-locked row lock must apply to stored
+    ///         rows rather than to the numbered projection.
+    ///     </para>
+    ///     <para>
+    ///         The partition key coalesces a null tenant to the empty string, so unscoped envelopes share one
+    ///         partition and count as one tenant.
+    ///     </para>
+    /// </remarks>
+    /// <param name="request">The lease request.</param>
+    /// <param name="maxPerTenant">The most envelopes of one tenant this lease call returns.</param>
+    /// <param name="cancellationToken">A token that cancels the lease.</param>
+    /// <returns>The leased envelopes with no tenant above the cap.</returns>
+    private async Task<IReadOnlyList<OutboxEnvelope>> LeasePendingCappedAsync(
+        OutboxLeaseRequest request,
+        int maxPerTenant,
+        CancellationToken cancellationToken)
+    {
+        var sql = $"""
+                   WITH ranked AS (
+                       SELECT
+                           message_id,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY COALESCE(tenant_id, '')
+                               ORDER BY created_at ASC, message_id ASC
+                           ) AS tenant_sequence
+                       FROM {_tableName}
+                       WHERE
+                           (@tenant_id IS NULL OR tenant_id = @tenant_id)
+                           AND ((status IN (@pending_status, @failed_status) AND (visible_after IS NULL OR visible_after <= CURRENT_TIMESTAMP))
+                            OR (status = @publishing_status AND lease_expires_at IS NOT NULL AND lease_expires_at <= CURRENT_TIMESTAMP)
+                            OR (status = @publishing_status AND lease_expires_at IS NULL AND created_at < CURRENT_TIMESTAMP - @lease_duration))
+                   ),
+                   candidates AS (
+                       SELECT message_id
+                       FROM {_tableName}
+                       WHERE message_id IN (SELECT message_id FROM ranked WHERE tenant_sequence <= @max_per_tenant)
+                       ORDER BY created_at ASC
+                       LIMIT @batch_size
+                       FOR UPDATE SKIP LOCKED
+                   )
+                   UPDATE {_tableName} AS outbox
+                   SET
+                       status = @publishing_status,
+                       lease_owner = @lease_owner,
+                       lease_expires_at = CURRENT_TIMESTAMP + @lease_duration,
+                       lease_generation = outbox.lease_generation + 1,
+                       attempt_count = outbox.attempt_count + 1,
+                       last_attempted_at = CURRENT_TIMESTAMP,
+                       last_lease_owner = @lease_owner
+                   FROM candidates
+                   WHERE outbox.message_id = candidates.message_id
+                   RETURNING
+                       {LeasedReturningColumns};
+                   """;
+
+        using var command = CreateCommand(sql);
+        command.Parameters.AddWithValue("pending_status", (int) OutboxStatus.Pending);
+        command.Parameters.AddWithValue("failed_status", (int) OutboxStatus.Failed);
+        command.Parameters.AddWithValue("publishing_status", (int) OutboxStatus.Publishing);
+        command.Parameters.AddWithValue("batch_size", request.BatchSize);
+        command.Parameters.AddWithValue("lease_owner", request.LeaseOwner);
+        command.Parameters.AddWithValue("lease_duration", request.LeaseDuration);
+        command.Parameters.AddWithValue("max_per_tenant", maxPerTenant);
         AddNullableTextParameter(command, "tenant_id", NormalizeTenantFilter(request.TenantId));
 
         return await ReadManyAsync(command, cancellationToken).ConfigureAwait(false);

@@ -70,6 +70,47 @@ internal sealed class MicrosoftDependencyRegistryAdapter : IDependencyRegistry
     }
 
     /// <inheritdoc />
+    public void Replace(DependencyDescriptor descriptor)
+    {
+        ArgumentNullException.ThrowIfNull(descriptor);
+
+        if (descriptor.IsCollectionRegistration)
+        {
+            throw new ModuleCompositionException(
+                $"Service type '{descriptor.DependencyType.FullName ?? descriptor.DependencyType.Name}' was registered with collection metadata. " +
+                $"Use {nameof(RegisterCollection)} for multi-registration services such as IEnumerable<T> hooks.");
+        }
+
+        if (!_tracker.TryReplace(descriptor))
+        {
+            return;
+        }
+
+        // Overwrite the conflicting descriptor at its original position so resolution returns the
+        // replacement and the service collection keeps deterministic ordering.
+        var replacement = ConvertToServiceDescriptor(descriptor);
+        int? firstIndex = null;
+
+        for (var index = _services.Count - 1; index >= 0; index--)
+        {
+            if (_services[index].ServiceType == descriptor.DependencyType)
+            {
+                firstIndex = index;
+                _services.RemoveAt(index);
+            }
+        }
+
+        if (firstIndex.HasValue)
+        {
+            _services.Insert(firstIndex.Value, replacement);
+        }
+        else
+        {
+            _services.Add(replacement);
+        }
+    }
+
+    /// <inheritdoc />
     public void RegisterCollection(DependencyDescriptor descriptor)
     {
         ArgumentNullException.ThrowIfNull(descriptor);

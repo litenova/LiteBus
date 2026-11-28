@@ -20,8 +20,9 @@ namespace LiteBus.Messaging.MediationStrategies;
 ///         audit record; the message it is asking about produces one when it is actually sent.
 ///     </para>
 ///     <para>
-///         A fault a decision stage raises propagates, unless a refusal classifier recognizes it, in which case the
-///         evaluation reports the refusal the message would end as when actually sent.
+///         A fault a decision stage raises propagates, unless a refusal classifier or an exception translator
+///         recognizes it, in which case the evaluation reports the refusal the message would end as when actually
+///         sent. A message fault always propagates, because a configuration failure is not a decision.
 ///     </para>
 /// </remarks>
 public sealed class DecisionEvaluationMediationStrategy<TMessage>
@@ -49,19 +50,36 @@ public sealed class DecisionEvaluationMediationStrategy<TMessage>
             }
             catch (Exception fault) when (MediationExceptionFilters.IsRecoverableMediationException(fault))
             {
+                if (fault is MessageFaultException)
+                {
+                    // A configuration or dependency failure is never a refusal, so it is offered to neither the
+                    // classifiers nor the translators.
+                    throw;
+                }
+
                 // A guard that raises a recognized fault refuses the message the same way through Evaluate as through
                 // Send: the caller asking "may I" gets the refusal rather than the fault.
-                if (MediationExceptionFilters.TryClassifyRefusal(
+                if (!MediationExceptionFilters.TryClassifyRefusal(
                         messageDependencies.FaultRefusalClassifiers,
                         fault,
                         out var refusal))
                 {
-                    return refusal.Outcome == MediationOutcome.Invalid
-                        ? MediationDecision.Invalid(refusal.Reason, refusal.Code, [])
-                        : MediationDecision.Denied(refusal.Reason, refusal.Code);
+                    var translated = await RefusalExceptionTranslation.TryTranslateAsync(
+                        messageDependencies.RefusalExceptionTranslators,
+                        fault,
+                        executionContext.CancellationToken).ConfigureAwait(false);
+
+                    if (!translated.HasValue)
+                    {
+                        throw;
+                    }
+
+                    refusal = translated.Value;
                 }
 
-                throw;
+                return refusal.Outcome == MediationOutcome.Invalid
+                    ? MediationDecision.Invalid(refusal.Reason, refusal.Code, [])
+                    : MediationDecision.Denied(refusal.Reason, refusal.Code);
             }
 
             return decision.Outcome switch

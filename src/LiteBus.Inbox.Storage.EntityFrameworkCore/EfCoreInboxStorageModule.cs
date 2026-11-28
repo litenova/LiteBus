@@ -1,6 +1,7 @@
 using System;
 using LiteBus.Inbox;
 using LiteBus.Inbox.Abstractions;
+using LiteBus.Inbox.Storage.EntityFrameworkCore.Startup;
 using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Exceptions;
 using LiteBus.Runtime.Abstractions.Extensions;
@@ -130,6 +131,9 @@ public sealed class EfCoreInboxStorageModule : IInboxStorageModule, IRequires<In
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IInboxWorkSignal),
             typeof(InboxPollingWorkSignal)));
+
+        configuration.RegisterStartupTask(
+            typeof(EfCoreInboxDbContextStartupCheck<>).MakeGenericType(moduleBuilder.DbContextType));
 
         if (moduleBuilder.RegisterSaveChangesInterceptor)
         {

@@ -12,13 +12,13 @@
 
 Analyzers have no runtime dependency on LiteBus libraries.
 
-## Rule Inventory (LB1001-LB1024)
+## Rule Inventory (LB1001-LB1030)
 
 | ID | Severity | Category | Summary |
 | --- | --- | --- | --- |
 | LB1001 | Error | Handlers | Duplicate `ICommandHandler<TCommand>` for the same command type |
 | LB1002 | Reserved | Handlers | Reserved, never shipped. Event multicast is supported, so duplicate event handlers are not reported. |
-| LB1003 | Warning | Handlers | Query or stream query handler depends on command, event, query, inbox, outbox, or transport publisher APIs |
+| LB1003 | Warning | Handlers | Query or stream query handler depends on command, event, inbox, outbox, or transport publisher APIs |
 | LB1004 | Error | Inbox | `ICommand<TResult>` passed to `IInbox.AcceptAsync`, `AcceptBatchAsync`, or `ITransactionalInbox.AcceptAsync` |
 | LB1005 | Error | Handlers | Open generic handler has a type parameter count other than one, or other than two when the handler contract takes both in order |
 | LB1006 | Reserved | N/A | Reserved, never shipped. |
@@ -33,17 +33,23 @@ Analyzers have no runtime dependency on LiteBus libraries.
 | LB1015 | Warning | Configuration | Transactional EF storage calls `EnforceTransactionalSetup()` without `EnableSaveChangesInterceptor()` |
 | LB1016 | Warning | Inbox | Constructor injects `ITransactionalInboxStore` without a `DbContext` in the same constructor |
 | LB1017 | Warning | Contracts | Type declares `[MessageContract]` but lacks explicit `Contracts.Register` or `RegisterFromAssembly` in the compilation |
-| LB1018 | Warning (disabled by default) | Auditing | Command or query type declares neither `[Audited]` nor `[AuditExempt]` and has no `IAuditDefinition`. This rule is LB1020 with `AuditDeclaration` already configured |
+| LB1018 | Warning (disabled by default) | Auditing | Command or query type declares neither `[Audited]` nor `[AuditExempt]` and has no `IAuditDefinition` or catalog source entry. This rule is LB1020 with `AuditDeclaration` already configured |
 | LB1019 | Warning | Handlers | Shortcut implements `IMessageShortcut<TMessage>` for a message that produces a result |
 | LB1020 | Warning (disabled by default) | Declarations | Command or query type states no position on a metadata value type named in `litebus_required_declarations` |
-| LB1021 | Warning | Declarations | `litebus_required_declarations` names a type that does not resolve in the compilation |
+| LB1021 | Warning | Declarations | `litebus_required_declarations` names a type that does not resolve in a compilation that references the LiteBus message contracts |
 | LB1022 | Warning | Handlers | `[HandlerPriority]` value falls inside the range LiteBus reserves for its own handlers |
-| LB1023 | Warning (disabled by default) | Handlers | Command handler sends or publishes another message through a mediator inside its handle method |
+| LB1023 | Warning | Handlers | Command handler, pre-handler, or post-handler sends or publishes another message through a mediator inside its handle method; reports only when `litebus_forbid_nested_commands` is `true` |
 | LB1024 | Warning (disabled by default) | Handlers | Command handler injects an external side-effect type through its constructor |
+| LB1025 | Warning | Outbox | Command handler injects `IOutbox` while a transactional outbox storage package resolves, so the enqueue commits apart from the domain write |
+| LB1026 | Warning | Outbox | Type injects `ITransactionalOutbox<TContext>` for a context no `UseDbContext<TContext>()` call in the compilation configures |
+| LB1027 | Warning | Outbox | One `[SubscriberName]` value is used by handlers of different messages |
+| LB1028 | Info | Declarations | One definition class declares more than one metadata concern |
+| LB1029 | Warning | Contracts | Durable command or event in an assembly carrying `[assembly: MessageContractsRegisteredIn]` has no `[MessageContract]` |
+| LB1030 | Warning | Contracts | Explicit `Register<TMessage>(name, version)` name or version differs from the message type's `[MessageContract]` |
 
 ## Build-Only Rules
 
-LB1001, LB1007, LB1008, LB1009, LB1010, LB1011, LB1012, LB1017, LB1018, LB1020, and LB1021 need facts from the whole compilation. A handler in one file satisfies a command declared in another, and a `Register` call in a module satisfies a contract declared elsewhere. These rules gather facts as each file is analyzed and report once at compilation end. Their descriptors carry the `CompilationEnd` tag.
+LB1001, LB1007, LB1008, LB1009, LB1010, LB1011, LB1012, LB1017, LB1018, LB1020, LB1021, LB1026, LB1027, and LB1029 need facts from the whole compilation. A handler in one file satisfies a command declared in another, and a `Register` call in a module satisfies a contract declared elsewhere. These rules gather facts as each file is analyzed and report once at compilation end. Their descriptors carry the `CompilationEnd` tag.
 
 `dotnet build` and CI report them as usual. Visual Studio and other hosts that analyze one open file at a time do not show them inline while you edit. They appear in the error list after a build, or with full solution analysis enabled. The remaining rules inspect one type or one invocation and report live while you type.
 
@@ -51,7 +57,7 @@ LB1001, LB1007, LB1008, LB1009, LB1010, LB1011, LB1012, LB1017, LB1018, LB1020, 
 
 Compilation-end rules analyze one project at a time. They see the syntax of the compilation under analysis plus the types declared in eligible referenced assemblies. Registrations, tag filters, and handlers that live in another project are invisible, so the rule still reports a message handled or registered in an upper layer when it analyzes the lower layer.
 
-Message candidates for LB1007, LB1008, LB1009, LB1011, and LB1017 are scoped to the analyzed assembly, because a message from a referenced assembly cannot be annotated from the compilation being built. Handlers from eligible referenced assemblies still satisfy LB1008 and LB1009 coverage. Keep the handler or the registration call in the same compilation as the message type, or suppress the diagnostic at the declaration with a comment naming the project that owns it. LB1012 is the exception. It compares handler simple names across assemblies by design.
+Message candidates for LB1007, LB1008, LB1009, LB1011, and LB1017 are scoped to the analyzed assembly, because a message from a referenced assembly cannot be annotated from the compilation being built. A contracts assembly that carries `[assembly: MessageContractsRegisteredIn("Module.Assembly")]` hands LB1007, LB1008, LB1009, and LB1017 to the named assembly: its own compilation and consuming modules stop reporting those contracts, the named assembly reports any contract it does not register, and it reports any of the attributed assembly's message types without a main handler at the first location of its own compilation. See [Contract Registration](../catalog/analyzers/contract-registration.md) and [Handler Coverage](../catalog/analyzers/handler-coverage.md). In the attributed compilation itself, LB1029 reports every durable command or event without `[MessageContract]`, so an unattributed type cannot go silent everywhere. Handlers from eligible referenced assemblies still satisfy LB1008 and LB1009 coverage. Keep the handler or the registration call in the same compilation as the message type, or suppress the diagnostic at the declaration with a comment naming the project that owns it. LB1012 is the exception. It compares handler simple names across assemblies by design.
 
 ## Reserved Handler Priority (LB1022)
 
@@ -106,21 +112,32 @@ litebus_required_declarations = App.Security.RequiredPermission, App.Compliance.
 dotnet_diagnostic.LB1020.severity = warning
 ```
 
-A message satisfies the rule with a definition class, with an attribute annotated `[MessageDeclaration(typeof(TValue))]`, or with `[DeclarationExempt(typeof(TValue), "rationale")]`. A declaration written for a base type or marker interface covers the messages that derive from it. With nothing configured the rule reports nothing.
+A message satisfies the rule with a definition class, with a catalog source describing it through `Describe`, with an attribute annotated `[MessageDeclaration(typeof(TValue))]`, or with `[DeclarationExempt(typeof(TValue), "rationale")]`. A declaration written for a base type or marker interface covers the messages that derive from it. With nothing configured the rule reports nothing.
 
-LB1021 reports a configured name that does not resolve, because a name that silently did nothing would disable the requirement it configures. A typo in `.editorconfig` is the usual cause.
-
-`RequireDeclaration<TValue>()` on the messaging module enforces the same rule at composition time, which also covers a message registered from an assembly outside this compilation. See [Required Declarations](../catalog/analyzers/required-declarations.md).
-
-## Nested Mediation in Command Handlers (LB1023)
-
-LB1023 reports a command handler that sends a command, sends a batch of commands, publishes an event, or mediates another message through `ICommandMediator`, `ICommandBatchMediator`, `IEventMediator`, or `IMessageMediator` inside `HandleAsync` or `Handle`. The batch methods are `ICommandBatchMediator.SendManyAsync` and `ICommandBatchMediator.TrySendManyAsync`, and the diagnostic names the called method the same way it does for `SendAsync`. The nested mediation runs a second unit of work inside the first, so the outer commit cannot roll the inner work back. A retry of the outer handler runs the inner work twice. The rule is disabled by default. Enable it once command handlers no longer nest units of work.
+The tenancy attributes (`[TenantRequired]`, `[CrossTenant]`, `[NoTenant]`) declare `TenancyDeclaration`, so the build check for a composition that calls `RequireDeclaration<TenancyDeclaration>()` is this configuration:
 
 ```ini
 # .editorconfig
 [*.cs]
-dotnet_diagnostic.LB1023.severity = warning
+litebus_required_declarations = LiteBus.Messaging.Abstractions.Tenancy.TenancyDeclaration
+dotnet_diagnostic.LB1020.severity = warning
 ```
+
+LB1021 reports a configured name that does not resolve in a compilation that references the LiteBus message contracts, the same condition the analyzer uses to look for messages. A name that silently did nothing would disable the requirement it configures, and a typo in `.editorconfig` is the usual cause. In a project with no message contracts and no messages, the rule reports nothing, so a shared configuration cannot raise it there.
+
+`RequireDeclaration<TValue>()` on the messaging module enforces the same rule at composition time, which also covers a message registered from an assembly outside this compilation. LB1020 checks what the message states itself: a definition, a catalog source, a declaring attribute, or an exemption. Defaults, conventions, and Report or Fail enforcement are composition checks. Event requirements are composition-only; LB1020 does not check events. See [Required Declarations](../catalog/analyzers/required-declarations.md).
+
+## Nested Mediation in Command Handlers (LB1023)
+
+LB1023 reports a command handler, pre-handler, or post-handler that sends a command, sends a batch of commands, publishes an event, or mediates another message through `ICommandMediator`, `ICommandBatchMediator`, `IEventMediator`, or `IMessageMediator` inside `HandleAsync`, `Handle`, `PreHandleAsync`, or `PostHandleAsync`. The batch methods are `ICommandBatchMediator.SendManyAsync` and `ICommandBatchMediator.TrySendManyAsync`, and the diagnostic names the called method the same way it does for `SendAsync`. The nested mediation runs a second unit of work inside the first, so the outer commit cannot roll the inner work back. A retry of the outer handler runs the inner work twice. The rule reports only when `litebus_forbid_nested_commands` is `true`. Without the option it reports nothing.
+
+```ini
+# .editorconfig
+[*.cs]
+litebus_forbid_nested_commands = true
+```
+
+An analyzer cannot see a `ForbidNestedCommands()` call made in another compilation, so the option pairs the build check with the runtime guarantee instead of detecting the call. The runtime counterpart is `CommandModuleBuilder.ForbidNestedCommands()`, which throws `NestedMediationException` before the inner pipeline starts. The runtime stays the guarantee.
 
 Reads through `IQueryMediator` are not reported. Queries are side-effect free by contract (see LB1003), so a nested read creates no nested unit of work. `EvaluateAsync` guard checks are not reported either, because they decide without acting. A `Mediate` call whose message is a query is treated as a read for the same reason.
 
@@ -159,6 +176,7 @@ Open generic shortcuts are not reported. The message type is a type parameter, s
 
 - **LB1007** reports handled durable types that have neither `[MessageContract]` nor registration discovered through `Contracts.Register<T>()` or `RegisterFromAssembly`.
 - **LB1017** reports attributed durable types that lack explicit registration. Runtime on-demand resolution still works, but explicit registration is recommended for predictable discovery.
+- **LB1029** reports durable commands and events without `[MessageContract]` in a compilation whose assembly carries `[assembly: MessageContractsRegisteredIn]`. Consuming compilations trust the named assembly for every type declared there, and LB1017 checks only attributed types, so without this rule an unattributed type would never be checked anywhere.
 
 Both rules treat `RegisterFromAssembly` / `AddFromAssembly` as satisfying explicit registration, except scans through the command, event, and query axis builders, which record message and handler types only. Both rules match a singular `Register` only when it is called on a contract writer surface, namely `IContractWriter`, `IMessageContractRegistry`, `MessageContractBuilder`, their implementers, or `Register` extensions on those. They ignore unrelated `Register<T>()` methods such as the message, command, event, and query axis builders or a same-shaped handler registry.
 
@@ -172,7 +190,7 @@ The inbox replays stored commands later and discards handler results. Only `ICom
 
 LB1009 reports query types without `IQueryHandler<TQuery, TResult>` and stream query types without `IStreamQueryHandler<TQuery, TResult>`. The rule does not check stream queries implementing `IStreamQuery<TResult>` against query handlers. LB1010 applies the same duplicate detection to both handler kinds.
 
-Message candidates for LB1008 and LB1009 are scoped to the analyzed assembly. A message from a referenced assembly is never reported, because it cannot be annotated from the compilation being built. Handler registration scanning still includes eligible referenced assemblies, so a handler in a referenced assembly satisfies coverage. LB1010 duplicate detection spans the same registrations. See Compilation Boundaries.
+Message candidates for LB1008 and LB1009 are scoped to the analyzed assembly. A message from a referenced assembly is never reported, because it cannot be annotated from the compilation being built, except through the `MessageContractsRegisteredIn` handoff: when a referenced assembly carries `[assembly: MessageContractsRegisteredIn]` naming the analyzed compilation, the named compilation checks that assembly's message types and reports each type without a main handler at the first location of its own compilation, while the declaring compilation skips those types. Handler registration scanning still includes eligible referenced assemblies, so a handler in a referenced assembly satisfies coverage. LB1010 duplicate detection spans the same registrations. See Compilation Boundaries.
 
 ## Reserved Event Handler Slot (LB1002)
 

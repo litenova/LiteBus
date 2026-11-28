@@ -57,4 +57,33 @@ public sealed class EventMediationSettings
     ///     event contract itself.
     /// </remarks>
     public IDictionary<string, object> Items { get; init; } = new Dictionary<string, object>();
+
+    /// <summary>
+    ///     Gets the identity the mediation runs for: the calling principal and the tenant.
+    /// </summary>
+    /// <remarks>
+    ///     Leave it <see langword="null" /> to inherit the identity of an enclosing mediation or to read it from the
+    ///     registered <see cref="IExecutionIdentityProvider" />. Set it when the caller is known only here, such as a
+    ///     job that runs on behalf of one tenant.
+    /// </remarks>
+    public ExecutionIdentity? Identity { get; init; }
+
+    /// <summary>
+    ///     Gets the committed fact that caused this mediation, or <see langword="null" /> for an application-started or nested mediation.
+    /// </summary>
+    /// <remarks>
+    ///     Leave it <see langword="null" /> when the application starts the mediation. Dispatchers set it from envelope
+    ///     fields when a boundary starts a root mediation, and the mediator copies it into the created execution context.
+    /// </remarks>
+    public MediationCause? Cause { get; init; }
+
+    /// <summary>
+    ///     Creates event mediation settings that run in one tenant.
+    /// </summary>
+    /// <param name="tenantId">The tenant the mediation runs in, or <see langword="null" /> when the work belongs to no tenant.</param>
+    /// <returns>The settings with <see cref="Identity" /> set from <paramref name="tenantId" />; a blank value yields <see cref="ExecutionIdentity.Anonymous" />.</returns>
+    public static EventMediationSettings ForTenant(string? tenantId)
+    {
+        return new EventMediationSettings { Identity = ExecutionIdentity.ForTenant(tenantId) };
+    }
 }

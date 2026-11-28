@@ -5,6 +5,7 @@
                   "dependency-graph",
                   "generated-package-inventory",
                   "hosted-services",
+                  "application-modules",
                   "mediation-design",
                   "api-design",
                   "handler-resolution",

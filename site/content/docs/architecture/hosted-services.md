@@ -38,6 +38,7 @@ Modules register host work through `IModuleConfiguration`. `AddLiteBus` exposes 
 | `IModuleConfiguration.RegisterDiagnosticCheck` | Manifest entry used by module `Build` methods | `LiteBus.Runtime` |
 | `LiteBusHostManifest` | Resolved manifest after module build | `LiteBus.Runtime.Abstractions` |
 | Generic host bridge | Maps manifest entries to one `IHostedService` orchestrator | `LiteBus.Runtime.Extensions.Hosting`, `LiteBus.Runtime.Extensions.Microsoft.Hosting`, `LiteBus.Runtime.Extensions.Autofac.Hosting` |
+| `ValidateLiteBusHost()` | Resolves manifest entries and hosted services from a built provider without starting it | `LiteBus.Runtime.Extensions.Microsoft.Hosting` |
 
 Compose through parent module builders. Register storage, dispatch, and ingress inside `AddInbox` or `AddOutbox` with `Use*` extensions. Do not register host framework types directly from core or adapter packages.
 
@@ -116,6 +117,8 @@ registry.AddCommands(commands => commands
 When a pass throws, the loop logs the failure and continues after `ErrorBackoff`, which defaults to five minutes. When `RecurringCommandHostOptions.IsConcurrencyConflict` classifies a pass as a lost race (an optimistic-concurrency conflict, a deadlock, or a serialization failure), the loop logs at Information (EventId 2104) and waits `Interval`, which defaults to one minute. A result that implements `IRecurringWorkReport` with `HasMoreWork` set to true skips the interval so a backlog clears without idle waits.
 
 Unless the command sets `RequireLease`, the loop runs on every host instance. `RequireLease` takes a named lease before each pass and skips the pass when another instance holds it. `LiteBus.Commands.Recurring.Storage.PostgreSql` supplies a PostgreSQL advisory-lock lease. Use inbox or outbox processors for work that must be claimed exactly once per message. See [Recurring Commands](../integrations/recurring-commands.md).
+
+`CommandModuleBuilder.AddRecurringForEachTenant` from the same package registers `RecurringTenantSweepBackgroundService<TCommand>` through the manifest, one per registered command type. Each pass reads its tenants under `RecurringCommandHostOptions.SourceIdentity`, which defaults to `ExecutionIdentity.System`, and sends one command per tenant. A sweep with `TenantSchedule` set waits for the earliest occurrence across its tenants and sends only for the tenants whose occurrence is due; `RequireLease` with `RecurringLeaseScope.Tenant` or `RecurringLeaseScope.TenantOccurrence` single-flights per tenant instead of per pass. Scheduled loops record each occurrence they run through `IRecurringOccurrenceStore`, which `UsePostgreSqlRecurringLease` backs with the `litebus_recurring_occurrences` table. See [Recurring Commands](../integrations/recurring-commands.md).
 
 ## Run Without the Generic Host
 

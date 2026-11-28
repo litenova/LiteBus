@@ -14,12 +14,14 @@ public static class OutboxModuleBuilderEventDispatchExtensions
     /// <param name="builder">The outbox module builder.</param>
     /// <param name="configure">
     ///     An optional action that adjusts the dispatch options. When omitted, a message dispatched with no
-    ///     registered handler fails the attempt rather than completing as published.
+    ///     registered handler fails the attempt rather than completing as published. Call
+    ///     <see cref="InProcessOutboxDispatchOptionsBuilder.AllowEnvelopesWithoutHandler" /> inside the action to
+    ///     allow envelopes without a handler, with an acknowledgement that is logged at startup.
     /// </param>
     /// <returns>The outbox module builder for chaining.</returns>
     /// <example>
     ///     <code><![CDATA[
-    /// outbox.UseInProcessDispatch(dispatch => dispatch.RequireHandler = false);
+    /// outbox.UseInProcessDispatch(dispatch => dispatch.AllowEnvelopesWithoutHandler("Single-node leaf service with no local subscribers yet."));
     /// ]]></code>
     /// </example>
     public static OutboxModuleBuilder UseInProcessDispatch(

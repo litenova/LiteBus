@@ -24,7 +24,7 @@ Saga is not a full workflow engine. It provides no built-in scheduler, timeout f
 | --- | --- |
 | Dedicated saga handler type | `ICommandHandler<TCommand>` plus `ISagaContext` |
 | Outbox or event-driven saga | Inbox commands only |
-| EF Core saga storage | PostgreSQL or custom `ISagaStore` |
+| EF Core saga storage | PostgreSQL, Marten, or custom `ISagaStore` |
 | Saga scheduler and timeouts | Application timers or external orchestration |
 | Built-in compensation framework | Handler logic and idempotent side effects |
 | Transactional saga plus inbox in one connection | Application-level two-phase workflow or future transactional store adapter |
@@ -36,6 +36,7 @@ Saga is not a full workflow engine. It provides no built-in scheduler, timeout f
 | `LiteBus.Saga` | Core saga store, processor hook, state registry |
 | `LiteBus.Saga.InboxIntegration` | `EnableSaga()` on `InboxModuleBuilder` |
 | `LiteBus.Saga.Storage.PostgreSql` | PostgreSQL `ISagaStore` selection for production |
+| `LiteBus.Saga.Storage.Marten` | Marten `ISagaStore` selection for applications that already use Marten |
 
 Reference inbox, command module, and storage packages. See [Dependency Graph](../architecture/dependency-graph.md) for role rules.
 
@@ -63,6 +64,10 @@ builder.AddInbox(inbox =>
 
         // Production: replace UseInMemoryStorage with the PostgreSQL selection.
         // saga.UsePostgreSqlStorage(pg => pg.UseConnectionString(connectionString));
+
+        // Applications that already use Marten select the Marten store instead.
+        // The application registers Marten itself with AddMarten; LiteBus only resolves IDocumentStore.
+        // saga.UseMarten();
     });
 });
 ```
@@ -126,7 +131,7 @@ await inbox.AcceptAsync(
     cancellationToken).ConfigureAwait(false);
 ```
 
-Messages without correlation dispatch normally but skip saga scope (`ISagaContext.IsActive` is false). When present, `TenantId` on the envelope participates in the saga primary key. The PostgreSQL store writes a missing or whitespace tenant identifier as an empty string. An omitted tenant predicate on `SagaQueryFilter` or `SagaPurgeFilter` includes every tenant.
+Messages without correlation dispatch normally but skip saga scope (`ISagaContext.IsActive` is false). When present, `TenantId` on the envelope participates in the saga primary key. The PostgreSQL and Marten stores write a missing or whitespace tenant identifier as an empty string. An omitted tenant predicate on `SagaQueryFilter` or `SagaPurgeFilter` includes every tenant.
 
 ## Failure Semantics and Concurrency
 
@@ -212,7 +217,9 @@ Concurrent saves throw `SagaConcurrencyException`, which carries the conflicting
 | `InboxModuleBuilder.EnableSaga(...)` | `LiteBus.Saga.InboxIntegration` | Registers the nested saga composition |
 | `SagaModuleBuilder.UseInMemoryStorage()` | `LiteBus.Saga` | Explicit test and local storage selection |
 | `SagaModuleBuilder.UsePostgreSqlStorage(...)` | `LiteBus.Saga.Storage.PostgreSql` | Explicit durable storage selection |
+| `SagaModuleBuilder.UseMarten(...)` | `LiteBus.Saga.Storage.Marten` | Explicit Marten storage selection for applications that already use Marten |
 | `PostgreSqlSagaStoreOptions` | `LiteBus.Saga.Storage.PostgreSql` | `SchemaName`, `TableName`, schema startup flags |
+| `MartenSagaStoreOptions` | `LiteBus.Saga.Storage.Marten` | Store configuration; carries no settings yet, so the connection and schema stay in the application Marten configuration |
 
 The defaults for `PostgreSqlSagaStoreOptions` are:
 
@@ -239,6 +246,8 @@ saga.UsePostgreSqlStorage(pg =>
 
 Apply the canonical create script from `PostgreSqlSagaSchema` in the migration. When startup validation is disabled, call `PostgreSqlSagaSchema.ValidateAsync` from deploy checks.
 
+The Marten store needs no schema script. Marten creates the storage for `MartenSagaDocument` on first use under its default auto-create setting. Each saga instance is one document whose identity is the escaped composite of tenant, saga definition, and correlation, with Marten optimistic concurrency mapped to `SagaConcurrencyException`. See [Marten Saga Storage](../catalog/saga/marten-storage.md).
+
 Inbox processor options (`BatchSize`, `LeaseDuration`, and similar) apply unchanged. See [Inbox](inbox.md).
 
 ## Limits
@@ -246,7 +255,7 @@ Inbox processor options (`BatchSize`, `LeaseDuration`, and similar) apply unchan
 | Area | Current Behavior |
 | --- | --- |
 | Trigger | Inbox command dispatch only |
-| Storage | Exactly 1 explicit selection: InMemory, PostgreSQL, or a custom `ISagaStorageModule` |
+| Storage | Exactly 1 explicit selection: InMemory, PostgreSQL, Marten, or a custom `ISagaStorageModule` |
 | Handler API | `ISagaContext` injection only |
 | Orchestration | Application-owned multi-step logic in handlers |
 | Outbox and events | Not integrated with saga hook |
@@ -254,7 +263,7 @@ Inbox processor options (`BatchSize`, `LeaseDuration`, and similar) apply unchan
 
 ## Operations
 
-When using PostgreSQL storage, monitor inbox processor metrics and saga row growth. Use `ISagaStore.QueryAsync` and `PurgeAsync` for retention jobs.
+When using PostgreSQL or Marten storage, monitor inbox processor metrics and saga row growth. Use `ISagaStore.QueryAsync` and `PurgeAsync` for retention jobs.
 
 Scope a purge with a predicate or bound it with `SagaPurgeFilter.Take`. It deletes the oldest matches first. A purge with no predicates and no limit is rejected.
 
@@ -280,6 +289,7 @@ For dirty-state optimistic concurrency failures, retry the inbox message or reco
 | `tests/LiteBus.Storage.IntegrationTests/PostgreSql/PostgreSqlSagaInboxEndToEndTests.cs` | PostgreSQL persistence and tenant-scoped correlation after `EnableSaga` |
 | `tests/LiteBus.Storage.IntegrationTests/PostgreSql/PostgreSqlSagaStoreOperationsTests.cs` | PostgreSQL tenant isolation, query, purge, and concurrent completion behavior |
 | `tests/LiteBus.Storage.IntegrationTests/PostgreSql/PostgreSqlSagaOrchestrationDepthTests.cs` | Multi-step workflow, compensation, concurrency |
+| `tests/LiteBus.Storage.IntegrationTests/Marten/MartenSagaStoreOperationsTests.cs` | Marten tenant isolation, query, purge, and concurrent completion behavior |
 
 ## Next
 

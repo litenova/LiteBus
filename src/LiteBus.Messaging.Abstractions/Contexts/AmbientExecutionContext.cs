@@ -57,6 +57,29 @@ public static class AmbientExecutionContext
     }
 
     /// <summary>
+    ///     Removes the ambient execution context for the current async flow and returns what was there.
+    /// </summary>
+    /// <returns>The execution context that was current, or <see langword="null" /> when none was set.</returns>
+    /// <remarks>
+    ///     A library-started root mediation calls this when it begins, so the root never inherits ambient context.
+    /// </remarks>
+    internal static IExecutionContext? TakeCurrent()
+    {
+        IExecutionContext? previous = ExecutionContextLocal.Value;
+        ExecutionContextLocal.Value = null;
+        return previous;
+    }
+
+    /// <summary>
+    ///     Restores the ambient execution context saved by <see cref="TakeCurrent" />.
+    /// </summary>
+    /// <param name="previous">The execution context to restore, or <see langword="null" /> to leave the flow without one.</param>
+    internal static void Restore(IExecutionContext? previous)
+    {
+        ExecutionContextLocal.Value = previous;
+    }
+
+    /// <summary>
     ///     Creates a new execution context scope that automatically restores the previous context when disposed.
     /// </summary>
     /// <param name="context">The execution context to use within the scope.</param>

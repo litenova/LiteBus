@@ -27,7 +27,7 @@ public static class ModuleRegistryExtensions
     }
 
     /// <summary>
-    ///     Registers a query module with the specified configuration.
+    ///     Registers a query module with the specified configuration, or configures the registered one again.
     /// </summary>
     /// <param name="moduleRegistry">The module registry to register the query module with.</param>
     /// <param name="builderAction">An action to configure the query module builder.</param>
@@ -37,7 +37,9 @@ public static class ModuleRegistryExtensions
     /// </exception>
     /// <remarks>
     ///     <see cref="QueryModule" /> declares <see cref="IRequires{TModule}" /> for <see cref="MessageModule" />.
-    ///     The complete module graph validates that dependency independent of registration order.
+    ///     The complete module graph validates that dependency independent of registration order. Calling this twice
+    ///     configures one module instead of registering a second one, so several application modules can add to one
+    ///     composition.
     /// </remarks>
     /// <example>
     ///     <code>
@@ -55,6 +57,14 @@ public static class ModuleRegistryExtensions
     {
         ArgumentNullException.ThrowIfNull(moduleRegistry);
         ArgumentNullException.ThrowIfNull(builderAction);
+
+        var existing = moduleRegistry.Find<QueryModule>();
+
+        if (existing is not null)
+        {
+            existing.Configure(builderAction, child => moduleRegistry.Register(child));
+            return moduleRegistry;
+        }
 
         moduleRegistry.Register(new QueryModule(builderAction));
         return moduleRegistry;

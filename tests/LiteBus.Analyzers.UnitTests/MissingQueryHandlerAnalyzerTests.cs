@@ -1,4 +1,5 @@
 using LiteBus.Messaging.Abstractions;
+using LiteBus.Auditing.Abstractions;
 using LiteBus.Queries.Abstractions;
 using Microsoft.CodeAnalysis;
 
@@ -286,5 +287,89 @@ public sealed class MissingQueryHandlerAnalyzerTests
             queriesReference,
             messagingReference,
             referencedProject);
+    }
+
+    /// <summary>
+    ///     Verifies that a query without a handler in an assembly that names another registering assembly produces no diagnostic.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task QueryInAssemblyNamingAnotherAssembly_ProducesNoDiagnostic()
+    {
+        const string source = """
+                              using LiteBus.Messaging.Abstractions;
+                              using LiteBus.Queries.Abstractions;
+
+                              [assembly: MessageContractsRegisteredIn("LedgerModule")]
+
+                              public sealed record GetUserQuery(int UserId) : IQuery<string>;
+                              """;
+
+        return AnalyzerTest.VerifyNoDiagnosticsAsync<MissingQueryHandlerAnalyzer>(source);
+    }
+
+    /// <summary>
+    ///     Verifies that a query without a handler in an assembly that names its own compilation still produces LB1009.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task QueryInAssemblyNamingCurrentCompilation_ProducesDiagnostic()
+    {
+        const string source = """
+                              using LiteBus.Messaging.Abstractions;
+                              using LiteBus.Queries.Abstractions;
+
+                              [assembly: MessageContractsRegisteredIn("TestProject")]
+
+                              public sealed record {|#0:GetUserQuery|}(int UserId) : IQuery<string>;
+                              """;
+
+        return AnalyzerTest.VerifyDiagnosticAsync<MissingQueryHandlerAnalyzer>(
+            source,
+            DiagnosticDescriptors.MissingQueryHandler,
+            0,
+            "GetUserQuery");
+    }
+
+    /// <summary>
+    ///     Verifies that a stream query without a handler in an assembly that names another registering assembly produces no diagnostic.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task StreamQueryInAssemblyNamingAnotherAssembly_ProducesNoDiagnostic()
+    {
+        const string source = """
+                              using LiteBus.Messaging.Abstractions;
+                              using LiteBus.Queries.Abstractions;
+
+                              [assembly: MessageContractsRegisteredIn("LedgerModule")]
+
+                              public sealed record StreamUsersQuery(int PageSize) : IStreamQuery<string>;
+                              """;
+
+        return AnalyzerTest.VerifyNoDiagnosticsAsync<MissingQueryHandlerAnalyzer>(source);
+    }
+
+    /// <summary>
+    ///     Verifies that a stream query without a handler in an assembly that names its own compilation still produces LB1009.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task StreamQueryInAssemblyNamingCurrentCompilation_ProducesDiagnostic()
+    {
+        const string source = """
+                              using LiteBus.Messaging.Abstractions;
+                              using LiteBus.Queries.Abstractions;
+
+                              [assembly: MessageContractsRegisteredIn("TestProject")]
+
+                              public sealed record {|#0:StreamUsersQuery|}(int PageSize) : IStreamQuery<string>;
+                              """;
+
+        return AnalyzerTest.VerifyDiagnosticAsync<MissingQueryHandlerAnalyzer>(
+            source,
+            DiagnosticDescriptors.MissingQueryHandler,
+            0,
+            "StreamUsersQuery");
     }
 }

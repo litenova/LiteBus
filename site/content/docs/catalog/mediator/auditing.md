@@ -8,7 +8,7 @@
 
 ## What It Does
 
-`AddAuditing` configures the trail, the actor resolver, the outcome mapper, and which axes produce records. Selecting an axis registers a completion handler there. When a mediation ends, the handler reads the message's `AuditDeclaration` from message metadata, combines it with the resolved actor and the detail the handler pushed through `IAuditScope`, and hands an `AuditRecord` to the application's `IAuditTrail`.
+`AddAuditing` on the auditing module (`LiteBus.Auditing`) configures the trail or store, the actor resolver, the outcome mapper, and which axes produce records. Selecting an axis registers a completion handler for every message of that axis; the command, query and event modules carry no audit code. When a mediation ends, the handler reads the message's `AuditDeclaration` from message metadata, combines it with the resolved actor and the detail the handler pushed through `IAuditScope`, and hands an `AuditRecord` to the application's `IAuditTrail`.
 
 Because the writer runs at the completion stage, refusals, failures, and cancellations produce records in the same way successes do. That is the difference between an audit trail and a changelog. An audit answers who attempted something and was stopped. A handler-written record can never capture that, because authorization refuses before the handler reaches its audit line.
 
@@ -18,6 +18,10 @@ The constant half of a record is declared once per message, with `[Audited]` and
 
 The variable half, such as an identifier the handler generated, is pushed at runtime through `IAuditScope`. When the value can be read from the message itself, it is declared with a target or reason selector instead: `AuditedDeclaration.WithTargetFrom<TMessage>` and `WithReasonFrom<TMessage>` project `TargetId` and `Reason` from the message. Selectors are delegates, so attributes cannot carry them. A message that reads its target or reason from itself needs a definition.
 
+The completion context carries the identity the mediation ran for as `MessageCompletionContext.Identity`, copied from `IExecutionContext.Identity` when the context is built. The writer and the documented `IAuditActorResolver` read the caller from there rather than from ambient state. When no resolver is registered, the writer falls back to the principal on the completion identity, reading the identifier from the `NameIdentifier` claim and then the `sub` claim; when the principal carries no usable claim, the record keeps no actor.
+
+Tamper evidence below the record is the auditing module (`AddAuditing`) with one registered store and an optional hash chain. Two independent settings decide when a record is written (`AuditCapture`: `WithChange`, `AfterCommitThroughOutbox`, `BeforeAndOutcome`) and when it joins the chain (`AuditLink`: `AfterCommit`, `InTransaction`, `AtWrite`). The chain pieces carry LiteBus defaults: the stored document (`IAuditRecordMapper<TDocument>` with `MapAsync` in the mediation scope), the segmenting (`IAuditSegmenter<TDocument>` with `DescribeSegment` head metadata), the canonical bytes (`IAuditCanonicalizer<TDocument>`), the named scheme (`AuditHashScheme<TDocument>`, `sha256-v2` framing by default), the checkpoint policy (`ICheckpointPolicy`), the signers (`ICheckpointSigner`), the publishers (`ICheckpointPublisher`), and the verification sources (`ICheckpointSource`). Each record stores the name of the scheme it was written with, and `IAuditChain` verifies, checkpoints, lists, expires, and erases segments on every store through the `IAuditChainStore<TDocument>` port. See [Auditing](../../concepts/auditing.md#hash-chained-audit-storage).
+
 ## Public Surface
 
 ```csharp
@@ -26,11 +30,11 @@ public sealed record PlaceOrderCommand(Guid CartId) : ICommand<OrderId>;
 
 services.AddLiteBus(registry =>
 {
-    registry.AddMessaging(messaging => messaging.AddAuditing(auditing => auditing
-        .UseTrail<PostgresAuditTrail>()
-        .UseActorResolver<RequestActorResolver>()
+    registry.Modules.AddAuditing(auditing => auditing
         .ForCommands()
-        .ForQueries()));
+        .ForQueries()
+        .UseTrail<PostgresAuditTrail>()
+        .UseActorResolver<RequestActorResolver>());
 });
 ```
 
@@ -45,31 +49,62 @@ services.AddLiteBus(registry =>
 | `AuditRecord` / `AuditOutcome` | The record handed to the trail |
 | `AuditActor` | Who acted: a required `Id` and `Kind`, plus `DisplayName` and `OnBehalfOf`. Factories `User(id)`, `System(processName)`, `For(kind, id)`. A display name is added with `with` |
 | `IAuditRecordWriter` | The whole contract between the pipeline and auditing. Replace it to own the record shape |
-| `IAuditActorResolver` | Application-supplied attribution, reading the message at the completion stage |
+| `IAuditActorResolver` | Application-supplied attribution, reading the message and `MessageCompletionContext.Identity` at the completion stage |
+| `MessageCompletionContext.Identity` | The identity the mediation ran for, copied from `IExecutionContext.Identity`; `ExecutionIdentity.Anonymous` until set on a hand-built context. Both generic views expose the same value |
 | `IAuditTrail` | Application-supplied sink |
-| `MessageModuleBuilder.AddAuditing(Action<AuditingBuilder>)` | Configures the trail, the actor resolver, the outcome mapper, and the axes |
-| `AuditingBuilder` | `UseTrail`, `UseTrailInstance`, `UseActorResolver`, `UseActorResolverInstance`, `UseOutcomeMapper`, `UseOutcomeMapperInstance`, `UseRecordWriter`, `UseRecordWriterInstance`, `ForCommands`, `ForQueries`, `ForEvents`, `ForAllAxes` |
-| `MessageModuleBuilder.UseAuditRecordWriter<T>(lifetime)` / `UseAuditRecordWriterInstance` | Replaces the record building. The probe then reports the writer instead of demanding a trail |
-| `MessageModuleBuilder.UseAuditTrail<T>(lifetime)` | The primitive `AddAuditing` composes. Scoped by default |
-| `MessageModuleBuilder.UseAuditTrailInstance(trail)` | Registers a trail you already hold, as a singleton |
-| `MessageModuleBuilder.UseAuditActorResolver<T>(lifetime)` / `UseAuditActorResolverInstance` | The attribution primitives |
-| `MessageModuleBuilder.UseAuditOutcomeMapper<T>()` / `UseAuditOutcomeMapper(instance)` | Classifies an application refusal exception as a denial rather than a failure |
-| `MessageModuleBuilder.RequireUniqueAuditActions()` | Fails composition when two messages share an action code |
-| `MessageModuleBuilder.RequireAuditActionFormat(pattern)` | Fails composition when an action breaks the house naming convention. The default pattern is `MessageModuleBuilder.DefaultAuditActionPattern` |
+| `ModuleRegistryExtensions.AddAuditing` (`registry.Modules.AddAuditing`) | Registers or configures the auditing module |
+| `AuditingModuleBuilder` | `ForCommands`, `ForQueries`, `ForEvents`, `ForAllAxes`; `UseTrail`, `UseTrailInstance`; `UseActorResolver`, `UseActorResolverInstance`; `UseOutcomeMapper`; `UseRecordWriter`, `UseRecordWriterInstance`; `RequireUniqueActions`, `RequireActionFormat` (default pattern `AuditingModuleBuilder.DefaultActionPattern`); `Capture`, `UseHashChain`, `ConfigureCheckpointPublishing`, `ConfigureLinkSweep`; the store choice (`UseMartenStore`, `UsePostgreSqlStore`, `UseEntityFrameworkCoreStore<TContext>`, `UseInMemoryStore`) comes from the storage package |
+| `MessageDeclarationsAuditExtensions` | `Audited` and `NotAudited` on `IMessageDeclarations` inside a `Describe` body |
+| `MessageCatalogAuditExtensions` | `Audited()` on `IMessageCatalog` and `GetAudit()` on `MessageCatalogEntry` for composition checks |
 | `IAuditOutcomeMapper` / `DefaultAuditOutcomeMapper` | Classifies a refusal that arrived as an exception as denied rather than failed |
 | `AuditReasonMissingException` | Raised when a reason-required action supplies none |
 | `AuditTrailDiagnosticCheck` | Probe reporting `litebus.audit.trail`. It reports unhealthy with no trail and degraded with no actor resolver |
 | `IMessageCatalog` | Registered as a Singleton, so the declarations are readable at runtime as well as at composition |
 | `AuditCatalogueRow` / `AuditCatalogue.ToRows` / `AuditCatalogue.ToMarkdown` | The audit catalogue, derived from the declarations |
-| `CommandModuleBuilder` / `QueryModuleBuilder` / `EventModuleBuilder` `.EnableAuditing` | Registers the writer and the probe on one axis |
+| `AuditCapture` | When and where a record is written: `WithChange(link)`, `AfterCommitThroughOutbox()`, `BeforeAndOutcome()`. Set with `AuditingModuleBuilder.Capture` |
+| `AuditLink` | When the chain position is assigned: `AfterCommit`, `InTransaction`, `AtWrite`. Applies only with the chain on |
+| `AuditCaptureDeclaration` / `IAuditCaptureDefinition<TMessage>` | Per-message capture override from a definition class; no attribute form |
+| `AuditHashChainBuilder` | `StoreAs`, `SegmentBy` (a segmenter type or a delegate), `UseScheme`, `AddScheme`, `CheckpointWhen`, `SignCheckpointsWith`, `PublishCheckpointsTo`, `VerifyAgainst`, `UnlinkedAfter`, `CheckpointStaleAfter`, `PublishErasureNotices` |
+| `IAuditChainStore<TDocument>` | The durable port the chain engine runs on: heads, conditional appends, staging, reads, checkpoints with publish state, erasure |
+| `IAuditChainDocument` | The chain fields every stored audit document carries: `Segment`, `Sequence`, `PreviousHash`, `Hash`, `HashScheme` |
+| `IAuditRecordMapper<TDocument>` | Maps an `AuditRecord` to the stored document type; every store awaits `MapAsync(record, AuditMappingContext, ct)` with the mapper resolved from the mediation scope |
+| `AuditMappingContext` / `AuditMappingFeatures` | The evaluation the mapping runs in (scope on `Services`, caller on `Identity`) and the store's write session on `Features` |
+| `IAuditSegmenter<TDocument>` | Names the segment per document; `CreateGenesis` opens a segment with a genesis record, or `null` for none; `DescribeSegment` records the head metadata |
+| `AuditSegmentInfo` / `AuditSegmentHead` / `AuditSegmentSummary` | The stored segment identity (key, tenant, attributes, opened-at), the head with its position and version, and the listed state |
+| `AuditSegmentFilter` | Selects segments by tenant, attributes, age, and whether expired segments are included |
+| `IAuditCanonicalizer<TDocument>` | Produces the exact business bytes hashed; excludes `Hash` |
+| `IAuditLinkRule` / `AuditLinkInput` | Combines canonical bytes with segment, sequence, and previous hash into the bytes hashed; `FramedLinkRule` under `sha256-v2` |
+| `IAuditHasher` | Computes the hash: `Sha256AuditHasher`, or `HmacSha256AuditHasher` with a fixed key or a per-operation key provider |
+| `AuditHashScheme<TDocument>` | A named combination of canonicalizer, link rule, and hasher; each record stores the name it was written with |
+| `ICheckpointPolicy` / `AuditCheckpointCandidate` | Decides when a checkpoint is due; `IsTimeBased` marks a policy the chain also asks on a schedule; `IsDueAsync` reads services. `CheckpointPolicies.Never`, `EveryRecords`, `Every`, `Any`, `OnSchedule`, `DailyAt`, `WeeklyOn`, `DailyInTenantZone`, `WeeklyInTenantZone` |
+| `AuditCheckpoint` / `AuditCheckpointKind` / `AuditCheckpointSignature` | The anchored position, hash, count, label, and signatures; `Regular` or `Final`; `Pending` or `Published` with attempts and last error |
+| `CheckpointPublishState` | Whether a stored checkpoint reached its publishers |
+| `ICheckpointSigner` | Signs checkpoints and verifies their signatures; every signer signs every checkpoint |
+| `ICheckpointPublisher` | Publishes checkpoints to an independent store; every publisher receives every checkpoint |
+| `ICheckpointSource` | Reads the latest checkpoint of a segment for verification; the store source is always first |
+| `AuditChainVerification` / `AuditChainBreak` / `AuditChainBreakKind` | The verify result: every break in sequence order, the head, the checkpoint comparison, and one comparison per source |
+| `AuditCheckpointComparison` | The comparison against one source; `SourceUnreachable` is a warning, not a break |
+| `AuditChainVerificationRequest` | The segment and thresholds one verification runs with |
+| `IAuditChain` | `VerifyAsync`, `VerifyFromAsync`, `CutCheckpointAsync` (with an optional label), `ListSegmentsAsync`, `ListUnpublishedCheckpointsAsync`, `ExpireSegmentAsync`, `EraseAsync` |
+| `AuditChainVerifier<TDocument>` | The storage-free verifier every store reuses |
+| `AuditErasureNotice` / `IErasureNoticePublisher` | The report published per erased segment when notices are on; it carries no hash |
+| `AuditLinkSweepHostOptions` / `CheckpointPublishHostOptions` | The linker sweep and the checkpoint publish retrier: whether each runs in this host (`Enabled`), and their timing |
 
 ## Packages
 
 - `LiteBus.Messaging`
 - `LiteBus.Messaging.Abstractions`
+- `LiteBus.Auditing.Abstractions`
 - `LiteBus.Commands`
 - `LiteBus.Queries`
 - `LiteBus.Events`
+- `LiteBus.Auditing`
+- `LiteBus.Auditing.Storage.Marten`
+- `LiteBus.Auditing.Storage.PostgreSql`
+- `LiteBus.Auditing.Storage.EntityFrameworkCore`
+- `LiteBus.Auditing.Anchors.S3`
+- `LiteBus.Auditing.Anchors.AzureBlob`
+- `LiteBus.Auditing.Anchors.Timestamping`
 
 ## Requires
 
@@ -93,6 +128,19 @@ services.AddLiteBus(registry =>
 - The writer consults the scope first and runs a target or reason selector only when the scope is silent, so a handler-supplied value wins. For the reason, the pipeline decision sits between the two, because a guard denial or an answer explanation describes the ending while the selector describes the intent.
 - A selector result that is null or blank means the message carries no value, and `ReasonRequired` applies to the final value, so a required reason may come from the scope or the selector alike. A selector that throws fails the record write.
 - An audited event writes one record per publish, not one per handler.
+- The completion identity is copied from the mediation execution context, defaults to `ExecutionIdentity.Anonymous`, and reads the same on both generic views. With no resolver registered, the writer attributes from the principal on that identity (`NameIdentifier`, then `sub`); an explicit resolver result is never replaced by the fallback.
+- Each chained record stores the name of the scheme it was written with, and verification picks the scheme per record, so a scheme change from a date onward verifies without rewriting history.
+- Verification collects every break, in sequence order, and compares the segment against its latest checkpoint, so a rewritten suffix fails the checkpoint hash and count comparison even when its links are consistent.
+- A chain that shares one scheme name between two different schemes fails composition; a deliberate override calls `Replace`.
+- The default capture is `WithChange` with `AfterCommit` linking. Composition picks `AfterCommitThroughOutbox` when the store cannot join the business transaction and reports the selection in the composition model, never silently.
+- A capture and link pair outside the valid combinations fails composition with a `LiteBusConfigurationException`.
+- Denial, invalid, and failure records always take the out-of-band path, in every capture mode.
+- A record written before commit never claims success: the `BeforeAndOutcome` intent record carries `AuditOutcome.Intent`.
+- One audit store per composition: registering a second store throws `LiteBusConfigurationException`.
+- Publication never runs inside an append. A checkpoint is cut, stored as `Pending`, signed, and published from the background retrier, with attempts and the last error recorded.
+- Every signer signs every checkpoint and every publisher receives every checkpoint; verification compares against every configured source with one comparison per source.
+- An unreachable source is a warning, not a break: the verification stays intact but the comparison records the gap.
+- Erasure deletes records, heads, and stored checkpoints and publishes nothing by default; an optional erasure notice carries no hash.
 
 ## Non-Goals
 
@@ -132,6 +180,64 @@ No audit-specific meter or activity source. The record itself carries `Duration`
 | `A_required_reason_satisfied_by_a_selector_passes` | `LiteBus.Mediator.UnitTests` |
 | `A_required_reason_missing_from_the_selector_fails_like_a_missing_scope_reason` | `LiteBus.Mediator.UnitTests` |
 | `A_throwing_selector_fails_the_record_write` | `LiteBus.Mediator.UnitTests` |
+| `Completion_carries_the_settings_identity` | `LiteBus.Mediator.UnitTests` |
+| `Completion_defaults_to_anonymous_when_no_identity_is_resolved` | `LiteBus.Mediator.UnitTests` |
+| `Typed_completion_views_expose_the_same_identity` | `LiteBus.Mediator.UnitTests` |
+| `An_actor_resolver_sees_the_request_identity` | `LiteBus.Mediator.UnitTests` |
+| `A_manually_built_completion_context_defaults_to_anonymous` | `LiteBus.Mediator.UnitTests` |
+| `An_intact_chain_verifies_with_no_breaks` | `LiteBus.Mediator.UnitTests` |
+| `An_empty_segment_verifies_intact` | `LiteBus.Mediator.UnitTests` |
+| `A_missing_sequence_is_reported_as_a_gap` | `LiteBus.Mediator.UnitTests` |
+| `A_repeated_sequence_is_reported_as_a_duplicate` | `LiteBus.Mediator.UnitTests` |
+| `A_misplaced_sequence_is_reported_as_a_duplicate` | `LiteBus.Mediator.UnitTests` |
+| `A_tampered_document_is_reported_as_a_hash_mismatch` | `LiteBus.Mediator.UnitTests` |
+| `A_rewritten_previous_hash_is_reported` | `LiteBus.Mediator.UnitTests` |
+| `An_unknown_scheme_is_reported` | `LiteBus.Mediator.UnitTests` |
+| `A_document_naming_no_scheme_is_reported` | `LiteBus.Mediator.UnitTests` |
+| `Two_schemes_in_one_segment_verify` | `LiteBus.Mediator.UnitTests` |
+| `A_chain_missing_one_of_its_schemes_reports_unknown_scheme` | `LiteBus.Mediator.UnitTests` |
+| `A_matching_checkpoint_compares_equal` | `LiteBus.Mediator.UnitTests` |
+| `A_rewritten_checkpoint_hash_is_reported` | `LiteBus.Mediator.UnitTests` |
+| `A_checkpoint_count_above_the_segment_is_reported` | `LiteBus.Mediator.UnitTests` |
+| `A_missing_covered_record_breaks_the_checkpoint_count` | `LiteBus.Mediator.UnitTests` |
+| `A_checkpoint_for_a_missing_sequence_breaks_the_checkpoint_hash` | `LiteBus.Mediator.UnitTests` |
+| `A_signed_checkpoint_verifies` | `LiteBus.Mediator.UnitTests` |
+| `A_tampered_signed_checkpoint_is_reported` | `LiteBus.Mediator.UnitTests` |
+| `An_unsigned_checkpoint_with_a_signer_is_reported_as_an_invalid_signature` | `LiteBus.Mediator.UnitTests` |
+| `Without_a_signer_an_unsigned_checkpoint_leaves_validity_unknown` | `LiteBus.Mediator.UnitTests` |
+| `Every_break_is_reported_not_only_the_first` | `LiteBus.Mediator.UnitTests` |
+| `An_empty_segment_misses_its_checkpoint` | `LiteBus.Mediator.UnitTests` |
+| `A_lookup_with_a_null_scheme_is_rejected` | `LiteBus.Mediator.UnitTests` |
+| `Schemes_with_a_repeated_name_are_rejected` | `LiteBus.Mediator.UnitTests` |
+| `A_blank_segment_is_rejected` | `LiteBus.Mediator.UnitTests` |
+| `EveryRecords_rejects_a_non_positive_interval` | `LiteBus.Mediator.UnitTests` |
+| `EveryRecords_is_due_once_the_interval_is_reached` | `LiteBus.Mediator.UnitTests` |
+| `EveryRecords_is_not_time_based` | `LiteBus.Mediator.UnitTests` |
+| `Every_rejects_a_non_positive_interval` | `LiteBus.Mediator.UnitTests` |
+| `Every_rejects_a_negative_interval` | `LiteBus.Mediator.UnitTests` |
+| `Every_is_due_once_the_interval_has_passed` | `LiteBus.Mediator.UnitTests` |
+| `Every_is_due_for_records_without_a_checkpoint` | `LiteBus.Mediator.UnitTests` |
+| `Every_is_never_due_without_records` | `LiteBus.Mediator.UnitTests` |
+| `Every_is_time_based` | `LiteBus.Mediator.UnitTests` |
+| `Any_is_due_when_any_policy_is_due` | `LiteBus.Mediator.UnitTests` |
+| `Any_without_policies_is_never_due` | `LiteBus.Mediator.UnitTests` |
+| `Any_is_time_based_when_any_policy_is` | `LiteBus.Mediator.UnitTests` |
+| `Any_rejects_a_null_entry` | `LiteBus.Mediator.UnitTests` |
+| `The_same_key_and_bytes_hash_to_the_same_value` | `LiteBus.Mediator.UnitTests` |
+| `Different_keys_hash_differently` | `LiteBus.Mediator.UnitTests` |
+| `The_keyed_hash_differs_from_the_plain_digest` | `LiteBus.Mediator.UnitTests` |
+| `The_key_provider_supplies_the_key` | `LiteBus.Mediator.UnitTests` |
+| `The_provider_is_asked_per_operation_so_a_rotation_takes_effect` | `LiteBus.Mediator.UnitTests` |
+| `An_empty_key_is_rejected` | `LiteBus.Mediator.UnitTests` |
+| `A_null_provider_is_rejected` | `LiteBus.Mediator.UnitTests` |
+| `A_provider_returning_no_key_fails_the_hash` | `LiteBus.Mediator.UnitTests` |
+| `A_cancelled_token_throws` | `LiteBus.Mediator.UnitTests` |
+| `The_canonical_bytes_pass_through_unchanged` | `LiteBus.Mediator.UnitTests` |
+| `A_null_input_is_rejected` | `LiteBus.Mediator.UnitTests` |
+| `The_same_bytes_hash_to_the_same_value` | `LiteBus.Mediator.UnitTests` |
+| `Different_bytes_hash_differently` | `LiteBus.Mediator.UnitTests` |
+| `The_hash_matches_the_published_SHA256_vector` | `LiteBus.Mediator.UnitTests` |
+| `The_hash_is_lowercase_hex_of_64_characters` | `LiteBus.Mediator.UnitTests` |
 
 ### Untested
 
@@ -148,3 +254,12 @@ No audit-specific meter or activity source. The record itself carries `Duration`
 - [Auditing](../../concepts/auditing.md)
 - [Message definitions](../../concepts/message-definitions.md)
 - [The handler pipeline](../../concepts/handler-pipeline.md)
+- [Marten Audit Storage](../../integrations/auditing-marten.md)
+- [PostgreSQL Audit Storage](../../integrations/auditing-postgresql.md)
+- [Entity Framework Core Audit Storage](../../integrations/auditing-entity-framework-core.md)
+- [S3 Checkpoint Anchor](../../integrations/auditing-s3-anchor.md)
+- [Azure Blob Checkpoint Anchor](../../integrations/auditing-azure-blob-anchor.md)
+- [RFC 3161 Timestamps](../../integrations/auditing-rfc3161-timestamp.md)
+- [storage.auditing.adapter.marten](../storage/storage.auditing.adapter.marten.md)
+- [storage.auditing.adapter.postgresql](../storage/storage.auditing.adapter.postgresql.md)
+- [storage.auditing.adapter.efcore](../storage/storage.auditing.adapter.efcore.md)

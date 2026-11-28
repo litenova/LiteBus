@@ -31,9 +31,9 @@ public sealed class DependencyRegistry : IDependencyRegistry
     /// </summary>
     /// <param name="descriptor">The dependency descriptor that defines how the dependency should be registered.</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="descriptor" /> is <see langword="null" />.</exception>
-    /// <exception cref="ModuleCompositionException">
+    /// <exception cref="LiteBusConfigurationException">
     ///     Thrown when another module already registered <see cref="DependencyDescriptor.DependencyType" /> with a different
-    ///     binding.
+    ///     binding. The message names both sources and points at <see cref="Replace" /> for a deliberate override.
     /// </exception>
     public void Register(DependencyDescriptor descriptor)
     {
@@ -47,6 +47,21 @@ public sealed class DependencyRegistry : IDependencyRegistry
         }
 
         _tracker.TryTrack(descriptor, true);
+    }
+
+    /// <inheritdoc />
+    public void Replace(DependencyDescriptor descriptor)
+    {
+        ArgumentNullException.ThrowIfNull(descriptor);
+
+        if (descriptor.IsCollectionRegistration)
+        {
+            throw new ModuleCompositionException(
+                $"Service type '{descriptor.DependencyType.FullName ?? descriptor.DependencyType.Name}' was registered with collection metadata. " +
+                $"Use {nameof(RegisterCollection)} for multi-registration services such as IEnumerable<T> hooks.");
+        }
+
+        _tracker.TryReplace(descriptor);
     }
 
     /// <inheritdoc />

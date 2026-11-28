@@ -45,6 +45,11 @@ public sealed class InboxEnvelopeFactory : IInboxEnvelopeFactory
     private readonly bool _useAmbientTrace;
 
     /// <summary>
+    ///     Gets a value indicating whether unscoped accepts inherit the ambient tenant.
+    /// </summary>
+    private readonly bool _useAmbientTenant;
+
+    /// <summary>
     ///     Initializes a new instance of the <see cref="InboxEnvelopeFactory" /> class.
     /// </summary>
     /// <param name="contractRegistry">The registry used to map message types to stable contracts.</param>
@@ -57,7 +62,8 @@ public sealed class InboxEnvelopeFactory : IInboxEnvelopeFactory
     /// </param>
     /// <param name="envelopeOptions">
     ///     The optional envelope options. When <see cref="InboxEnvelopeOptions.UseAmbientTrace" /> is set, untraced
-    ///     accepts inherit the ambient trace. When omitted, accepts keep the trace their item carries.
+    ///     accepts inherit the ambient trace. When <see cref="InboxEnvelopeOptions.UseAmbientTenant" /> is set, unscoped
+    ///     accepts inherit the ambient tenant. When omitted, accepts keep the trace and tenant their item carries.
     /// </param>
     public InboxEnvelopeFactory(
         IContractReader contractRegistry,
@@ -73,6 +79,7 @@ public sealed class InboxEnvelopeFactory : IInboxEnvelopeFactory
         _payloadProtector = payloadProtector;
         _contractTypeResolver = contractTypeResolver;
         _useAmbientTrace = envelopeOptions?.UseAmbientTrace ?? false;
+        _useAmbientTenant = envelopeOptions?.UseAmbientTenant ?? false;
     }
 
     /// <inheritdoc />
@@ -144,7 +151,7 @@ public sealed class InboxEnvelopeFactory : IInboxEnvelopeFactory
         var contract = _contractRegistry.GetContract(ResolveContractType(messageType, message));
         var acceptedAt = _clock.GetUtcNow();
         var id = DurableEnvelopeMetadataMapper.ResolveMessageId(metadata.Identity);
-        var tenantId = DurableEnvelopeMetadataMapper.ResolveTenantId(metadata.Tenant);
+        var tenantId = DurableEnvelopeMetadataMapper.ResolveTenantId(ResolveTenant(metadata.Tenant));
         var payload = await _messageSerializer.SerializeAsync(message, cancellationToken).ConfigureAwait(false);
         payload = await PayloadProtection.ProtectAsync(
                 payload,
@@ -196,6 +203,28 @@ public sealed class InboxEnvelopeFactory : IInboxEnvelopeFactory
         }
 
         return MessageTrace.FromAmbient();
+    }
+
+    /// <summary>
+    ///     Resolves the tenant metadata persisted with an envelope, propagating ambient state when opted in.
+    /// </summary>
+    /// <param name="tenant">The tenant metadata supplied by the caller.</param>
+    /// <returns>
+    ///     The caller tenant when the opt-in is off or the tenant is explicit; otherwise, the ambient tenant, or
+    ///     <see cref="TenantScope.Unscoped" /> outside a mediation or when the ambient identity carries no tenant.
+    /// </returns>
+    private TenantScope ResolveTenant(TenantScope tenant)
+    {
+        if (!_useAmbientTenant || tenant is not TenantScope.Unscoped)
+        {
+            return tenant;
+        }
+
+        var ambientTenantId = AmbientExecutionContext.GetCurrentOrDefault()?.Identity.TenantId;
+
+        return string.IsNullOrWhiteSpace(ambientTenantId)
+            ? TenantScope.Unscoped.Instance
+            : new TenantScope.Isolated(ambientTenantId);
     }
 
     /// <summary>

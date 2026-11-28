@@ -20,7 +20,8 @@ namespace LiteBus.Commands.Idempotency;
 ///         unauthorized or malformed command cannot claim a key.
 ///     </para>
 ///     <para>
-///         A command that declares no <see cref="IdempotencyDeclaration" /> passes through untouched, so one
+///         A command that declares no <see cref="IdempotencyDeclaration" />, or declares an
+///         <see cref="IdempotencyExemptDeclaration" />, passes through untouched, so one
 ///         registration covers a whole axis and only the declaring commands pay for it.
 ///     </para>
 ///     <para>

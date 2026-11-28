@@ -6,7 +6,7 @@ namespace LiteBus.Outbox.Abstractions;
 /// <remarks>
 ///     <para>
 ///         The outbox module builds one instance from its builder flags and registers it as a singleton, so the values
-///         are fixed at composition time. Direct factory constructions that omit the options behave as if both flags
+///         are fixed at composition time. Direct factory constructions that omit the options behave as if every flag
 ///         were <see langword="false" />.
 ///     </para>
 /// </remarks>
@@ -22,6 +22,18 @@ public sealed record OutboxEnqueueOptions
     ///     item trace always wins over the ambient value.
     /// </value>
     public bool UseAmbientTrace { get; init; }
+
+    /// <summary>
+    ///     Gets a value indicating whether envelopes stamp the ambient execution identity tenant when the enqueue item carries none.
+    /// </summary>
+    /// <value>
+    ///     <see langword="false" /> by default. When <see langword="true" />, an item whose tenant is
+    ///     <see cref="LiteBus.Messaging.Abstractions.DurableMessaging.TenantScope.Unscoped" /> is stored with the tenant
+    ///     of <see cref="LiteBus.Messaging.Abstractions.AmbientExecutionContext" /> instead. An explicit
+    ///     <see cref="LiteBus.Messaging.Abstractions.DurableMessaging.TenantScope.Isolated" /> tenant on the item always
+    ///     wins over the ambient value.
+    /// </value>
+    public bool UseAmbientTenant { get; init; }
 
     /// <summary>
     ///     Gets a value indicating whether one enqueue writes one envelope per subscribed main handler of the event.

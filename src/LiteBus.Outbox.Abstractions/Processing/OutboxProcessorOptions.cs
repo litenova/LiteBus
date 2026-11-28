@@ -17,4 +17,15 @@ namespace LiteBus.Outbox.Abstractions;
 ///         recovery when a publisher crashes without releasing leases.
 ///     </para>
 /// </remarks>
-public sealed record OutboxProcessorOptions : ProcessorOptions;
+public sealed record OutboxProcessorOptions : ProcessorOptions
+{
+    /// <summary>
+    ///     Gets the most envelopes of one tenant a single lease returns, or <see langword="null" /> (the default) for no
+    ///     cap.
+    /// </summary>
+    /// <remarks>
+    ///     Set it in a multi-tenant application so one busy tenant cannot fill every batch. The processor passes it to the
+    ///     store as <see cref="OutboxLeaseRequest.MaxPerTenant" />; unscoped envelopes count as one tenant.
+    /// </remarks>
+    public int? MaxLeasedPerTenant { get; init; }
+}

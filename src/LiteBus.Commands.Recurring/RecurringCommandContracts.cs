@@ -22,7 +22,7 @@ internal static class RecurringCommandContracts
     /// <summary>
     ///     Caches closed send delegates keyed by the command's runtime type and the declared result type.
     /// </summary>
-    private static readonly ConcurrentDictionary<(Type CommandType, Type ResultType), Func<ICommandMediator, object, CancellationToken, Task<object?>>> SendDelegates = new();
+    private static readonly ConcurrentDictionary<(Type CommandType, Type ResultType), Func<ICommandMediator, object, CommandMediationSettings?, CancellationToken, Task<object?>>> SendDelegates = new();
 
     /// <summary>
     ///     The open generic helper closed over each command's declared result type.
@@ -66,6 +66,7 @@ internal static class RecurringCommandContracts
     /// <param name="mediator">The command mediator resolved for this pass.</param>
     /// <param name="command">The command instance to send.</param>
     /// <param name="resultType">The result type the command declares.</param>
+    /// <param name="commandMediationSettings">The settings the send runs with, or <see langword="null" />.</param>
     /// <param name="cancellationToken">A token that stops the send when the host shuts down.</param>
     /// <returns>The command result boxed as an object.</returns>
     /// <exception cref="ArgumentNullException">
@@ -76,6 +77,7 @@ internal static class RecurringCommandContracts
         ICommandMediator mediator,
         object command,
         Type resultType,
+        CommandMediationSettings? commandMediationSettings,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(mediator);
@@ -86,7 +88,7 @@ internal static class RecurringCommandContracts
             (command.GetType(), resultType),
             static key => CreateSendDelegate(key.ResultType));
 
-        return send(mediator, command, cancellationToken);
+        return send(mediator, command, commandMediationSettings, cancellationToken);
     }
 
     /// <summary>
@@ -95,13 +97,13 @@ internal static class RecurringCommandContracts
     /// <param name="resultType">The result type the command declares.</param>
     /// <returns>The delegate that sends the command and returns its boxed result.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="resultType" /> is <see langword="null" />.</exception>
-    private static Func<ICommandMediator, object, CancellationToken, Task<object?>> CreateSendDelegate(Type resultType)
+    private static Func<ICommandMediator, object, CommandMediationSettings?, CancellationToken, Task<object?>> CreateSendDelegate(Type resultType)
     {
         ArgumentNullException.ThrowIfNull(resultType);
 
         return SendTypedAsyncMethod
             .MakeGenericMethod(resultType)
-            .CreateDelegate<Func<ICommandMediator, object, CancellationToken, Task<object?>>>();
+            .CreateDelegate<Func<ICommandMediator, object, CommandMediationSettings?, CancellationToken, Task<object?>>>();
     }
 
     /// <summary>
@@ -110,15 +112,17 @@ internal static class RecurringCommandContracts
     /// <typeparam name="TCommandResult">The result type the command declares.</typeparam>
     /// <param name="mediator">The command mediator resolved for this pass.</param>
     /// <param name="command">The command instance to send.</param>
+    /// <param name="commandMediationSettings">The settings the send runs with, or <see langword="null" />.</param>
     /// <param name="cancellationToken">A token that stops the send when the host shuts down.</param>
     /// <returns>The command result boxed as an object.</returns>
     private static async Task<object?> SendTypedAsync<TCommandResult>(
         ICommandMediator mediator,
         object command,
+        CommandMediationSettings? commandMediationSettings,
         CancellationToken cancellationToken)
     {
         var result = await mediator
-            .SendAsync((ICommand<TCommandResult>) command, cancellationToken: cancellationToken)
+            .SendAsync((ICommand<TCommandResult>) command, commandMediationSettings, cancellationToken)
             .ConfigureAwait(false);
 
         return result;

@@ -4,7 +4,7 @@ using LiteBus.Storage.PostgreSql;
 namespace LiteBus.Commands.Recurring.Storage.PostgreSql;
 
 /// <summary>
-///     Options for the PostgreSQL recurring lease table, schema bootstrap, and lease timing.
+///     Options for the PostgreSQL recurring lease and occurrence tables, schema bootstrap, and lease timing.
 /// </summary>
 /// <remarks>
 ///     <para>
@@ -31,6 +31,11 @@ public sealed record PostgreSqlRecurringLeaseOptions : PostgreSqlSchemaStoreOpti
     ///     Gets the recurring leases table name.
     /// </summary>
     public string TableName { get; init; } = "litebus_recurring_leases";
+
+    /// <summary>
+    ///     Gets the recurring occurrences table name.
+    /// </summary>
+    public string OccurrenceTableName { get; init; } = "litebus_recurring_occurrences";
 
     /// <summary>
     ///     Gets a value indicating whether schema creation runs during host startup.

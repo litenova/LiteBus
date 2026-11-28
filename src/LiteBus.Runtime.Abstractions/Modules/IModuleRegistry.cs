@@ -42,6 +42,17 @@ public interface IModuleRegistry
     bool IsModuleRegistered<T>() where T : IModule;
 
     /// <summary>
+    ///     Finds the registered module of the specified type, including a child module a composite declared.
+    /// </summary>
+    /// <typeparam name="T">The exact module type to find.</typeparam>
+    /// <returns>The registered module, or <see langword="null" /> when no module of that type is registered.</returns>
+    /// <remarks>
+    ///     Registration extensions such as <c>AddCommands</c> use it to configure an already registered module again
+    ///     instead of registering a second one, so several application modules can add to one composition.
+    /// </remarks>
+    T? Find<T>() where T : class, IModule;
+
+    /// <summary>
     ///     Returns module descriptors in dependency order and freezes further registration.
     /// </summary>
     /// <returns>Module descriptors sorted so dependencies appear before dependents.</returns>

@@ -1,5 +1,8 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Data.Common;
+using System.Reflection;
 using System.Threading;
 
 namespace LiteBus.Messaging.Abstractions;
@@ -10,6 +13,35 @@ namespace LiteBus.Messaging.Abstractions;
 /// </summary>
 public static class MediationExceptionFilters
 {
+    /// <summary>
+    ///     The type-name suffix Entity Framework Core and Marten concurrency faults share.
+    /// </summary>
+    private const string ConcurrencyExceptionSuffix = "ConcurrencyException";
+
+    /// <summary>
+    ///     The Marten existence races reported without the concurrency suffix.
+    /// </summary>
+    private static readonly string[] MartenConflictTypeNames =
+    [
+        "ConcurrentUpdateException",
+        "DocumentAlreadyExistsException",
+    ];
+
+    /// <summary>
+    ///     The name of the error-number property on SQL Server and MySQL driver exceptions.
+    /// </summary>
+    private const string ErrorNumberProperty = "Number";
+
+    /// <summary>
+    ///     The name of the result-code property on SQLite driver exceptions.
+    /// </summary>
+    private const string SqliteErrorCodeProperty = "SqliteErrorCode";
+
+    /// <summary>
+    ///     Caches the integer property, or its absence, for each exception type and property name, so the reflection
+    ///     lookup runs once per driver exception type for the life of the process.
+    /// </summary>
+    private static readonly ConcurrentDictionary<(Type Type, string Name), PropertyInfo?> IntegerProperties = new();
     /// <summary>
     ///     Determines whether an exception should be handled by registered error handlers.
     /// </summary>
@@ -48,7 +80,9 @@ public static class MediationExceptionFilters
     ///     Cancellation is never classified: an <see cref="OperationCanceledException" /> reports the caller's own
     ///     decision, so classifying it would let a refusal swallow a cancellation. An exception that already carries
     ///     a refusal is not offered either, because it is a decision rather than a fault and a second classification
-    ///     would rewrite one. Callers offer only recoverable faults, so a configuration error never reaches a
+    ///     would rewrite one. A <see cref="MessageFaultException" /> is never classified either: it reports a
+    ///     configuration or dependency failure an operator must fix, so no offer site may rewrite it into a refusal
+    ///     the caller can act on. Callers offer only recoverable faults, so a configuration error never reaches a
     ///     classifier.
     /// </remarks>
     /// <exception cref="ArgumentNullException">
@@ -64,7 +98,7 @@ public static class MediationExceptionFilters
 
         refusal = default;
 
-        if (exception is OperationCanceledException || IsRefusal(exception))
+        if (exception is OperationCanceledException || exception is MessageFaultException || IsRefusal(exception))
         {
             return false;
         }
@@ -93,6 +127,166 @@ public static class MediationExceptionFilters
     public static bool IsRefusal(Exception exception)
     {
         return exception is LiteBusMessageDeniedException or LiteBusMessageInvalidException;
+    }
+
+    /// <summary>
+    ///     Determines whether an exception reports a lost storage race worth retrying.
+    /// </summary>
+    /// <param name="exception">The exception that ended the mediation or dispatch.</param>
+    /// <returns>
+    ///     <see langword="true" /> when the exception graph carries an optimistic-concurrency fault or a database
+    ///     deadlock, serialization failure, or lock wait; otherwise, <see langword="false" />.
+    /// </returns>
+    /// <remarks>
+    ///     <para>
+    ///         Two workers reaching the same record at the same time collide either above the database, as an
+    ///         optimistic-concurrency fault, or inside it, as a deadlock victim or a failed serialization. Both are
+    ///         the same lost race: the winner already did the work, and the loser usually succeeds by reading again.
+    ///     </para>
+    ///     <para>
+    ///         The decision reads what the persistence library attaches, never message text: an exception type name
+    ///         ending in <c>ConcurrencyException</c> (Entity Framework Core <c>DbUpdateConcurrencyException</c>, the
+    ///         <c>ConcurrencyException</c> Marten raises, <c>SagaConcurrencyException</c>), the Marten existence races
+    ///         <c>ConcurrentUpdateException</c> and <c>DocumentAlreadyExistsException</c>, or a driver error carrying
+    ///         SQLSTATE <c>40001</c> (serialization failure, which MySQL also reports for a deadlock) or <c>40P01</c>
+    ///         (PostgreSQL deadlock) through <see cref="DbException.SqlState" />, error number <c>1205</c> (SQL Server
+    ///         deadlock victim, MySQL lock wait timeout) or <c>1213</c> (MySQL deadlock) on a public <c>Number</c>
+    ///         property, or result code <c>5</c> (busy) or <c>6</c> (locked) on a public <c>SqliteErrorCode</c>
+    ///         property. The two properties are read by name, which keeps this package free of database driver
+    ///         references. The whole exception graph is walked: the <see cref="Exception.InnerException" /> chain and
+    ///         every exception an <see cref="AggregateException" /> carries.
+    ///     </para>
+    ///     <para>
+    ///         A unique-violation code is not a lost race: a duplicate key reports deterministic state that reads the
+    ///         same on every attempt, so it is excluded even though it also arrives as a driver error.
+    ///     </para>
+    /// </remarks>
+    public static bool IsConcurrencyConflict(Exception exception)
+    {
+        ArgumentNullException.ThrowIfNull(exception);
+
+        foreach (var current in EnumerateExceptions(exception))
+        {
+            if (IsConcurrencyConflictType(current) || IsDatabaseConflict(current))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    ///     Determines whether one exception is an optimistic-concurrency or existence-race fault by type name.
+    /// </summary>
+    /// <param name="exception">The exception to inspect.</param>
+    /// <returns>
+    ///     <see langword="true" /> when the type name ends in <c>ConcurrencyException</c> or names a Marten
+    ///     existence race; otherwise, <see langword="false" />.
+    /// </returns>
+    /// <remarks>
+    ///     Matching by name keeps this package free of persistence references while recognizing the conflict types
+    ///     common .NET persistence libraries throw.
+    /// </remarks>
+    private static bool IsConcurrencyConflictType(Exception exception)
+    {
+        var name = exception.GetType().Name;
+
+        if (name.EndsWith(ConcurrencyExceptionSuffix, StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        foreach (var conflictName in MartenConflictTypeNames)
+        {
+            if (string.Equals(name, conflictName, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    ///     Determines whether one exception is a driver error reporting a lost race.
+    /// </summary>
+    /// <param name="exception">The exception to inspect.</param>
+    /// <returns><see langword="true" /> for a deadlock, serialization failure, or lock contention code.</returns>
+    private static bool IsDatabaseConflict(Exception exception)
+    {
+        if (exception is not DbException databaseError)
+        {
+            return false;
+        }
+
+        if (databaseError.SqlState is "40001" or "40P01")
+        {
+            return true;
+        }
+
+        if (TryReadInteger(databaseError, ErrorNumberProperty, out var number))
+        {
+            return number is 1205 or 1213;
+        }
+
+        return TryReadInteger(databaseError, SqliteErrorCodeProperty, out var sqliteCode) && sqliteCode is 5 or 6;
+    }
+
+    /// <summary>
+    ///     Reads a public integer property from a driver exception.
+    /// </summary>
+    /// <param name="databaseError">The driver error.</param>
+    /// <param name="propertyName">The property name.</param>
+    /// <param name="value">The property value when the property exists.</param>
+    /// <returns><see langword="true" /> when the exception type has the property; otherwise, <see langword="false" />.</returns>
+    private static bool TryReadInteger(DbException databaseError, string propertyName, out int value)
+    {
+        var property = IntegerProperties.GetOrAdd(
+            (databaseError.GetType(), propertyName),
+            static key => key.Type.GetProperty(key.Name, BindingFlags.Public | BindingFlags.Instance) is { } candidate
+                          && candidate.PropertyType == typeof(int)
+                ? candidate
+                : null);
+
+        if (property?.GetValue(databaseError) is int number)
+        {
+            value = number;
+            return true;
+        }
+
+        value = 0;
+        return false;
+    }
+
+    /// <summary>
+    ///     Enumerates an exception, its inner exceptions, and every exception an <see cref="AggregateException" />
+    ///     carries, depth first.
+    /// </summary>
+    /// <param name="exception">The exception to start from.</param>
+    /// <returns>Every exception reachable from <paramref name="exception" />.</returns>
+    private static IEnumerable<Exception> EnumerateExceptions(Exception exception)
+    {
+        var pending = new Stack<Exception>();
+        pending.Push(exception);
+
+        while (pending.Count > 0)
+        {
+            var current = pending.Pop();
+            yield return current;
+
+            if (current is AggregateException aggregate)
+            {
+                for (var index = aggregate.InnerExceptions.Count - 1; index >= 0; index--)
+                {
+                    pending.Push(aggregate.InnerExceptions[index]);
+                }
+            }
+            else if (current.InnerException is { } inner)
+            {
+                pending.Push(inner);
+            }
+        }
     }
 
     /// <summary>

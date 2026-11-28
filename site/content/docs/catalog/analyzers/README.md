@@ -60,7 +60,7 @@ This page is the contributor contract reference for the rule inventory. Readers 
 | `LB1020` | Warning (off by default) | `LiteBus.Declarations` | Command or query type states no position on a configured declaration | [required-declarations.md](required-declarations.md) |
 | `LB1021` | Warning | `LiteBus.Declarations` | `litebus_required_declarations` names a type that does not resolve | [required-declarations.md](required-declarations.md) |
 | `LB1022` | Warning | `LiteBus.Handlers` | `[HandlerPriority]` value falls inside the range LiteBus reserves for its own handlers | [reserved-handler-priority.md](reserved-handler-priority.md) |
-| `LB1023` | Warning (off by default) | `LiteBus.Handlers` | Command handler sends or publishes another message inside its handle method | [nested-mediation-in-command-handler.md](nested-mediation-in-command-handler.md) |
+| `LB1023` | Warning (reports only when `litebus_forbid_nested_commands` is `true`) | `LiteBus.Handlers` | Command handler sends or publishes another message inside its handle method | [nested-mediation-in-command-handler.md](nested-mediation-in-command-handler.md) |
 | `LB1024` | Warning (off by default) | `LiteBus.Handlers` | Command handler injects an external side-effect type through its constructor | [external-side-effect-in-command-handler.md](external-side-effect-in-command-handler.md) |
 
 ## Suppression Policy

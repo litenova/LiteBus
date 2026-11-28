@@ -89,9 +89,10 @@ public sealed class MissingMessageContractRegistrationAnalyzer : DiagnosticAnaly
     /// <param name="contracts">The contract registration collector.</param>
     /// <remarks>
     ///     Only handlers declared in the analyzed assembly are candidates, and only registrations invoked in the
-    ///     analyzed compilation satisfy the rule. A registration that lives in a dependent project is compiled
-    ///     separately and stays invisible here; co-locate the registration with the handler or suppress the
-    ///     diagnostic.
+    ///     analyzed compilation satisfy the rule. A message type declared in an assembly that carries
+    ///     <c>[assembly: MessageContractsRegisteredIn("X")]</c> is trusted when the analyzed compilation is not
+    ///     <c>X</c>; the named compilation reports the contracts it does not register. Otherwise, co-locate the
+    ///     registration with the handler or suppress the diagnostic.
     /// </remarks>
     private static void AnalyzeCompilationEnd(
         CompilationAnalysisContext context,
@@ -117,7 +118,8 @@ public sealed class MissingMessageContractRegistrationAnalyzer : DiagnosticAnaly
                 ContractRegistrationAnalysis.IsExplicitlyRegistered(
                     handler.MessageType,
                     registeredContracts,
-                    registeredAssemblies))
+                    registeredAssemblies) ||
+                ContractRegistrationAnalysis.IsRegisteredInAnotherAssembly(handler.MessageType, context.Compilation))
             {
                 continue;
             }

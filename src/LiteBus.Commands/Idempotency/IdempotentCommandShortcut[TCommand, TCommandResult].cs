@@ -21,7 +21,7 @@ namespace LiteBus.Commands.Idempotency;
 ///     </para>
 ///     <para>
 ///         A repeat can only be answered with a value if the first attempt recorded one, which is what
-///         <see cref="IdempotencyDeclaration.ReplayResult" /> asks the store to do. Without it, a repeat of an applied
+///         <see cref="KeyedIdempotencyDeclaration.ReplayResult" /> asks the store to do. Without it, a repeat of an applied
 ///         result-producing command raises <see cref="PipelineContractException" /> naming the fix: LiteBus will not
 ///         invent an answer, and the alternative of returning <see langword="default" /> would hand the caller a zero
 ///         or a null that looks like a real result. Re-running the handler instead would apply an applied key twice,

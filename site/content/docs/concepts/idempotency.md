@@ -35,6 +35,37 @@ public sealed class ApplyPaymentCommandDefinition : IIdempotencyDefinition<Apply
 
 The first delivery stores the fingerprint with its claim. A repeat with a matching fingerprint is answered as already applied. A repeat with a different one is denied with `idempotency.fingerprint-mismatch`, so the caller learns the key is taken rather than receiving another request's answer. Without a fingerprint, any repeat of the key is answered as already applied.
 
+## Declaring Keys for a Family of Commands
+
+A definition per command states the key once per command. When every command in a family carries its key in the same place, state it once for the family. Declare an interface for the key, then a default against it:
+
+```csharp
+public interface IHasIdempotencyKey
+{
+    string IdempotencyKey { get; }
+}
+
+registry.AddMessaging(messaging => messaging
+    .DeclareDefault<IHasIdempotencyKey, IdempotencyDeclaration>(
+        IdempotencyDeclaration.KeyedBy<IHasIdempotencyKey>(message => message.IdempotencyKey)));
+```
+
+A concrete command implementing `IHasIdempotencyKey` is then keyed by its own `IdempotencyKey` property, because the selector runs against the concrete command. A default applies only to messages assignable to its scope, so commands outside the family stay undeclared. A command that states its own idempotency position keeps it: precedence stays definition, then attribute, then default, then convention.
+
+A convention derives the same key from the message type instead of stating it for a scope:
+
+```csharp
+registry.AddMessaging(messaging => messaging
+    .DeclareConvention<IdempotencyDeclaration>(messageType =>
+        typeof(IHasIdempotencyKey).IsAssignableFrom(messageType)
+            ? IdempotencyDeclaration.KeyedBy<IHasIdempotencyKey>(message => message.IdempotencyKey)
+            : null));
+```
+
+It returns a keyed declaration for a message implementing the interface and null otherwise. Returning null is how a convention states that it does not apply, and the message stays undeclared. A message that records an exemption from `IdempotencyDeclaration` is left alone, because an exemption is a decision that the message deliberately states nothing. The convention runs once per registered message at composition, after every module has registered its messages and before declaration requirements are checked, so a derived key satisfies a requirement.
+
+Use a default when the family shares one selector. Use a convention when the derivation checks the type first, or when some messages in the scanned set carry no key. See [Message Definitions](message-definitions.md#deriving-a-value-from-the-message-type) for the full precedence and the audit-action convention beside this one.
+
 ## Keys That Need Services
 
 Some keys cannot be projected from the message. A processor webhook carries a raw body and a signature and nothing else, deliberately, so that nothing unverified reaches a decision. Its deduplication key is the provider's event id, which can only be known after the signature is checked and the body is parsed. That is a lookup, and a lookup needs services.
@@ -89,7 +120,7 @@ A message declared this way that reaches the shortcut with no key in context rai
 
 A blank key raises `IdempotencyConfigurationException` rather than being used. Every message with a blank key shares one key space, so the first would answer all the others.
 
-The mediation tenant prefixes the stored key when the mediation carries one. Set `CommandMediationSettings.Items[MessageTraceContextKeys.TenantId]` from the caller context before sending. Two integrations set it for you: inbox replay copies the stored envelope tenant, and the ASP.NET Core filter resolves it through `TenantResolver` (see [ASP.NET Core Idempotency Key](../integrations/aspnetcore-idempotency-key.md)). Without a tenant scope, two tenants sending one key string for one command share a store row, and one tenant's repeat is answered with the other's stored result whenever the fingerprints match or either side carries none. Tenant, scope, and key segments are escaped before they are joined, so no two distinct triples produce one stored key.
+The mediation tenant prefixes the stored key when the mediation carries one. The tenant comes from the execution identity (`IExecutionContext.Identity.TenantId`): pass `CommandMediationSettings.Identity`, or register an `IExecutionIdentityProvider` that reads it from the caller (see [Tenancy](tenancy.md)). When the identity has no tenant, the trace tenant entry `CommandMediationSettings.Items[MessageTraceContextKeys.TenantId]` is read instead. Two integrations set it for you: inbox replay restores the stored envelope tenant into the identity, and the ASP.NET Core filter resolves it through `TenantResolver` (see [ASP.NET Core Idempotency Key](../integrations/aspnetcore-idempotency-key.md)). Without a tenant scope, two tenants sending one key string for one command share a store row, and one tenant's repeat is answered with the other's stored result whenever the fingerprints match or either side carries none. Tenant, scope, and key segments are escaped before they are joined, so no two distinct triples produce one stored key.
 
 ## Enabling Idempotency
 

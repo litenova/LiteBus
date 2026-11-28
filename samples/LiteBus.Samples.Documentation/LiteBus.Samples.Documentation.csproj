@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+    <PropertyGroup>
+        <RootNamespace>LiteBus.Samples.Documentation</RootNamespace>
+        <!-- The project compiles documentation snippets, not a runnable application: the messages the snippets
+             declare have no handlers on purpose, so the handler coverage rules do not apply here. -->
+        <NoWarn>$(NoWarn);LB1008;LB1009</NoWarn>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\src\LiteBus.Analyzers\LiteBus.Analyzers.csproj"
+                          OutputItemType="Analyzer"
+                          ReferenceOutputAssembly="false"/>
+        <ProjectReference Include="..\..\src\LiteBus.Auditing.Abstractions\LiteBus.Auditing.Abstractions.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Commands.Extensions.Microsoft.DependencyInjection\LiteBus.Commands.Extensions.Microsoft.DependencyInjection.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Events.Extensions.Microsoft.DependencyInjection\LiteBus.Events.Extensions.Microsoft.DependencyInjection.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Extensions.AspNetCore\LiteBus.Extensions.AspNetCore.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Extensions.Diagnostics.HealthChecks\LiteBus.Extensions.Diagnostics.HealthChecks.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Outbox.Dispatch.InProcess\LiteBus.Outbox.Dispatch.InProcess.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Outbox.Storage.EntityFrameworkCore\LiteBus.Outbox.Storage.EntityFrameworkCore.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Outbox\LiteBus.Outbox.csproj"/>
+        <ProjectReference Include="..\..\src\LiteBus.Queries.Abstractions\LiteBus.Queries.Abstractions.csproj"/>
+    </ItemGroup>
+</Project>

@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\LiteBus.Auditing.Abstractions\LiteBus.Auditing.Abstractions.csproj"/>
+        <ProjectReference Include="..\LiteBus.Messaging\LiteBus.Messaging.csproj"/>
+        <ProjectReference Include="..\LiteBus.Commands.Abstractions\LiteBus.Commands.Abstractions.csproj"/>
+        <ProjectReference Include="..\LiteBus.Events.Abstractions\LiteBus.Events.Abstractions.csproj"/>
+        <ProjectReference Include="..\LiteBus.Queries.Abstractions\LiteBus.Queries.Abstractions.csproj"/>
+        <ProjectReference Include="..\LiteBus.DurableMessaging.Abstractions\LiteBus.DurableMessaging.Abstractions.csproj"/>
+        <ProjectReference Include="..\LiteBus.Messaging.Abstractions\LiteBus.Messaging.Abstractions.csproj"/>
+        <ProjectReference Include="..\LiteBus.Outbox.Abstractions\LiteBus.Outbox.Abstractions.csproj"/>
+        <ProjectReference Include="..\LiteBus.Runtime\LiteBus.Runtime.csproj"/>
+        <ProjectReference Include="..\LiteBus.Runtime.Abstractions\LiteBus.Runtime.Abstractions.csproj"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="LiteBus.Auditing.Storage.Marten, PublicKey=$(LiteBusPublicKey)"/>
+        <InternalsVisibleTo Include="LiteBus.Auditing.Storage.PostgreSql, PublicKey=$(LiteBusPublicKey)"/>
+        <InternalsVisibleTo Include="LiteBus.Auditing.Storage.EntityFrameworkCore, PublicKey=$(LiteBusPublicKey)"/>
+        <InternalsVisibleTo Include="LiteBus.Auditing.Anchors.S3, PublicKey=$(LiteBusPublicKey)"/>
+        <InternalsVisibleTo Include="LiteBus.Auditing.Anchors.AzureBlob, PublicKey=$(LiteBusPublicKey)"/>
+        <InternalsVisibleTo Include="LiteBus.Auditing.Anchors.Timestamping, PublicKey=$(LiteBusPublicKey)"/>
+        <InternalsVisibleTo Include="LiteBus.Auditing.UnitTests, PublicKey=$(LiteBusPublicKey)"/>
+        <InternalsVisibleTo Include="LiteBus.Mediator.UnitTests, PublicKey=$(LiteBusPublicKey)"/>
+        <InternalsVisibleTo Include="LiteBus.Extensions.UnitTests, PublicKey=$(LiteBusPublicKey)"/>
+        <InternalsVisibleTo Include="LiteBus.Storage.IntegrationTests, PublicKey=$(LiteBusPublicKey)"/>
+        <InternalsVisibleTo Include="LiteBus.Storage.Testing, PublicKey=$(LiteBusPublicKey)"/>
+    </ItemGroup>
+
+</Project>

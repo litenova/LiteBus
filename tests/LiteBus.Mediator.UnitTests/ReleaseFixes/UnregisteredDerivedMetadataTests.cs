@@ -1,3 +1,4 @@
+using LiteBus.Auditing;
 using LiteBus.Commands;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
@@ -6,6 +7,7 @@ using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using LiteBus.Auditing.Abstractions;
 
 namespace LiteBus.Mediator.UnitTests.ReleaseFixes;
 
@@ -62,19 +64,19 @@ public sealed class UnregisteredDerivedMetadataTests : LiteBusTestBase
     private static ServiceProvider BuildProvider(RecordingAuditTrail trail)
     {
         var services = new ServiceCollection();
-        services.AddSingleton<IAuditTrail>(trail);
 
         return services
             .AddLiteBus(registry =>
             {
-                registry.AddMessaging(_ => { });
+                registry.AddAuditing(auditing => auditing
+                    .UseTrailInstance(trail)
+                    .ForCommands());
 
                 registry.AddCommands(builder =>
                 {
                     builder.Register<LedgerBaseCommand>();
                     builder.Register<LedgerBaseCommandHandler>();
                     builder.Register<LedgerBaseCommandDefinition>();
-                    builder.EnableAuditing();
                 });
             })
             .BuildServiceProvider();

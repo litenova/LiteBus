@@ -4,7 +4,8 @@ using System.Threading.Tasks;
 namespace LiteBus.Commands.Recurring;
 
 /// <summary>
-///     Produces the commands one pass of a recurring batch loop sends as a single batch.
+///     Produces the commands one pass of a recurring batch loop sends, as one atomic batch by default or one item at
+///     a time when the batch chooses <see cref="RecurringBatchIsolation.PerItem" />.
 /// </summary>
 /// <remarks>
 ///     <para>
@@ -52,8 +53,7 @@ public interface IRecurringCommandBatchSource
     /// </summary>
     /// <param name="cancellationToken">A token that stops the read when the host shuts down or the lease is lost.</param>
     /// <returns>
-    ///     The commands the pass sends as one batch, or <see cref="RecurringCommandBatch.Empty" /> when there is
-    ///     nothing to send.
+    ///     The batch the pass sends, or <see cref="RecurringCommandBatch.Empty" /> when there is nothing to send.
     /// </returns>
     Task<RecurringCommandBatch> CreateBatchAsync(CancellationToken cancellationToken);
 }

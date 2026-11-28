@@ -8,6 +8,7 @@ using LiteBus.Messaging.Extensions;
 using LiteBus.Messaging.Registry.Abstractions;
 using LiteBus.Messaging.Registry.Builders;
 using LiteBus.Messaging.Registry.Descriptors;
+using LiteBus.Runtime.Abstractions;
 using LiteBus.Runtime.Abstractions.Exceptions;
 
 namespace LiteBus.Messaging.Registry;
@@ -385,14 +386,93 @@ internal sealed class MessageRegistry : IMessageRegistry
                 declaration.MessageType.NormalizeMessageRegistrationType(),
                 declaration.DeclarationType,
                 declaration.Value,
-                DefinitionType: null));
+                DefinitionType: null,
+                MetadataSourceKind.Default));
+        }
+    }
+
+    /// <inheritdoc />
+    public void ReplaceDeclaration(MessageDeclarationItem declaration)
+    {
+        ArgumentNullException.ThrowIfNull(declaration);
+
+        if (!declaration.DeclarationType.IsInstanceOfType(declaration.Value))
+        {
+            throw new MessageDeclarationException(
+                $"The replacement of '{declaration.DeclarationType.Name}' for '{declaration.MessageType.Name}' "
+                + $"supplied a '{declaration.Value.GetType().Name}', which is not assignable to it. A value has to be "
+                + "an instance of the type it is keyed by, or a reader looking it up by that type finds nothing.");
+        }
+
+        lock (_lock)
+        {
+            Apply(new MessageDeclaration(
+                declaration.MessageType.NormalizeMessageRegistrationType(),
+                declaration.DeclarationType,
+                declaration.Value,
+                DefinitionType: null,
+                MetadataSourceKind.Default,
+                Replace: true));
         }
     }
 
     /// <summary>
-    ///     Binds a message definition type and applies what it declares to known and pending message descriptors.
+    ///     Declares one metadata value for a message type when none is recorded for the same message and value type.
     /// </summary>
-    /// <param name="definitionType">The concrete message definition type.</param>
+    /// <param name="declaration">The message type the value covers, the type it is keyed by, and the value.</param>
+    /// <returns>
+    ///     <see langword="true" /> when the declaration was recorded; <see langword="false" /> when a declaration
+    ///     for the same message and value type is already recorded.
+    /// </returns>
+    /// <exception cref="ArgumentNullException"><paramref name="declaration" /> is <see langword="null" />.</exception>
+    /// <remarks>
+    ///     Framework defaults use this so an explicit composition default stands: the method returns
+    ///     <see langword="false" /> when a declaration is already present and never throws for a duplicate,
+    ///     unlike <see cref="AddDeclaration" /> which reports a conflicting repeat. The recorded value is left
+    ///     untouched when the method returns <see langword="false" />, even when it differs from
+    ///     <paramref name="declaration" />.
+    /// </remarks>
+    public bool TryAddDeclaration(MessageDeclarationItem declaration)
+    {
+        ArgumentNullException.ThrowIfNull(declaration);
+
+        if (!declaration.DeclarationType.IsInstanceOfType(declaration.Value))
+        {
+            throw new MessageDeclarationException(
+                $"The declaration of '{declaration.DeclarationType.Name}' for '{declaration.MessageType.Name}' "
+                + $"supplied a '{declaration.Value.GetType().Name}', which is not assignable to it. A value has to be "
+                + "an instance of the type it is keyed by, or a reader looking it up by that type finds nothing.");
+        }
+
+        lock (_lock)
+        {
+            var normalizedMessageType = declaration.MessageType.NormalizeMessageRegistrationType();
+
+            foreach (var existing in _declarations)
+            {
+                if (existing.MessageType == normalizedMessageType
+                    && existing.KeyType == declaration.DeclarationType)
+                {
+                    return false;
+                }
+            }
+
+            Apply(new MessageDeclaration(
+                normalizedMessageType,
+                declaration.DeclarationType,
+                declaration.Value,
+                DefinitionType: null,
+                MetadataSourceKind.Default));
+
+            return true;
+        }
+    }
+
+    /// <summary>
+    ///     Binds a message definition or declaration source type and applies what it declares to known and pending
+    ///     message descriptors.
+    /// </summary>
+    /// <param name="definitionType">The concrete message definition or declaration source type.</param>
     [RequiresUnreferencedCode("Message definition binding reads declaration contracts via reflection.")]
     private void RegisterDefinition(
         [DynamicallyAccessedMembers(
@@ -411,14 +491,48 @@ internal sealed class MessageRegistry : IMessageRegistry
     ///     Records one declaration and applies it to every message it covers.
     /// </summary>
     /// <param name="declaration">The declaration to record.</param>
+    /// <exception cref="PipelineContractException">
+    ///     Another source already declared a different value of this value type for this message.
+    /// </exception>
     /// <remarks>
-    ///     Shared by a definition class and a declaration made from composition code, so both resolve by the same
-    ///     rules. A family default declared here is overridden by a message that states its own position, because
-    ///     that precedence lives in the metadata bag rather than in either caller.
+    ///     Shared by a definition class, a declaration source, and a declaration made from composition code, so all
+    ///     resolve by the same rules. A family default declared here is overridden by a message that states its own
+    ///     position, because that precedence lives in the metadata bag rather than in any caller. An identical repeat
+    ///     returns without effect, so a repeated default with the same value is harmless regardless of order. A
+    ///     replacement removes the recorded declaration and force-applies the new value instead of conflicting with
+    ///     it. Definitions and sources are applied in an order nobody controls, so letting a conflicting repeat win
+    ///     would make the effective configuration depend on assembly scanning order. Reporting the conflict at
+    ///     registration keeps the declaration single.
     /// </remarks>
     private void Apply(MessageDeclaration declaration)
     {
-        ThrowIfAlreadyDeclared(declaration);
+        for (var index = 0; index < _declarations.Count; index++)
+        {
+            var existing = _declarations[index];
+
+            if (existing.MessageType != declaration.MessageType || existing.KeyType != declaration.KeyType)
+            {
+                continue;
+            }
+
+            if (declaration.Replace)
+            {
+                _declarations[index] = declaration;
+                ReplaceRecorded(declaration);
+                return;
+            }
+
+            if (RegistrationConflict.IsIdentical(existing.Value, declaration.Value))
+            {
+                return;
+            }
+
+            throw new PipelineContractException(
+                $"Both '{existing.SourceName}' and '{declaration.SourceName}' declare "
+                + $"'{declaration.KeyType.Name}' for the message '{declaration.MessageType.Name}'. "
+                + "Keep one declaration per message and value type, or call Replace to overwrite it deliberately.");
+        }
+
         _declarations.Add(declaration);
 
         // The described message may not have been registered yet.
@@ -442,31 +556,6 @@ internal sealed class MessageRegistry : IMessageRegistry
     }
 
     /// <summary>
-    ///     Reports a second definition declaring the same value type for the same message.
-    /// </summary>
-    /// <param name="declaration">The declaration being registered.</param>
-    /// <exception cref="PipelineContractException">
-    ///     Thrown when another definition already declared this value type for this message.
-    /// </exception>
-    /// <remarks>
-    ///     Definitions are applied in an order nobody controls, so letting the last one win would make the effective
-    ///     configuration depend on assembly scanning order. Reporting it at registration keeps the declaration single.
-    /// </remarks>
-    private void ThrowIfAlreadyDeclared(MessageDeclaration declaration)
-    {
-        foreach (var existing in _declarations)
-        {
-            if (existing.MessageType == declaration.MessageType && existing.KeyType == declaration.KeyType)
-            {
-                throw new PipelineContractException(
-                    $"Both '{existing.SourceName}' and '{declaration.SourceName}' declare "
-                    + $"'{declaration.KeyType.Name}' for the message '{declaration.MessageType.Name}'. "
-                    + "Keep one declaration per message and value type.");
-            }
-        }
-    }
-
-    /// <summary>
     ///     Applies every known declaration to message descriptors awaiting commit.
     /// </summary>
     private void ApplyDefinitionsToPendingMessages()
@@ -486,9 +575,47 @@ internal sealed class MessageRegistry : IMessageRegistry
     }
 
     /// <summary>
+    ///     Force-applies one replacement to every committed and pending message it covers.
+    /// </summary>
+    /// <param name="declaration">The replacement declaration.</param>
+    /// <remarks>
+    ///     The recorded declaration was already swapped before this runs, so pending messages that commit later read
+    ///     the replacement through the normal path. Committed messages hold the old value in their metadata bags,
+    ///     which is what this overwrites.
+    /// </remarks>
+    private void ReplaceRecorded(MessageDeclaration declaration)
+    {
+        foreach (var committed in _committedMessages)
+        {
+            if (Covers(declaration.MessageType, committed.MessageType))
+            {
+                committed.ReplaceMetadata(
+                    declaration.KeyType,
+                    declaration.Value,
+                    declaration.MessageType,
+                    declaration.Kind,
+                    declaration.DefinitionType);
+            }
+        }
+
+        foreach (var pending in _pendingMessages)
+        {
+            if (Covers(declaration.MessageType, pending.MessageType))
+            {
+                pending.ReplaceMetadata(
+                    declaration.KeyType,
+                    declaration.Value,
+                    declaration.MessageType,
+                    declaration.Kind,
+                    declaration.DefinitionType);
+            }
+        }
+    }
+
+    /// <summary>
     ///     Applies one declaration to a message descriptor when the declaration covers that message.
     /// </summary>
-    /// <param name="declaration">The declaration contributed by a definition.</param>
+    /// <param name="declaration">The declaration contributed by a definition, a source, or composition code.</param>
     /// <param name="messageDescriptor">The descriptor to apply it to.</param>
     /// <remarks>
     ///     A declaration covers the message it names and every message assignable to it, which lets one definition
@@ -502,7 +629,23 @@ internal sealed class MessageRegistry : IMessageRegistry
             return;
         }
 
-        messageDescriptor.ApplyMetadata(declaration.KeyType, declaration.Value, declaration.MessageType);
+        if (declaration.Replace)
+        {
+            messageDescriptor.ReplaceMetadata(
+                declaration.KeyType,
+                declaration.Value,
+                declaration.MessageType,
+                declaration.Kind,
+                declaration.DefinitionType);
+            return;
+        }
+
+        messageDescriptor.ApplyMetadata(
+            declaration.KeyType,
+            declaration.Value,
+            declaration.MessageType,
+            declaration.Kind,
+            declaration.DefinitionType);
     }
 
     /// <summary>

@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.CodeAnalysis;
 
 namespace LiteBus.Analyzers.UnitTests;
@@ -7,6 +8,30 @@ namespace LiteBus.Analyzers.UnitTests;
 /// </summary>
 public sealed class NestedMediationInCommandHandlerAnalyzerTests
 {
+    /// <summary>
+    ///     An <c>.editorconfig</c> that reports nested mediation at warning.
+    /// </summary>
+    private const string ForbidNestedCommandsEnabled = """
+                                                       is_global = true
+                                                       litebus_forbid_nested_commands = true
+                                                       """;
+
+    /// <summary>
+    ///     A per-file <c>.editorconfig</c> section that reports nested mediation at warning.
+    /// </summary>
+    private const string ForbidNestedCommandsPerTree = """
+                                                       [*.cs]
+                                                       litebus_forbid_nested_commands = true
+                                                       """;
+
+    /// <summary>
+    ///     An <c>.editorconfig</c> that leaves nested mediation reporting off.
+    /// </summary>
+    private const string ForbidNestedCommandsDisabled = """
+                                                        is_global = true
+                                                        litebus_forbid_nested_commands = false
+                                                        """;
+
     /// <summary>
     ///     Verifies that a command handler without mediation produces no diagnostic.
     /// </summary>
@@ -28,7 +53,7 @@ public sealed class NestedMediationInCommandHandlerAnalyzerTests
                               }
                               """;
 
-        return AnalyzerTest.VerifyNoDiagnosticsAsync<NestedMediationInCommandHandlerAnalyzer>(source);
+        return AnalyzerTest.VerifyWithEditorConfigAsync<NestedMediationInCommandHandlerAnalyzer>(source, ForbidNestedCommandsEnabled);
     }
 
     /// <summary>
@@ -60,12 +85,10 @@ public sealed class NestedMediationInCommandHandlerAnalyzerTests
                               }
                               """;
 
-        return AnalyzerTest.VerifyDiagnosticAsync<NestedMediationInCommandHandlerAnalyzer>(
+        return AnalyzerTest.VerifyWithEditorConfigAsync<NestedMediationInCommandHandlerAnalyzer>(
             source,
-            DiagnosticDescriptors.NestedMediationInCommandHandler,
-            0,
-            "CreateUserCommandHandler",
-            "LiteBus.Commands.Abstractions.ICommandMediator.SendAsync");
+            ForbidNestedCommandsEnabled,
+            (DiagnosticDescriptors.NestedMediationInCommandHandler, 0, ["CreateUserCommandHandler", "LiteBus.Commands.Abstractions.ICommandMediator.SendAsync"]));
     }
 
     /// <summary>
@@ -97,12 +120,10 @@ public sealed class NestedMediationInCommandHandlerAnalyzerTests
                               }
                               """;
 
-        return AnalyzerTest.VerifyDiagnosticAsync<NestedMediationInCommandHandlerAnalyzer>(
+        return AnalyzerTest.VerifyWithEditorConfigAsync<NestedMediationInCommandHandlerAnalyzer>(
             source,
-            DiagnosticDescriptors.NestedMediationInCommandHandler,
-            0,
-            "CreateUserCommandHandler",
-            "LiteBus.Commands.Abstractions.ICommandMediator.SendAsync");
+            ForbidNestedCommandsEnabled,
+            (DiagnosticDescriptors.NestedMediationInCommandHandler, 0, ["CreateUserCommandHandler", "LiteBus.Commands.Abstractions.ICommandMediator.SendAsync"]));
     }
 
     /// <summary>
@@ -137,12 +158,10 @@ public sealed class NestedMediationInCommandHandlerAnalyzerTests
                               }
                               """;
 
-        return AnalyzerTest.VerifyDiagnosticAsync<NestedMediationInCommandHandlerAnalyzer>(
+        return AnalyzerTest.VerifyWithEditorConfigAsync<NestedMediationInCommandHandlerAnalyzer>(
             source,
-            DiagnosticDescriptors.NestedMediationInCommandHandler,
-            0,
-            "CreateUserCommandHandler",
-            "LiteBus.Commands.Abstractions.ICommandMediator.SendAsync");
+            ForbidNestedCommandsEnabled,
+            (DiagnosticDescriptors.NestedMediationInCommandHandler, 0, ["CreateUserCommandHandler", "LiteBus.Commands.Abstractions.ICommandMediator.SendAsync"]));
     }
 
     /// <summary>
@@ -177,12 +196,10 @@ public sealed class NestedMediationInCommandHandlerAnalyzerTests
                               }
                               """;
 
-        return AnalyzerTest.VerifyDiagnosticAsync<NestedMediationInCommandHandlerAnalyzer>(
+        return AnalyzerTest.VerifyWithEditorConfigAsync<NestedMediationInCommandHandlerAnalyzer>(
             source,
-            DiagnosticDescriptors.NestedMediationInCommandHandler,
-            0,
-            "CreateUserCommandHandler",
-            "LiteBus.Commands.Abstractions.ICommandMediator.TrySendAsync");
+            ForbidNestedCommandsEnabled,
+            (DiagnosticDescriptors.NestedMediationInCommandHandler, 0, ["CreateUserCommandHandler", "LiteBus.Commands.Abstractions.ICommandMediator.TrySendAsync"]));
     }
 
     /// <summary>
@@ -215,12 +232,10 @@ public sealed class NestedMediationInCommandHandlerAnalyzerTests
                               }
                               """;
 
-        return AnalyzerTest.VerifyDiagnosticAsync<NestedMediationInCommandHandlerAnalyzer>(
+        return AnalyzerTest.VerifyWithEditorConfigAsync<NestedMediationInCommandHandlerAnalyzer>(
             source,
-            DiagnosticDescriptors.NestedMediationInCommandHandler,
-            0,
-            "CreateUserCommandHandler",
-            "LiteBus.Events.Abstractions.IEventMediator.PublishAsync");
+            ForbidNestedCommandsEnabled,
+            (DiagnosticDescriptors.NestedMediationInCommandHandler, 0, ["CreateUserCommandHandler", "LiteBus.Events.Abstractions.IEventMediator.PublishAsync"]));
     }
 
     /// <summary>
@@ -236,6 +251,7 @@ public sealed class NestedMediationInCommandHandlerAnalyzerTests
                               using System.Threading.Tasks;
                               using LiteBus.Commands.Abstractions;
                               using LiteBus.Messaging.Abstractions;
+                              using LiteBus.Auditing.Abstractions;
 
                               public sealed record CreateUserCommand(string Name) : ICommand;
                               public sealed record AuditUserCommand(string Name) : ICommand;
@@ -262,12 +278,10 @@ public sealed class NestedMediationInCommandHandlerAnalyzerTests
                               }
                               """;
 
-        return AnalyzerTest.VerifyDiagnosticAsync<NestedMediationInCommandHandlerAnalyzer>(
+        return AnalyzerTest.VerifyWithEditorConfigAsync<NestedMediationInCommandHandlerAnalyzer>(
             source,
-            DiagnosticDescriptors.NestedMediationInCommandHandler,
-            0,
-            "CreateUserCommandHandler",
-            "LiteBus.Messaging.Abstractions.IMessageMediator.Mediate");
+            ForbidNestedCommandsEnabled,
+            (DiagnosticDescriptors.NestedMediationInCommandHandler, 0, ["CreateUserCommandHandler", "LiteBus.Messaging.Abstractions.IMessageMediator.Mediate"]));
     }
 
     /// <summary>
@@ -283,6 +297,7 @@ public sealed class NestedMediationInCommandHandlerAnalyzerTests
                               using System.Threading.Tasks;
                               using LiteBus.Commands.Abstractions;
                               using LiteBus.Messaging.Abstractions;
+                              using LiteBus.Auditing.Abstractions;
                               using LiteBus.Queries.Abstractions;
 
                               public sealed record CreateUserCommand(string Name) : ICommand;
@@ -311,7 +326,7 @@ public sealed class NestedMediationInCommandHandlerAnalyzerTests
                               }
                               """;
 
-        return AnalyzerTest.VerifyNoDiagnosticsAsync<NestedMediationInCommandHandlerAnalyzer>(source);
+        return AnalyzerTest.VerifyWithEditorConfigAsync<NestedMediationInCommandHandlerAnalyzer>(source, ForbidNestedCommandsEnabled);
     }
 
     /// <summary>
@@ -346,7 +361,7 @@ public sealed class NestedMediationInCommandHandlerAnalyzerTests
                               }
                               """;
 
-        return AnalyzerTest.VerifyNoDiagnosticsAsync<NestedMediationInCommandHandlerAnalyzer>(source);
+        return AnalyzerTest.VerifyWithEditorConfigAsync<NestedMediationInCommandHandlerAnalyzer>(source, ForbidNestedCommandsEnabled);
     }
 
     /// <summary>
@@ -379,7 +394,7 @@ public sealed class NestedMediationInCommandHandlerAnalyzerTests
                               }
                               """;
 
-        return AnalyzerTest.VerifyNoDiagnosticsAsync<NestedMediationInCommandHandlerAnalyzer>(source);
+        return AnalyzerTest.VerifyWithEditorConfigAsync<NestedMediationInCommandHandlerAnalyzer>(source, ForbidNestedCommandsEnabled);
     }
 
     /// <summary>
@@ -415,7 +430,7 @@ public sealed class NestedMediationInCommandHandlerAnalyzerTests
                               }
                               """;
 
-        return AnalyzerTest.VerifyNoDiagnosticsAsync<NestedMediationInCommandHandlerAnalyzer>(source);
+        return AnalyzerTest.VerifyWithEditorConfigAsync<NestedMediationInCommandHandlerAnalyzer>(source, ForbidNestedCommandsEnabled);
     }
 
     /// <summary>
@@ -450,7 +465,7 @@ public sealed class NestedMediationInCommandHandlerAnalyzerTests
                               }
                               """;
 
-        return AnalyzerTest.VerifyNoDiagnosticsAsync<NestedMediationInCommandHandlerAnalyzer>(source);
+        return AnalyzerTest.VerifyWithEditorConfigAsync<NestedMediationInCommandHandlerAnalyzer>(source, ForbidNestedCommandsEnabled);
     }
 
     /// <summary>
@@ -465,6 +480,7 @@ public sealed class NestedMediationInCommandHandlerAnalyzerTests
                               using System.Threading.Tasks;
                               using LiteBus.Commands.Abstractions;
                               using LiteBus.Messaging.Abstractions;
+                              using LiteBus.Auditing.Abstractions;
 
                               public sealed record CreateUserCommand(string Name) : ICommand;
                               public sealed record AuditUserCommand(string Name) : ICommand;
@@ -483,12 +499,10 @@ public sealed class NestedMediationInCommandHandlerAnalyzerTests
                               }
                               """;
 
-        return AnalyzerTest.VerifyDiagnosticAsync<NestedMediationInCommandHandlerAnalyzer>(
+        return AnalyzerTest.VerifyWithEditorConfigAsync<NestedMediationInCommandHandlerAnalyzer>(
             source,
-            DiagnosticDescriptors.NestedMediationInCommandHandler,
-            0,
-            "CreateUserMessageHandler",
-            "LiteBus.Commands.Abstractions.ICommandMediator.SendAsync");
+            ForbidNestedCommandsEnabled,
+            (DiagnosticDescriptors.NestedMediationInCommandHandler, 0, ["CreateUserMessageHandler", "LiteBus.Commands.Abstractions.ICommandMediator.SendAsync"]));
     }
 
     /// <summary>
@@ -503,6 +517,7 @@ public sealed class NestedMediationInCommandHandlerAnalyzerTests
                               using System.Threading.Tasks;
                               using LiteBus.Commands.Abstractions;
                               using LiteBus.Messaging.Abstractions;
+                              using LiteBus.Auditing.Abstractions;
                               using LiteBus.Queries.Abstractions;
 
                               public sealed record GetUserQuery(int UserId) : IQuery<string>;
@@ -525,7 +540,7 @@ public sealed class NestedMediationInCommandHandlerAnalyzerTests
                               }
                               """;
 
-        return AnalyzerTest.VerifyNoDiagnosticsAsync<NestedMediationInCommandHandlerAnalyzer>(source);
+        return AnalyzerTest.VerifyWithEditorConfigAsync<NestedMediationInCommandHandlerAnalyzer>(source, ForbidNestedCommandsEnabled);
     }
 
     /// <summary>
@@ -560,12 +575,10 @@ public sealed class NestedMediationInCommandHandlerAnalyzerTests
                               }
                               """;
 
-        return AnalyzerTest.VerifyDiagnosticAsync<NestedMediationInCommandHandlerAnalyzer>(
+        return AnalyzerTest.VerifyWithEditorConfigAsync<NestedMediationInCommandHandlerAnalyzer>(
             source,
-            DiagnosticDescriptors.NestedMediationInCommandHandler,
-            0,
-            "CreateUserCommandHandler",
-            "LiteBus.Commands.Abstractions.ICommandBatchMediator.SendManyAsync");
+            ForbidNestedCommandsEnabled,
+            (DiagnosticDescriptors.NestedMediationInCommandHandler, 0, ["CreateUserCommandHandler", "LiteBus.Commands.Abstractions.ICommandBatchMediator.SendManyAsync"]));
     }
 
     /// <summary>
@@ -600,12 +613,10 @@ public sealed class NestedMediationInCommandHandlerAnalyzerTests
                               }
                               """;
 
-        return AnalyzerTest.VerifyDiagnosticAsync<NestedMediationInCommandHandlerAnalyzer>(
+        return AnalyzerTest.VerifyWithEditorConfigAsync<NestedMediationInCommandHandlerAnalyzer>(
             source,
-            DiagnosticDescriptors.NestedMediationInCommandHandler,
-            0,
-            "CreateUserCommandHandler",
-            "LiteBus.Commands.Abstractions.ICommandBatchMediator.TrySendManyAsync");
+            ForbidNestedCommandsEnabled,
+            (DiagnosticDescriptors.NestedMediationInCommandHandler, 0, ["CreateUserCommandHandler", "LiteBus.Commands.Abstractions.ICommandBatchMediator.TrySendManyAsync"]));
     }
 
     /// <summary>
@@ -641,7 +652,7 @@ public sealed class NestedMediationInCommandHandlerAnalyzerTests
                               }
                               """;
 
-        return AnalyzerTest.VerifyNoDiagnosticsAsync<NestedMediationInCommandHandlerAnalyzer>(source);
+        return AnalyzerTest.VerifyWithEditorConfigAsync<NestedMediationInCommandHandlerAnalyzer>(source, ForbidNestedCommandsEnabled);
     }
 
     /// <summary>
@@ -677,17 +688,312 @@ public sealed class NestedMediationInCommandHandlerAnalyzerTests
                               }
                               """;
 
+        return AnalyzerTest.VerifyWithEditorConfigAsync<NestedMediationInCommandHandlerAnalyzer>(source, ForbidNestedCommandsEnabled);
+    }
+
+    /// <summary>
+    ///     Verifies that a command pre-handler sending another command produces LB1023.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task CommandPreHandlerSendingCommand_ProducesDiagnostic()
+    {
+        const string source = """
+                              using System.Threading;
+                              using System.Threading.Tasks;
+                              using LiteBus.Commands.Abstractions;
+
+                              public sealed record CreateUserCommand(string Name) : ICommand;
+                              public sealed record AuditUserCommand(string Name) : ICommand;
+
+                              public sealed class CreateUserCommandPreHandler : ICommandPreHandler<CreateUserCommand>
+                              {
+                                  private readonly ICommandMediator _commandMediator;
+
+                                  public CreateUserCommandPreHandler(ICommandMediator commandMediator)
+                                  {
+                                      _commandMediator = commandMediator;
+                                  }
+
+                                  public Task PreHandleAsync(CreateUserCommand message, CancellationToken cancellationToken = default)
+                                      => {|#0:_commandMediator.SendAsync(new AuditUserCommand(message.Name), cancellationToken: cancellationToken)|};
+                              }
+                              """;
+
+        return AnalyzerTest.VerifyWithEditorConfigAsync<NestedMediationInCommandHandlerAnalyzer>(
+            source,
+            ForbidNestedCommandsEnabled,
+            (DiagnosticDescriptors.NestedMediationInCommandHandler, 0, ["CreateUserCommandPreHandler", "LiteBus.Commands.Abstractions.ICommandMediator.SendAsync"]));
+    }
+
+    /// <summary>
+    ///     Verifies that a command post-handler sending another command produces LB1023.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task CommandPostHandlerSendingCommand_ProducesDiagnostic()
+    {
+        const string source = """
+                              using System.Threading;
+                              using System.Threading.Tasks;
+                              using LiteBus.Commands.Abstractions;
+
+                              public sealed record CreateUserCommand(string Name) : ICommand;
+                              public sealed record AuditUserCommand(string Name) : ICommand;
+
+                              public sealed class CreateUserCommandPostHandler : ICommandPostHandler<CreateUserCommand>
+                              {
+                                  private readonly ICommandMediator _commandMediator;
+
+                                  public CreateUserCommandPostHandler(ICommandMediator commandMediator)
+                                  {
+                                      _commandMediator = commandMediator;
+                                  }
+
+                                  public Task PostHandleAsync(CreateUserCommand message, object? messageResult, CancellationToken cancellationToken = default)
+                                      => {|#0:_commandMediator.SendAsync(new AuditUserCommand(message.Name), cancellationToken: cancellationToken)|};
+                              }
+                              """;
+
+        return AnalyzerTest.VerifyWithEditorConfigAsync<NestedMediationInCommandHandlerAnalyzer>(
+            source,
+            ForbidNestedCommandsEnabled,
+            (DiagnosticDescriptors.NestedMediationInCommandHandler, 0, ["CreateUserCommandPostHandler", "LiteBus.Commands.Abstractions.ICommandMediator.SendAsync"]));
+    }
+
+    /// <summary>
+    ///     Verifies that a messaging-level pre-handler for a command produces LB1023.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task MessagingPreHandlerForCommand_ProducesDiagnostic()
+    {
+        const string source = """
+                              using System.Threading;
+                              using System.Threading.Tasks;
+                              using LiteBus.Commands.Abstractions;
+                              using LiteBus.Messaging.Abstractions;
+
+                              public sealed record CreateUserCommand(string Name) : ICommand;
+                              public sealed record AuditUserCommand(string Name) : ICommand;
+
+                              public sealed class CreateUserMessagePreHandler : IMessagePreHandler<CreateUserCommand>
+                              {
+                                  private readonly ICommandMediator _commandMediator;
+
+                                  public CreateUserMessagePreHandler(ICommandMediator commandMediator)
+                                  {
+                                      _commandMediator = commandMediator;
+                                  }
+
+                                  public Task PreHandleAsync(CreateUserCommand message, CancellationToken cancellationToken = default)
+                                      => {|#0:_commandMediator.SendAsync(new AuditUserCommand(message.Name), cancellationToken: cancellationToken)|};
+                              }
+                              """;
+
+        return AnalyzerTest.VerifyWithEditorConfigAsync<NestedMediationInCommandHandlerAnalyzer>(
+            source,
+            ForbidNestedCommandsEnabled,
+            (DiagnosticDescriptors.NestedMediationInCommandHandler, 0, ["CreateUserMessagePreHandler", "LiteBus.Commands.Abstractions.ICommandMediator.SendAsync"]));
+    }
+
+    /// <summary>
+    ///     Verifies that a messaging-level pre-handler for a query produces no diagnostic.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task MessagingPreHandlerForQuery_ProducesNoDiagnostic()
+    {
+        const string source = """
+                              using System.Threading;
+                              using System.Threading.Tasks;
+                              using LiteBus.Commands.Abstractions;
+                              using LiteBus.Messaging.Abstractions;
+                              using LiteBus.Queries.Abstractions;
+
+                              public sealed record GetUserQuery(int UserId) : IQuery<string>;
+                              public sealed record AuditUserCommand(int UserId) : ICommand;
+
+                              public sealed class GetUserMessagePreHandler : IMessagePreHandler<GetUserQuery>
+                              {
+                                  private readonly ICommandMediator _commandMediator;
+
+                                  public GetUserMessagePreHandler(ICommandMediator commandMediator)
+                                  {
+                                      _commandMediator = commandMediator;
+                                  }
+
+                                  public Task PreHandleAsync(GetUserQuery message, CancellationToken cancellationToken = default)
+                                  {
+                                      _ = _commandMediator.SendAsync(new AuditUserCommand(message.UserId), cancellationToken: cancellationToken);
+                                      return Task.CompletedTask;
+                                  }
+                              }
+                              """;
+
+        return AnalyzerTest.VerifyWithEditorConfigAsync<NestedMediationInCommandHandlerAnalyzer>(source, ForbidNestedCommandsEnabled);
+    }
+
+    /// <summary>
+    ///     Verifies that a command pre-handler reading through <c>IQueryMediator</c> produces no diagnostic.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task CommandPreHandlerQuerying_ProducesNoDiagnostic()
+    {
+        const string source = """
+                              using System.Threading;
+                              using System.Threading.Tasks;
+                              using LiteBus.Commands.Abstractions;
+                              using LiteBus.Queries.Abstractions;
+
+                              public sealed record CreateUserCommand(int UserId) : ICommand;
+                              public sealed record GetUserQuery(int UserId) : IQuery<string>;
+
+                              public sealed class CreateUserCommandPreHandler : ICommandPreHandler<CreateUserCommand>
+                              {
+                                  private readonly IQueryMediator _queryMediator;
+
+                                  public CreateUserCommandPreHandler(IQueryMediator queryMediator)
+                                  {
+                                      _queryMediator = queryMediator;
+                                  }
+
+                                  public async Task PreHandleAsync(CreateUserCommand message, CancellationToken cancellationToken = default)
+                                  {
+                                      _ = await _queryMediator.QueryAsync(new GetUserQuery(message.UserId), cancellationToken).ConfigureAwait(false);
+                                  }
+                              }
+                              """;
+
+        return AnalyzerTest.VerifyWithEditorConfigAsync<NestedMediationInCommandHandlerAnalyzer>(source, ForbidNestedCommandsEnabled);
+    }
+
+    /// <summary>
+    ///     Verifies that nested mediation without the option produces no diagnostic.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task NestingWithoutOption_ProducesNoDiagnostic()
+    {
+        const string source = """
+                              using System.Threading;
+                              using System.Threading.Tasks;
+                              using LiteBus.Commands.Abstractions;
+
+                              public sealed record CreateUserCommand(string Name) : ICommand;
+                              public sealed record AuditUserCommand(string Name) : ICommand;
+
+                              public sealed class CreateUserCommandHandler : ICommandHandler<CreateUserCommand>
+                              {
+                                  private readonly ICommandMediator _commandMediator;
+
+                                  public CreateUserCommandHandler(ICommandMediator commandMediator)
+                                  {
+                                      _commandMediator = commandMediator;
+                                  }
+
+                                  public Task HandleAsync(CreateUserCommand command, CancellationToken cancellationToken = default)
+                                      => _commandMediator.SendAsync(new AuditUserCommand(command.Name), cancellationToken: cancellationToken);
+                              }
+                              """;
+
         return AnalyzerTest.VerifyNoDiagnosticsAsync<NestedMediationInCommandHandlerAnalyzer>(source);
     }
 
     /// <summary>
-    ///     Verifies that the rule is a warning in <c>LiteBus.Handlers</c> that stays off until enabled.
+    ///     Verifies that nested mediation with the option set to false produces no diagnostic.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task NestingWithOptionFalse_ProducesNoDiagnostic()
+    {
+        const string source = """
+                              using System.Threading;
+                              using System.Threading.Tasks;
+                              using LiteBus.Commands.Abstractions;
+
+                              public sealed record CreateUserCommand(string Name) : ICommand;
+                              public sealed record AuditUserCommand(string Name) : ICommand;
+
+                              public sealed class CreateUserCommandHandler : ICommandHandler<CreateUserCommand>
+                              {
+                                  private readonly ICommandMediator _commandMediator;
+
+                                  public CreateUserCommandHandler(ICommandMediator commandMediator)
+                                  {
+                                      _commandMediator = commandMediator;
+                                  }
+
+                                  public Task HandleAsync(CreateUserCommand command, CancellationToken cancellationToken = default)
+                                      => _commandMediator.SendAsync(new AuditUserCommand(command.Name), cancellationToken: cancellationToken);
+                              }
+                              """;
+
+        return AnalyzerTest.VerifyWithEditorConfigAsync<NestedMediationInCommandHandlerAnalyzer>(source, ForbidNestedCommandsDisabled);
+    }
+
+    /// <summary>
+    ///     Verifies that a per-file <c>.editorconfig</c> section reports nested mediation at warning.
+    /// </summary>
+    /// <returns>A task that completes when verification finishes.</returns>
+    [Fact]
+    public Task PerTreeConfiguration_Applies()
+    {
+        const string source = """
+                              using System.Threading;
+                              using System.Threading.Tasks;
+                              using LiteBus.Commands.Abstractions;
+
+                              public sealed record CreateUserCommand(string Name) : ICommand;
+                              public sealed record AuditUserCommand(string Name) : ICommand;
+
+                              public sealed class CreateUserCommandHandler : ICommandHandler<CreateUserCommand>
+                              {
+                                  private readonly ICommandMediator _commandMediator;
+
+                                  public CreateUserCommandHandler(ICommandMediator commandMediator)
+                                  {
+                                      _commandMediator = commandMediator;
+                                  }
+
+                                  public Task HandleAsync(CreateUserCommand command, CancellationToken cancellationToken = default)
+                                      => {|#0:_commandMediator.SendAsync(new AuditUserCommand(command.Name), cancellationToken: cancellationToken)|};
+                              }
+                              """;
+
+        return AnalyzerTest.VerifyWithEditorConfigAsync<NestedMediationInCommandHandlerAnalyzer>(
+            source,
+            ForbidNestedCommandsPerTree,
+            (DiagnosticDescriptors.NestedMediationInCommandHandler, 0, ["CreateUserCommandHandler", "LiteBus.Commands.Abstractions.ICommandMediator.SendAsync"]));
+    }
+
+    /// <summary>
+    ///     Verifies that the rule is a warning in <c>LiteBus.Handlers</c> that stays enabled by default.
     /// </summary>
     [Fact]
-    public void Descriptor_IsWarningInHandlersCategoryAndDisabledByDefault()
+    public void Descriptor_IsWarningInHandlersCategoryAndEnabledByDefault()
     {
         Assert.Equal("LiteBus.Handlers", DiagnosticDescriptors.NestedMediationInCommandHandler.Category);
         Assert.Equal(DiagnosticSeverity.Warning, DiagnosticDescriptors.NestedMediationInCommandHandler.DefaultSeverity);
-        Assert.False(DiagnosticDescriptors.NestedMediationInCommandHandler.IsEnabledByDefault);
+        Assert.True(DiagnosticDescriptors.NestedMediationInCommandHandler.IsEnabledByDefault);
+    }
+
+    /// <summary>
+    ///     Verifies that the description names the runtime counterpart that forbids nested commands.
+    /// </summary>
+    [Fact]
+    public void Descriptor_DescriptionNamesForbidNestedCommands()
+    {
+        Assert.Contains("ForbidNestedCommands()", DiagnosticDescriptors.NestedMediationInCommandHandler.Description.ToString(CultureInfo.InvariantCulture));
+    }
+
+    /// <summary>
+    ///     Verifies that the description names the <c>.editorconfig</c> option that reports the rule.
+    /// </summary>
+    [Fact]
+    public void Descriptor_DescriptionNamesForbidNestedCommandsOption()
+    {
+        Assert.Contains("litebus_forbid_nested_commands", DiagnosticDescriptors.NestedMediationInCommandHandler.Description.ToString(CultureInfo.InvariantCulture));
     }
 }

@@ -25,9 +25,10 @@ namespace LiteBus.Analyzers;
 /// dotnet_diagnostic.LB1020.severity = warning
 ///     </code>
 ///     <para>
-///         A message satisfies the requirement with a definition class declaring the value, with an attribute annotated
-///         <c>[MessageDeclaration(typeof(TValue))]</c>, or with <c>[DeclarationExempt(typeof(TValue), "rationale")]</c>.
-///         A declaration written for a base type or a marker interface covers the messages beneath it.
+///         A message satisfies the requirement with a definition class or a catalog source declaring the value, with an
+///         attribute annotated <c>[MessageDeclaration(typeof(TValue))]</c>, or with
+///         <c>[DeclarationExempt(typeof(TValue), "rationale")]</c>. A declaration written for a base type or a marker
+///         interface covers the messages beneath it.
 ///     </para>
 ///     <para>
 ///         <c>RequireDeclaration&lt;TValue&gt;()</c> on the messaging module enforces the same rule at composition
@@ -58,8 +59,10 @@ public sealed class MissingDeclarationAnalyzer : DiagnosticAnalyzer
     /// </summary>
     /// <param name="context">The compilation start analysis context.</param>
     /// <remarks>
-    ///     The syntax tree and compilation-end actions are always registered: an unresolvable configured name is
-    ///     reported even when the compilation references no LiteBus contracts at all.
+    ///     The syntax tree and compilation-end actions are always registered so configured names are collected in any
+    ///     project. LB1021 is reported only when the compilation references the LiteBus message markers, the same
+    ///     condition the analyzer uses to look for messages. A project with no LiteBus messaging references has no
+    ///     messages to check, so a typo in a shared configuration stays silent there.
     /// </remarks>
     private static void AnalyzeCompilationStart(CompilationStartAnalysisContext context)
     {
@@ -83,6 +86,13 @@ public sealed class MissingDeclarationAnalyzer : DiagnosticAnalyzer
             {
                 context.RegisterSyntaxNodeAction(
                     nodeContext => DeclarationAnalysis.AnalyzeDescribeMethod(nodeContext, collector, symbols),
+                    SyntaxKind.MethodDeclaration);
+            }
+
+            if (symbols.DeclarationCatalog is not null && symbols.CatalogSourceContract is not null)
+            {
+                context.RegisterSyntaxNodeAction(
+                    nodeContext => DeclarationAnalysis.AnalyzeCatalogDescribeMethod(nodeContext, collector, symbols),
                     SyntaxKind.MethodDeclaration);
             }
         }
@@ -121,12 +131,17 @@ public sealed class MissingDeclarationAnalyzer : DiagnosticAnalyzer
 
             if (valueType is null)
             {
-                // Skipping an unresolvable name would disable the requirement it configures, and a typo in
-                // .editorconfig is exactly how that happens.
-                context.ReportDiagnostic(Diagnostic.Create(
-                    DiagnosticDescriptors.UnresolvedRequiredDeclaration,
-                    Location.None,
-                    name));
+                // A project with no message markers has no messages to check, so a typo in a shared
+                // .editorconfig stays silent there. Report it where messages are present: skipping an
+                // unresolvable name would disable the requirement it configures.
+                if (symbols.HasMessageMarkers)
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(
+                        DiagnosticDescriptors.UnresolvedRequiredDeclaration,
+                        Location.None,
+                        name));
+                }
+
                 continue;
             }
 

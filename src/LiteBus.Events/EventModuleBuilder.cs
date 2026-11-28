@@ -55,38 +55,6 @@ public sealed class EventModuleBuilder
     public IContractWriter Contracts { get; }
 
     /// <summary>
-    ///     Gets a value indicating whether <see cref="EnableAuditing" /> was called.
-    /// </summary>
-    /// <remarks>
-    ///     The module reads this after the configuration action runs, so it can register the diagnostic probe that
-    ///     reports a missing <see cref="IAuditTrail" /> before the first audited publish fails inside the completion
-    ///     stage.
-    /// </remarks>
-    internal bool AuditingEnabled { get; private set; }
-
-    /// <summary>
-    ///     Registers the LiteBus event audit writer, so every event mediation produces an audit record when the message
-    ///     declares one.
-    /// </summary>
-    /// <returns>The current <see cref="EventModuleBuilder" /> instance for method chaining.</returns>
-    /// <remarks>
-    ///     <para>
-    ///         A domain fact is frequently the thing a review most wants recorded, so the event axis carries the same
-    ///         switch the command and query axes do. A message is recorded only when it declares an audited position
-    ///         through <see cref="AuditedAttribute" /> or an <c>IAuditDefinition&lt;TMessage&gt;</c>.
-    ///     </para>
-    ///     <para>
-    ///         One record per publish, not per handler: the mediation is the unit being audited, and a record per
-    ///         subscriber would turn one fact into as many entries as there happen to be reactions.
-    ///     </para>
-    /// </remarks>
-    public EventModuleBuilder EnableAuditing()
-    {
-        AuditingEnabled = true;
-        return Register<EventAuditCompletionHandler>();
-    }
-
-    /// <summary>
     ///     Registers an event type for the message registry.
     /// </summary>
     /// <typeparam name="T">The event or event handler type to register.</typeparam>
@@ -208,6 +176,14 @@ public sealed class EventModuleBuilder
     internal static bool IsEventConstruct(Type type)
     {
         if (typeof(IEvent).IsAssignableFrom(type))
+        {
+            return true;
+        }
+
+        // A declaration source may describe events alongside commands and queries, so it counts for every axis
+        // rather than only for the messages one scan can see. The registry applies each declaration to the message
+        // it names, whatever axis registered the source.
+        if (typeof(IMultiMessageDefinition).IsAssignableFrom(type))
         {
             return true;
         }

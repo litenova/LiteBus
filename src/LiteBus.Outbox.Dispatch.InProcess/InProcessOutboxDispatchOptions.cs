@@ -24,9 +24,21 @@ public sealed record InProcessOutboxDispatchOptions
     ///         The default matters because the failure it prevents is silent and total. Registering the event axis
     ///         over an assembly that does not hold the handlers leaves every outbox message leased, dispatched and
     ///         marked published without leaving the process, with no exception, no dead letter, and a backlog
-    ///         reading of zero. Turn this off only when publishing to zero handlers is a state the application
-    ///         deliberately allows.
+    ///         reading of zero. Call <see cref="InProcessOutboxDispatchOptionsBuilder.AllowEnvelopesWithoutHandler" />
+    ///         only when publishing to zero handlers is a state the application deliberately allows.
     ///     </para>
     /// </remarks>
     public bool RequireHandler { get; init; } = true;
+
+    /// <summary>
+    ///     Gets the acknowledgement recorded when envelopes without a handler are allowed.
+    /// </summary>
+    /// <value>
+    ///     The reason passed to <see cref="InProcessOutboxDispatchOptionsBuilder.AllowEnvelopesWithoutHandler" />,
+    ///     or <see langword="null" /> when <see cref="RequireHandler" /> is <see langword="true" />.
+    /// </value>
+    /// <remarks>
+    ///     A startup task logs this reason at warning level so the choice stays visible in production logs.
+    /// </remarks>
+    public string? MissingHandlerReason { get; init; }
 }

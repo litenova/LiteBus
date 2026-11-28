@@ -20,7 +20,7 @@ public sealed record BrowseVaultCatalogueCommand : ICommand;
 
 An exemption is a decision, not an omission. Because the rationale sits beside the message, a reviewer can see which messages were deliberately exempted. It also lets the declaration requirement distinguish a considered exemption from a message nobody looked at.
 
-LiteBus never evaluates the policy. Declaring `vaults.open` authorizes nothing by itself. The declaration states what the message requires, and your application decides whether the current actor holds it. Policy evaluation stays in your application because no messaging library can model your tenancy and role structure.
+Declaring `vaults.open` authorizes nothing by itself. The declaration states what the message requires, and a guard evaluates it: either the composable policy model in [Authorization Policies](authorization-policies.md), or your own guard when the rule needs application state no shared check can express. Either way the policy string stays your vocabulary, which LiteBus carries from the declaration to the check without interpreting it.
 
 ## The Four Shapes
 
@@ -56,7 +56,22 @@ An exemption in `Describe` form records both halves, exactly as `[AuthorizationE
 declarations.AuthorizationExempt("a liveness probe has no actor to authorize");
 ```
 
-When both an attribute and a definition declare the same message, the definition wins, because both contribute the same `AuthorizationDeclaration` and the definition is applied last. See [Message Definitions](message-definitions.md) for the mechanism all four shapes share, including family defaults and precedence.
+When both an attribute and a definition declare the same message, the definition wins, because both contribute the same `AuthorizationDeclaration` and the definition is applied last. See [Message Definitions](message-definitions.md) for the mechanism all four shapes share, including family defaults and precedence. A default declared with `DeclareDefault<TScope, AuthorizationDeclaration>` applies only to messages assignable to `TScope` and never satisfies another scope's requirement: the `IEvent`-scoped exemption the event module declares does not satisfy an `ICommand`-scoped requirement.
+
+## Events Are Exempt by Default
+
+Events are facts, not requests: publishing an event notifies subscribers that something already happened, so it asks nothing of the caller. The event module declares a default `AuthorizationExemptDeclaration` for the `IEvent` scope, so a composition with authorization policies publishes undeclared events, including events replayed from durable storage, without each event stating its own position. An explicit per-event declaration still applies, because a declaration written closer to the message overrides the family default. A composition that already states its own `IEvent` authorization default keeps it: the duplicate is the application's explicit choice, not a conflict.
+
+```csharp
+// No declaration needed: the event module default exempts it.
+public sealed record VaultOpenedEvent(Guid VaultId) : IEvent;
+
+// An explicit position still applies where an event needs one.
+[Authorized("vaults.audit")]
+public sealed record VaultSealedEvent(Guid VaultId) : IEvent;
+```
+
+Scope an authorization requirement to commands and queries when events carry the module default. `RequireDeclaration<AuthorizationDeclaration, ICommand>()` with its `IQuery` counterpart requires a position where a caller makes a request, while events keep publishing under the default.
 
 ## Requiring a Position
 
@@ -82,7 +97,7 @@ Use both. The analyzer reports the omission on the message itself while you are 
 
 ## Enforcing It in a Guard
 
-One guard covers every message that declares a policy. Derive it from `AuthorizationGuard<TMessage>` and implement only the check itself:
+One guard covers every message that declares a policy. When the rule is one of the shared checks, register the policy model instead of writing a guard: `AddAuthorizationPolicies` registers a `PolicyAuthorizationGuard<TMessage>` that evaluates the named policy for every message. See [Authorization Policies](authorization-policies.md). When the rule needs application state no shared check can express, derive a guard from `AuthorizationGuard<TMessage>` and implement only the check itself:
 
 ```csharp
 public sealed class VaultAuthorizationGuard<TCommand> : AuthorizationGuard<TCommand>
@@ -111,16 +126,16 @@ Register it once as an open generic and it covers every command:
 registry.AddCommands(builder => builder.Register(typeof(VaultAuthorizationGuard<>)));
 ```
 
-The guard reads the declaration for the runtime message type. It allows exempt messages and calls `AuthorizeAsync` with the declared policy on everything else. A message that declares nothing is denied with the `declaration.missing` code, because a use case nobody considered must not pass a check nobody wrote for it.
+The guard reads the declaration for the runtime message type. It allows exempt messages and calls `AuthorizeAsync` with the declared policy on everything else. A message that declares nothing is denied with the `declaration.missing` code, because a use case nobody considered must not pass a check nobody wrote for it. When the rule is one of the shared checks, a composition that calls `AddAuthorizationPolicies` also fails at startup for a declared policy name no call registered, naming every unknown name and the messages that use it, so a typo fails once where it was written. See [Authorization Policies](authorization-policies.md).
 
 Override `DecideUndeclaredAsync` to allow undeclared messages while the declaration is still being rolled out. Pair the guard with the requirement above so the override becomes unreachable once every message states its position. A denied message is refused before the handler runs, and the denial is recorded like any other mediation outcome.
 
 ## Application Responsibilities
 
-- Whether the actor satisfies the policy is your guard's decision. LiteBus does not model identity, roles, or tenancy. Your guard reads the declared policy and answers from whatever principal your host provides.
+- Whether the actor satisfies the policy is a check's decision. LiteBus evaluates the shared checks in [Authorization Policies](authorization-policies.md) from the mediation identity. What a permission name means, and any rule the shared checks cannot express, is your guard's decision, answered from whatever principal your host provides.
 - What a policy means is your decision. The policy string is your vocabulary and LiteBus never interprets it. Keep the set closed where you construct the declaration, with shared constants a rename can find.
 - Where the check runs is your choice. A guard denies before the handler. An application that refuses by throwing its own exception owns that type and its classification. Either way, enforcement is application code.
 
 ## Next
 
-Read [Message Definitions](message-definitions.md) for the declaration mechanism, and [Auditing](auditing.md) for the declaration this one mirrors and the trail it feeds.
+Read [Authorization Policies](authorization-policies.md) for the checks that evaluate these declarations, [Message Definitions](message-definitions.md) for the declaration mechanism, and [Auditing](auditing.md) for the declaration this one mirrors and the trail it feeds.

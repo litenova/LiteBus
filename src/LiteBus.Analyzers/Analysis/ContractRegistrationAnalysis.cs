@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using Microsoft.CodeAnalysis;
@@ -115,5 +117,176 @@ internal static class ContractRegistrationAnalysis
         return compilation.GetTypeByMetadataName("LiteBus.Commands.Abstractions.ICommand") is not null ||
             compilation.GetTypeByMetadataName("LiteBus.Commands.Abstractions.ICommand`1") is not null ||
             compilation.GetTypeByMetadataName("LiteBus.Events.Abstractions.IEvent") is not null;
+    }
+
+    /// <summary>
+    ///     Determines whether the message type's assembly delegates contract registration to another assembly.
+    /// </summary>
+    /// <param name="messageType">The message type symbol.</param>
+    /// <param name="compilation">The compilation being analyzed.</param>
+    /// <returns>
+    ///     <see langword="true" /> when the containing assembly carries <c>MessageContractsRegisteredIn</c> naming
+    ///     an assembly other than the analyzed compilation; otherwise, <see langword="false" />.
+    /// </returns>
+    internal static bool IsRegisteredInAnotherAssembly(ITypeSymbol messageType, Compilation compilation)
+    {
+        var names = GetRegisteredInAssemblyNames(messageType.ContainingAssembly);
+
+        return names.Count > 0 && !names.Contains(compilation.Assembly.Name);
+    }
+
+    /// <summary>
+    ///     Determines whether the assembly delegates contract registration to the analyzed compilation.
+    /// </summary>
+    /// <param name="assembly">The referenced assembly symbol.</param>
+    /// <param name="compilation">The compilation being analyzed.</param>
+    /// <returns>
+    ///     <see langword="true" /> when the assembly names the analyzed compilation; otherwise,
+    ///     <see langword="false" />.
+    /// </returns>
+    internal static bool IsRegisteredInCurrentAssembly(IAssemblySymbol assembly, Compilation compilation)
+    {
+        return GetRegisteredInAssemblyNames(assembly).Contains(compilation.Assembly.Name);
+    }
+
+    /// <summary>
+    ///     Gets the assembly names declared by <c>MessageContractsRegisteredIn</c> attributes on an assembly.
+    /// </summary>
+    /// <param name="assembly">The assembly symbol.</param>
+    /// <returns>The declared registering assembly names, compared without regard to case.</returns>
+    internal static ImmutableHashSet<string> GetRegisteredInAssemblyNames(IAssemblySymbol assembly)
+    {
+        var builder = ImmutableHashSet.CreateBuilder<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var attribute in assembly.GetAttributes())
+        {
+            if (attribute.AttributeClass?.Name != "MessageContractsRegisteredInAttribute" ||
+                attribute.AttributeClass.ContainingNamespace?.ToDisplayString() is not
+                    ("LiteBus.Messaging.Abstractions" or "LiteBus.Analyzers"))
+            {
+                continue;
+            }
+
+            if (attribute.ConstructorArguments.Length == 0 ||
+                attribute.ConstructorArguments[0].Value is not string assemblyName ||
+                string.IsNullOrWhiteSpace(assemblyName))
+            {
+                continue;
+            }
+
+            builder.Add(assemblyName);
+        }
+
+        return builder.ToImmutable();
+    }
+
+    /// <summary>
+    ///     Determines whether the assembly carries <c>MessageContractsRegisteredIn</c> naming a registering assembly.
+    /// </summary>
+    /// <param name="assembly">The assembly symbol.</param>
+    /// <returns>
+    ///     <see langword="true" /> when the assembly declares at least one registering assembly name; otherwise,
+    ///     <see langword="false" />.
+    /// </returns>
+    internal static bool CarriesRegisteredInAttribute(IAssemblySymbol assembly)
+    {
+        return GetRegisteredInAssemblyNames(assembly).Count > 0;
+    }
+
+    /// <summary>
+    ///     Gets the attributed durable message types of referenced assemblies that name the analyzed compilation
+    ///     and lack explicit contract registration.
+    /// </summary>
+    /// <param name="compilation">The compilation being analyzed.</param>
+    /// <param name="registeredTypes">Types registered through <c>Register</c>.</param>
+    /// <param name="registeredAssemblies">Assemblies registered through <c>RegisterFromAssembly</c>.</param>
+    /// <returns>The unregistered referenced contract types, ordered by assembly and metadata name.</returns>
+    internal static ImmutableArray<INamedTypeSymbol> GetUnregisteredReferencedContracts(
+        Compilation compilation,
+        ImmutableHashSet<ITypeSymbol> registeredTypes,
+        ImmutableHashSet<IAssemblySymbol> registeredAssemblies)
+    {
+        List<INamedTypeSymbol> unregistered = [];
+
+        foreach (var assembly in compilation.SourceModule.ReferencedAssemblySymbols
+                     .OrderBy(candidate => candidate.Name, StringComparer.Ordinal))
+        {
+            if (!IsRegisteredInCurrentAssembly(assembly, compilation))
+            {
+                continue;
+            }
+
+            foreach (var type in GetDeclaredTypes(assembly))
+            {
+                if (type.TypeKind == TypeKind.TypeParameter ||
+                    HandlerAnalysis.IsGenericTypeDefinition(type) ||
+                    !HasMessageContractAttribute(type) ||
+                    !IsDurableMessageType(type, compilation))
+                {
+                    continue;
+                }
+
+                if (IsExplicitlyRegistered(type, registeredTypes, registeredAssemblies))
+                {
+                    continue;
+                }
+
+                unregistered.Add(type);
+            }
+        }
+
+        return unregistered
+            .OrderBy(type => type.ContainingAssembly.Name, StringComparer.Ordinal)
+            .ThenBy(type => LiteBusSymbols.GetMetadataName(type), StringComparer.Ordinal)
+            .ToImmutableArray();
+    }
+
+    /// <summary>
+    ///     Gets every named type declared in an assembly, including nested types.
+    /// </summary>
+    /// <param name="assembly">The assembly symbol.</param>
+    /// <returns>Every named type declared in the assembly's namespaces.</returns>
+    internal static IEnumerable<INamedTypeSymbol> GetDeclaredTypes(IAssemblySymbol assembly)
+    {
+        var namespaces = new Stack<INamespaceSymbol>();
+        namespaces.Push(assembly.GlobalNamespace);
+
+        while (namespaces.Count > 0)
+        {
+            var current = namespaces.Pop();
+
+            foreach (var nested in current.GetNamespaceMembers())
+            {
+                namespaces.Push(nested);
+            }
+
+            foreach (var type in current.GetTypeMembers())
+            {
+                yield return type;
+
+                foreach (var nestedType in GetNestedTypes(type))
+                {
+                    yield return nestedType;
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Gets a named type's nested types, recursively.
+    /// </summary>
+    /// <param name="type">The containing type symbol.</param>
+    /// <returns>The nested type symbols.</returns>
+    private static IEnumerable<INamedTypeSymbol> GetNestedTypes(INamedTypeSymbol type)
+    {
+        foreach (var nested in type.GetTypeMembers())
+        {
+            yield return nested;
+
+            foreach (var descendant in GetNestedTypes(nested))
+            {
+                yield return descendant;
+            }
+        }
     }
 }

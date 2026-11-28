@@ -57,4 +57,33 @@ public static class CommandModuleBuilderMartenExtensions
 
         return builder.RegisterChildModule(new MartenIdempotencyModule(options));
     }
+
+    /// <summary>
+    ///     Registers the Marten tenant session factory as a command child module.
+    /// </summary>
+    /// <param name="builder">The command module builder.</param>
+    /// <returns>The command module builder for chaining.</returns>
+    /// <remarks>
+    ///     <para>
+    ///         Sessions the factory opens are outside the command's unit of work: the caller owns and disposes them,
+    ///         and nothing written through them commits with the scoped session. Use them for tenant-filtered reads,
+    ///         and keep writing through the scoped session.
+    ///     </para>
+    ///     <para>
+    ///         The factory resolves the application-owned <c>IDocumentStore</c> and is registered as a singleton
+    ///         <see cref="MartenTenantSessionFactory" />. Handlers take it as a constructor dependency and open
+    ///         sessions for the ambient tenant through it, so tenant filtering needs no application code at the call
+    ///         site.
+    ///     </para>
+    ///     <para>
+    ///         The application must configure Marten for conjoined tenancy. Without it, opening a tenant session
+    ///         fails in Marten rather than filtering silently; see <see cref="MartenTenantSessionFactory" />.
+    ///     </para>
+    /// </remarks>
+    public static CommandModuleBuilder UseMartenTenantSessions(this CommandModuleBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        return builder.RegisterChildModule(new MartenTenantSessionModule());
+    }
 }

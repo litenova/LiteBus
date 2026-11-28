@@ -17,6 +17,8 @@
 
 The warning compares simple names, not full type identity.
 
+This rule is independent of handler coverage across assemblies. LB1008 and LB1009 skip message types whose assembly carries `[assembly: MessageContractsRegisteredIn]` naming another assembly, and the named assembly reports the referenced types it does not handle at the first location of its own compilation. See [Handler Coverage](handler-coverage.md).
+
 ## Bad Example
 
 ```csharp

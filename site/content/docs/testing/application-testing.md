@@ -238,6 +238,78 @@ public sealed class LoggingPreHandler<T> : ICommandPreHandler<T> where T : IComm
 }
 ```
 
+## Validating a Host's Container Without Starting It
+
+Some composition mistakes surface only when a host starts: a singleton background service that captures a scoped service fails under the Development container validation, and a missing registration fails when a hosted service is first resolved. `LiteBusHostValidation.Validate`, in the `LiteBus.Testing.Hosting` package, finds them in a unit test with no database, broker or running host:
+
+```csharp
+[Fact]
+public void Worker_host_container_is_valid()
+{
+    var services = new ServiceCollection();
+    WorkerComposition.Configure(services, testConfiguration);
+
+    LiteBusHostValidation.Validate(services);
+}
+```
+
+It builds the provider with `ValidateScopes` and `ValidateOnBuild`, then resolves from the root provider every startup task, background service and diagnostic check in the `LiteBusHostManifest`, and every `IHostedService`. It starts nothing. It collects every failure before it throws `LiteBusHostValidationException`, whose `Failures` names each service that failed and why. The same test also runs the composition checks `AddLiteBus` performs, such as a contract version that disagrees with its registration, a message missing a required declaration, or an authorization policy name with no registration, because those fail while `AddLiteBus` composes.
+
+Run one such test per host composition. A store client registered by the composition, such as `AddMarten` or `AddDbContextFactory`, is resolved but makes no connection until it is used.
+
+Do not call `LiteBusHostValidation.Validate(services)` on a collection the host builds afterwards. It builds and disposes its own provider, and a store such as Marten keeps state in objects the collection holds, so the disposed provider breaks the host's own build. Use it only on a composition built for the test.
+
+An application with no test project can validate the container it already built with `ValidateLiteBusHost()`, an extension in the `LiteBus.Runtime.Extensions.Microsoft.Hosting` package. It resolves the same entries from the host's own `Services` and starts nothing:
+
+```csharp
+var app = builder.Build();
+
+if (args.Contains("--validate-composition"))
+{
+    app.Services.ValidateLiteBusHost();
+    return;
+}
+
+app.Run();
+```
+
+A CI step runs `dotnet run -- --validate-composition`. Scope validation comes from the host's own `ServiceProviderOptions`, which is on by default in the Development environment. The method makes no database or broker connection unless a service's constructor makes one.
+
+### Durable Composition Checks
+
+The same validation call also runs two durable checks through the composition model. The contract round-trip check builds a sample of every registered durable message contract, serializes and deserializes it through the configured `IMessageSerializer`, and compares every readable public property. A property the serializer drops, such as a typed identifier that comes back empty, fails the test naming the message type, the contract name and version, and the property. The event-consistency check requires every event the outbox stages through the domain-event collector to have a registered message contract and a subscribed handler; a staged event with neither handler nor declared ignore is a fault naming the event type.
+
+Both checks report through the same `Failures` list, and each is individually switchable with `LiteBusHostValidationOptions`:
+
+```csharp
+LiteBusHostValidation.Validate(
+    services,
+    new LiteBusHostValidationOptions { ValidateEventConsistency = false });
+```
+
+The default sample factory builds the shapes domain models use: records and structs whose constructors validate their arguments, static factories named `TryParse`, `TryCreate`, `Create`, `From` (including `FromCode`-style factories) or `Parse`, and abstract closed sets, which sample through the first concrete derived type in the same assembly by name, or through a parameterless static member such as an `All` list when the cases hide their constructors. A guarded string needs a registered sample. Interfaces stay unsampleable.
+
+A value no general rule satisfies, such as an address validated against a regular expression, needs one per-type sample. The default factory consults it at every level of sampling, so one registration fixes every message holding the type:
+
+```csharp
+builder.AddMessaging(messaging => messaging
+    .RegisterSample<EmailAddress>(() => EmailAddress.Parse("billing@example.com")));
+```
+
+Repeats follow the registration conflict rule: an identical repeat is a no-op, a conflicting repeat fails composition naming both call sites, and `ReplaceSample` overwrites deliberately. Registered samples appear in the `message-samples` composition section. A whole-domain replacement stays available through `UseMessageSampleFactoryInstance`, which may delegate to `DefaultMessageSampleFactory` for the types it does not handle itself; registering samples together with a custom factory fails composition, because the custom factory would silently ignore them.
+
+When no strategy builds a type, the round-trip check fails naming the message type, the contract name and version, the member path with its type and reason, and both registrations that fix it (`RegisterSample` or an `IMessageSampleFactory` replacement). A host migrating toward full coverage reports those contracts as not run instead of failing them:
+
+```csharp
+var result = LiteBusHostValidation.ValidateWithResult(
+    services,
+    new LiteBusHostValidationOptions { FailOnMissingSample = false });
+
+result.SkippedRoundTrips.Should().BeEmpty(); // or track each entry in CI
+```
+
+`FailOnMissingSample` defaults to `true`. When `false`, an unsampleable contract lands on `SkippedRoundTrips` with the same diagnosis a failure would carry, while a factory exception and a serialization failure still fail either way. Inside a host, `ValidateLiteBusHostWithResult` on the built host's `Services` answers the same result; the existing `void` overloads delegate to it and throw when `Failures` is non-empty, so their behavior is unchanged.
+
 ## Integration Testing with `WebApplicationFactory`
 
 Each `AddLiteBus` call builds a fresh `IMessageRegistry` scoped to that module configuration, so `WebApplicationFactory` tests do not share handler registrations across factories in the same process. Register handlers inside `ConfigureTestServices` (or in the application under test) for each factory instance.

@@ -59,10 +59,8 @@ public sealed class IdempotencyKeyScopingTests : LiteBusTestBase
             });
         var mediator = provider.GetRequiredService<ICommandMediator>();
 
-        var tenantA = new CommandMediationSettings();
-        tenantA.Items[MessageTraceContextKeys.TenantId] = "tenant-a";
-        var tenantB = new CommandMediationSettings();
-        tenantB.Items[MessageTraceContextKeys.TenantId] = "tenant-b";
+        var tenantA = new CommandMediationSettings { Identity = ExecutionIdentity.ForTenant("tenant-a") };
+        var tenantB = new CommandMediationSettings { Identity = ExecutionIdentity.ForTenant("tenant-b") };
 
         await mediator.SendAsync(new ApplyPaymentCommand { PaymentId = "order-1" }, tenantA).ConfigureAwait(false);
         await mediator.SendAsync(new ApplyPaymentCommand { PaymentId = "order-1" }, tenantB).ConfigureAwait(false);

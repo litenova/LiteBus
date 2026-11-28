@@ -1,5 +1,4 @@
 using System;
-using LiteBus.Messaging.Audit;
 
 namespace LiteBus.Commands.Batching;
 
@@ -31,11 +30,6 @@ internal sealed class CommandBatchContext
     public string? BatchId { get; private set; }
 
     /// <summary>
-    ///     Gets the buffer that holds the batch's audit records, or <see langword="null" /> outside a batch.
-    /// </summary>
-    public AuditRecordBuffer? AuditRecords { get; private set; }
-
-    /// <summary>
     ///     Marks the scope as belonging to a batch.
     /// </summary>
     /// <param name="batchId">The identifier of the batch.</param>
@@ -51,6 +45,5 @@ internal sealed class CommandBatchContext
 
         IsActive = true;
         BatchId = batchId;
-        AuditRecords = new AuditRecordBuffer(batchId);
     }
 }

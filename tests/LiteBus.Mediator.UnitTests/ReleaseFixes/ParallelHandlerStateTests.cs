@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using LiteBus.Auditing;
 using LiteBus.Events;
 using LiteBus.Events.Abstractions;
 using LiteBus.Extensions.Microsoft.DependencyInjection;
@@ -6,6 +7,7 @@ using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using LiteBus.Auditing.Abstractions;
 
 namespace LiteBus.Mediator.UnitTests.ReleaseFixes;
 
@@ -32,6 +34,11 @@ public sealed class ParallelHandlerStateTests : LiteBusTestBase
             .AddLiteBus(registry =>
             {
                 registry.AddMessaging(_ => { });
+
+                // The handlers write through IAuditScope, which the auditing module registers.
+                registry.AddAuditing(auditing => auditing
+                    .ForEvents()
+                    .UseTrailInstance(new LiteBus.Mediator.UnitTests.Auditing.RecordingAuditTrail()));
 
                 registry.AddEvents(builder =>
                 {

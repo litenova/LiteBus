@@ -333,11 +333,54 @@ builder.AddOutbox(outbox =>
 collector.Collect(new OrderPlacedIntegrationEvent { OrderId = order.Id });
 ```
 
-Staging runs only on `MediationOutcome.Succeeded`. A failed mediation stages nothing. The staging handler resolves `ITransactionalOutbox` lazily, only when the drain is non-empty. Mediations that collect nothing therefore never touch it.
+Staging runs only on `MediationOutcome.Succeeded`. A failed mediation stages nothing. The staging handler resolves `ITransactionalOutbox` lazily, only when the drain stages at least one message. Mediations that collect nothing therefore never touch it.
 
 The application must register a scoped non-generic `ITransactionalOutbox` (the ambient PostgreSQL provider, the Entity Framework Core interceptor adapter, or the Marten writer). Collecting events without one fails staging with a descriptive error. Entity Framework Core registers the non-generic adapter over `ITransactionalOutbox<TContext>` only when `EnableSaveChangesInterceptor()` is set.
 
-When `UseAmbientTrace` is also enabled, staged envelopes stamp ambient trace. See [Domain Events and Unit of Work](domain-events-and-unit-of-work.md) for the aggregate and transaction-boundary pattern.
+When `UseAmbientTrace` is also enabled, staged envelopes stamp ambient trace. When `UseAmbientTenant` is also enabled, staged envelopes stamp the ambient execution identity tenant. See [Domain Events and Unit of Work](domain-events-and-unit-of-work.md) for the aggregate and transaction-boundary pattern.
+
+### Decide and Translate Before Staging
+
+Between harvest and stage, the staging handler decides what each drained event does and translates it. Each event matches its exact runtime type against the registered per-type decisions. Translated messages are published messages and stage directly without a further decision, so translation cannot loop.
+
+| Decision | Registration | Behavior |
+| --- | --- | --- |
+| Translate with a function | `TranslateDomainEvent<TEvent>(e => [...])` | Maps one domain event to zero or more messages to stage. An empty list stages nothing. |
+| Translate with a translator | `TranslateDomainEvent<TEvent, TTranslator>()` | Resolves `IDomainEventTranslator<TEvent>` from the dispatch scope, so the translator reads scoped services. |
+| Stage unchanged | `StageDomainEvent<TEvent>()` | Stages the event as it is, for an event whose domain shape is the published contract. The event needs a contract registration like any staged message. |
+| Ignore | `IgnoreDomainEvent<TEvent>()` | Drops the event without staging it. Ignored events need no contract registration. |
+| Publish in process | `PublishDomainEventInProcess<TEvent>()` | Publishes the event through `IEventMediator` after the commit, as a root mediation with a cause. |
+| Undecided policy | `RequireDomainEventDecision()` | Fails staging before the commit when a drained event has no registered decision. |
+
+The outbox composition section lists every decided event type with its decision kind (`Translate`, `Ignore`, `PublishInProcess` or `Stage`) and the undecided policy, so a composition check or a reviewer reads which events leave the process and how.
+
+```csharp
+builder.AddOutbox(outbox => outbox
+    .StageCollectedEvents()
+    .TranslateDomainEvent<WorkspaceErasureRequestedDomainEvent>(
+        static e => [WorkspaceErasureRequestedModuleEvent.From(e)])
+    .TranslateDomainEvent<DiagnosisRecordedDomainEvent, DiagnosisRecordedTranslator>()
+    .IgnoreDomainEvent<ChartOfAccountsChangedDomainEvent>()
+    .StageDomainEvent<InvoiceIssuedEvent>()
+    .PublishDomainEventInProcess<OrderShippedDomainEvent>()
+    .RequireDomainEventDecision());
+```
+
+Translation runs inside the staging completion handler, before the unit of work commits and inside the transaction scope. A translator receives a `DomainEventTranslationContext` with the mediated message type, the dispatch-scope provider, and the ambient correlation, causation, and tenant values, so a translator that loads data observes the same uncommitted writes the handlers produced.
+
+A domain event type declares one decision. An identical repeat is a no-op. A different decision for the same event type fails composition with `LiteBusConfigurationException` naming both. Two translation functions are identical only when they are the same delegate instance. A type with no decision follows `UndecidedDomainEventPolicy`: `StageAsIs` stages the event unchanged (the default), `Ignore` drops it, and `Throw` (set by `RequireDomainEventDecision()`) fails staging before the commit. The staging handler throws because harvested types are known only at run time, so a composition check cannot enumerate them.
+
+A decision fault is a configuration fault, never a user refusal. It raises `MessageFaultException` before the commit with a stable code from `DomainEventFaultCodes`, the mediation reports `MediationOutcome.Failed`, and the business write never commits without its declared consequences:
+
+| Code | Meaning |
+| --- | --- |
+| `domain-events.undecided-event` | A drained event has no registered decision and the undecided policy is `Throw`. |
+| `domain-events.translator-missing` | The translator type registered for an event is not registered in dependency injection. |
+| `domain-events.invalid-translation` | A translator returned a null list or a list containing a null message. |
+| `domain-events.event-mediator-missing` | An event must publish in process but no `IEventMediator` is registered. |
+| `domain-events.in-process-publish-unavailable` | An event must publish after the commit but the scoped buffer or the commit listener is not registered. |
+
+An event that publishes in process is recorded during staging and published after the unit of work commits. Each publication runs as a root mediation whose cause has source `MediationCauseSource.DomainEvent`: the cause continues the ambient correlation (starting a new workflow id otherwise) and mints one causation id per recorded event. The mediation runs in the recorded tenant without the causing principal, and the recorded trace metadata is copied into the reaction mediation items. A mediation with no unit of work has no commit to wait for, so its events publish when staging completes instead. There is no pre-commit in-process dispatch: reactions that must join the transaction already exist as post-handlers.
 
 For EF registration, interceptor setup, and duplicate-idempotency behavior on the transactional path, see [Outbox Entity Framework Core Storage](../integrations/outbox-ef-core-storage.md).
 
@@ -381,19 +424,57 @@ After a crash between broker publish and terminal persist, the processor re-publ
 outbox.UseInProcessDispatch();
 ```
 
+Each dispatch runs as a root mediation inside `RootMediationScope`, with `EventMediationSettings.Cause` set from the envelope correlation and causation ids (`MediationCauseSource.Outbox`). An id the envelope does not carry falls back to the envelope id, so a dispatched reaction always carries a cause. The reaction runs in the envelope tenant restored without the calling principal, its `Parent` is `null`, and nesting rules never evaluate. The immediate path delivers through this same dispatcher, so it observes the same lineage as the processor path. See [Execution Context](../concepts/execution-context.md).
+
 A dispatched message with no registered handler fails the attempt by default. The attempt then retries and eventually dead-letters, rather than being marked `Published`. An immediate `PublishAsync` treats 0 subscribers as a silent no-op, which is defensible when the caller can see there are none. A durable dispatch has no such caller, so the two axes deliberately disagree.
 
-When no handler is registered, the default fails the attempt. A durable dispatch with no subscriber would otherwise mark the row `Published` without effect. With `RequireHandler = false`, if the assembly holding the handlers is never scanned by `AddEvents`, every outbox message is leased, dispatched, and marked `Published` without leaving the process. The backlog reads 0 throughout.
+When no handler is registered, the default fails the attempt. A durable dispatch with no subscriber would otherwise mark the row `Published` without effect. After `AllowEnvelopesWithoutHandler(reason)`, if the assembly holding the handlers is never scanned by `AddEvents`, every outbox message is leased, dispatched, and marked `Published` without leaving the process. The backlog reads 0 throughout.
 
 ```csharp
 // Only when publishing to zero handlers is a state the application deliberately allows.
-outbox.UseInProcessDispatch(dispatch => dispatch.RequireHandler = false);
+outbox.UseInProcessDispatch(dispatch =>
+    dispatch.AllowEnvelopesWithoutHandler("Audit-only events have no subscriber in this service."));
 ```
 
 | Option | Default | Behavior |
 | --- | --- | --- |
 | `RequireHandler` | `true` | A message with no handler fails the dispatch attempt, retries, and dead-letters |
-| `RequireHandler` | `false` | A message with no handler completes and is marked `Published` |
+| `RequireHandler` | `false`, set by `AllowEnvelopesWithoutHandler(reason)` | A message with no handler completes and is marked `Published`; the reason is logged as a warning at startup and listed in the composition summary |
+
+### Reaction retries on storage conflicts
+
+When a reaction fails with a storage conflict (an optimistic-concurrency fault, a deadlock, a serialization failure, or a lock wait), the dispatcher publishes the reaction again inside the same dispatch instead of waiting for the next lease. The default retries up to 3 attempts per delivery with an exponential delay from 100 milliseconds, capped at 5 seconds with jitter. Both delivery paths run the same loop: the processor pass and immediate dispatch after the commit.
+
+```csharp
+outbox.UseReactionRetry(options =>
+{
+    options.MaxAttempts = 5;
+    options.InitialDelay = TimeSpan.FromMilliseconds(200);
+});
+```
+
+| Option | Default | Role |
+| --- | --- | --- |
+| `Enabled` | `true` | `false` keeps conflicts on the ordinary envelope retry schedule |
+| `MaxAttempts` | `3` | In-dispatch attempts per delivery, including the first; enforced for every policy |
+| `InitialDelay` | 100 ms | Delay before the first in-dispatch retry; doubles per attempt |
+| `MaxDelay` | 5 seconds | Cap on the calculated delay |
+| `UseJitter` | `true` | Applies a random +-20% factor to the calculated delay |
+
+The retry only answers a classified conflict. A business refusal dead-letters on the first attempt as before, and a configuration fault (`MessageFaultException`) follows the ordinary envelope schedule. A conflict that a refusal classifier translated into a typed refusal still retries: the refusal keeps the storage fault as its cause, and the dispatcher reads through it. Each attempt publishes as a new root mediation with the same cause.
+
+When the bound or the delay must vary per evaluation (per tenant, per contract, per time of day), implement `IOutboxReactionRetryPolicy` and register it with `UseReactionRetryPolicy<TPolicy>()` or `UseReactionRetryPolicyInstance(policy)`. The policy decides per failure with the failure, the in-dispatch attempt number, the message evaluation context, and the dispatch context. Whatever it decides, `MaxAttempts` still bounds the delivery.
+
+Every dispatch stamps an `OutboxDispatchContext` into the mediation items: the envelope id and contract, the store attempt number, the cause, the identity the reaction runs as, and whether the delivery is immediate or background. Handlers read it without ambient state:
+
+```csharp
+if (OutboxDispatchContext.TryGet(AmbientExecutionContext.Current.Items, out var dispatch))
+{
+    // dispatch.Kind is Immediate right after the commit, Background from the processor pass.
+}
+```
+
+Two counters report the loop: `litebus.outbox.reaction_retry.retries` counts each scheduled in-dispatch retry, and `litebus.outbox.reaction_retry.exhausted` counts each dispatch where a conflict met no further in-dispatch retry. The `outbox-reaction-retry` composition section names the effective policy, whether it is the default, and the bound and curve.
 
 ### Per-Handler Delivery
 
@@ -411,6 +492,38 @@ builder.AddOutbox(outbox =>
 Each envelope records the subscriber name of the handler it is addressed to in the `Handler` column, where `null` means broadcast. A main handler carrying `[SubscriberName("...")]` is recorded under that name; any other handler is recorded under its full type name. Dispatch publishes each envelope to the main handler whose subscriber name or full type name equals the recorded value, so an envelope written before the attribute was added still reaches the handler. Pipeline observers (pre-stage, post, error, and completion stages) still run on every targeted dispatch.
 
 A subscriber name survives handler renames. Renaming a handler class or moving its namespace changes its full type name, so envelopes already written for the old name match no handler. When adopting subscriber names on existing handlers, add the attribute first, deploy, let the old envelopes drain, and only then rename the class.
+
+#### Choosing subscriber names
+
+The module that owns a handler owns its subscriber names. The event segment comes from the contract the handler reacts to, so the name stays readable in operations tooling beside the stored contract name.
+
+Name each reaction `<module>.<event>.<reaction>`, with kebab-case segments that match the contract name prefix:
+
+```csharp
+using LiteBus.Events.Abstractions;
+using LiteBus.Messaging.Abstractions;
+
+[SubscriberName("ledger.entry-posted.cash-projection")]
+public sealed class UpdateCashProjectionOnEntryPosted : IEventHandler<EntryPostedEvent>
+{
+    // ...
+}
+```
+
+The name states the module, the event, and the reaction. `ledger.entry-posted.cash-projection` reads beside the contract `ledger.events.entry-posted` and says which fact caused which update. `cash.projection` omits the event, so two reactions that update the same projection from different events collide. `UpdateCashProjection` is the class name, so it reintroduces the rename coupling the attribute exists to remove.
+
+A name must be non-empty, at most 200 characters, and use only letters, digits, `.`, `-`, and `_`. Composition refuses two main handlers of one event that share a name, or a name equal to another handler's full type name. `LB1027` reports one subscriber name used by handlers of different message types, because that reuse makes outbox rows hard to read and makes renaming one handler change the other's recorded identity.
+
+#### Retiring a subscriber name
+
+Retire a name in four steps: add the new name, deploy, let the old envelopes drain, then remove the old handler:
+
+1. Add a handler carrying the new name alongside the old one.
+2. Deploy both, so new enqueues fan out to the new name while the processor still leases rows addressed to the old one.
+3. Let the old envelopes drain until no row carries the old value in the `Handler` column.
+4. Remove the old handler and its name.
+
+Do not rename the class and the subscriber name in one deployment. Dispatch matches an envelope to a handler by its subscriber name or its full type name, so an envelope written before the change still reaches the handler only when one spelling survives the deployment. A handler removed before its envelopes drain leaves rows with no matching subscriber, and `RequireHandler` decides those rows as described above.
 
 Enqueueing an event with no subscribed main handler throws `NoHandlerFoundException`. This matches the default `RequireHandler` rule.
 

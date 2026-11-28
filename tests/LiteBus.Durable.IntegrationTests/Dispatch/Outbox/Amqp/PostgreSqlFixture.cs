@@ -154,8 +154,16 @@ public sealed class PostgreSqlFixture : IAsyncLifetime
             return false;
         }
 
-        var waitTask = process.WaitForExitAsync();
-        var completed = await Task.WhenAny(waitTask, Task.Delay(TimeSpan.FromSeconds(15))).ConfigureAwait(false) == waitTask;
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        var completed = true;
+        try
+        {
+            await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            completed = false;
+        }
 
         if (!completed)
         {

@@ -198,6 +198,22 @@ After editing a batch of files, call `ReadLints` on the paths you touched and fi
 
 ## Architecture principles
 
+### Feature design rules
+
+These rules come from three rounds of consumer feedback on v8. Most of the items in those rounds were a missing port, a value fixed too early, a silent fallback, or ambient context leaking into work the library started. Design every new feature to these rules, and align an existing feature with them when you next touch it.
+
+1. **Decide each value at the latest stage that can know it.** The deployment shape belongs at composition: the store, the broker, the enabled features. A message type's static intent belongs in a declaration. The caller, the tenant, the clock and the data belong at evaluation. A per-tenant window or time zone fixed at composition is a design error.
+2. **A built-in behavior is a port with a registered default.** The port is an interface that the application replaces through the owning builder or the container. LiteBus resolves it from the mediation scope at evaluation time, never captures it at composition, and marks the default registration so the composition model shows which ports were replaced.
+3. **A port is asynchronous and takes the evaluation context.** It returns `ValueTask`, receives `MessageEvaluationContext` or a feature context that carries it, and ends with `CancellationToken`. A factory that takes a fixed value, such as `RecentSignIn(TimeSpan)`, stays as the simple overload over a constant port, and is never the only overload.
+4. **Registrations follow one conflict rule.** An identical repeat is a no-op. A conflicting repeat fails composition and names both sources. A deliberate override calls `Replace`. This applies to every registry: contracts, declarations, defaults, policies, refusal mappings, ports and harvester decisions.
+5. **A configuration fault is never a user refusal.** A missing port, an unknown setting or an unreachable dependency ends the mediation as `MediationOutcome.Failed` through `MessageFaultException`, is logged, and maps to HTTP 500. `WithRefusal` and other combinators rewrite refusals only.
+6. **Work the library starts is a root mediation.** The outbox processor, immediate dispatch, inbox delivery, recurring passes, tenant sources and saga timeouts run inside `RootMediationScope`. Each has a declared identity and a `Cause`, and none inherits the ambient context of the work that triggered it. `Parent` is reserved for synchronous nesting inside a handler.
+7. **A feature that persists state ships a storage port and shared contract tests first.** The algorithm stays store-neutral in a core package. Each store is a thin adapter proven by the contract tests in `tests/LiteBus.Storage.Testing`. A feature never lives inside one store's package.
+8. **Nothing fails silently.** A caught exception is logged with its context. A fallback is visible in the composition model or a diagnostic check. A background loop never swallows a failure.
+9. **Composition explains itself.** The composition model names the source of every effective declaration (definition, attribute, default, convention or exemption) and the implementation of every port. A new registry contributes its own section.
+10. **A runtime rule and its analyzer are switched on together.** When an analyzer cannot see a composition call across compilations, one documented `.editorconfig` option turns it on, such as `litebus_forbid_nested_commands`.
+11. **A consumer's proposal is evidence of a need, not a specification.** A feature design states the need, names at least two other consumers with different needs, and shows that they fit without a change to the core.
+
 ### Dependency role rules
 
 Every package belongs to exactly one dependency role. A package may reference only the project and package roles allowed by the matrix below.
@@ -284,6 +300,7 @@ Put ergonomic aliases in documentation and samples, not in wider default depende
 - Vertical domain packages (durable messaging, saga, and semantic mediators) must not reference each other or broker or ORM SDKs unless the dependency rule table in `site/content/docs/architecture/dependency-graph.md` explicitly allows it.
 - Horizontal platform packages (runtime and transport) must not reference vertical domain abstractions.
 - Put mapping between axes in feature bridges, not in platform core. This covers domain envelopes to wire format and store rows to contracts.
+- Messaging owns the concerns that decide how a mediation ends: authorization, validation, tenancy and refusal mapping. A feature that only observes how a mediation ended, such as auditing, lives in its own package family and reaches the pipeline through generic seams: completion handlers registered in the message registry, generic declarations through `IMessageDeclarations.Declare`, and `ICommandBatchParticipant`. `LiteBus.Messaging` and `LiteBus.Messaging.Abstractions` hold no audit type.
 
 ### Abstract package rules
 
@@ -400,7 +417,7 @@ When you next touch an area whose surface does not match this taxonomy, align it
 
 Modules with sub-modules implement `ICompositeModule`. `DeclareChildren` runs during `Register()` before any `Build()`. The builder action runs inside `DeclareChildren`. `Build()` registers core services only.
 
-Express required ordering through `IRequires<TModule>` and composite ownership. Modules do not use registration markers or scan the registry during `Build()`. The registry inserts children depth-first, validates the complete dependency graph, then topologically sorts it before building any module. Registering the same module type twice throws `LiteBusConfigurationException` at compose time.
+Express required ordering through `IRequires<TModule>` and composite ownership. Modules do not use registration markers or scan the registry during `Build()`. The registry inserts children depth-first, validates the complete dependency graph, then topologically sorts it before building any module. Registering the same module type twice through `IModuleRegistry.Register` throws `LiteBusConfigurationException` at compose time. The `Add*` registration extensions check `IModuleRegistry.Find<TModule>()` first and configure the registered module again instead, so several `IApplicationModule` implementations can add to one composition.
 
 Compose through parent module builders. Register storage, dispatch, and ingress inside the parent module builder with `Use*` extensions. Do not add new top-level `IModuleRegistry` shortcuts that bypass the parent builder. Mark obsolete patterns instead of extending them.
 
@@ -473,6 +490,7 @@ Keep each package's dependency graph minimal and aligned with its dependency rol
 A shipped assembly binds to the exact types and members it was compiled against, while an application resolves the highest version any of its packages requests. When a dependency's new major removes or reshapes one of those members, the application fails at runtime with `TypeLoadException` or `MissingMethodException`, and the solution's tests stay green because they run on the pinned version. Issue #167 was that failure: the 7.0.0 EF Core storage packages were compiled against EF Core 9 and broke on EF Core 10.
 
 - Compile each adapter against the major of its SDK that applications on the target framework run. When a framework ships with a new major of an SDK family, such as EF Core with .NET, move the adapter to it in the same release line rather than holding it back for a test-only dependency.
+- Every package targets each supported .NET major (`net10.0` and `net11.0`). Packages from the .NET release train (EF Core, `Microsoft.Extensions.*`, ASP.NET Core packages, `System.Security.Cryptography.Pkcs`) take one version per target framework in the conditional groups of `src/Directory.Packages.props` and `tests/Directory.Packages.props`; every other dependency takes one version for all targets. When a test dependency has no stable release for a framework yet, the tests use its newest release candidate or preview for that framework only, with a comment naming the stable release to move to, as the MySQL EF Core provider does for .NET 11. Shipped packages never take a pre-release dependency.
 - Keep a floor as low as the code allows when raising it would force consumers onto a version another of their dependencies does not support. `Npgsql` stays at 9.0.5 because Marten 9 is built against Npgsql 9, while the tests run on Npgsql 10. Write the reason next to the version in `Directory.Packages.props`.
 - Never hold a shipped dependency back only because a test dependency lags. Replace the test dependency instead, as the MySQL tests did when Pomelo had no EF Core 10 release.
 - The `Consumer Smoke` CI job (`smoke/LiteBus.ConsumerSmoke`) restores the packed packages with third-party dependencies floating to their latest stable releases and is part of the `CI result` gate. When a package gains a code path that binds to an SDK at runtime, such as a new store operation or a new SDK call, add it to the smoke application. When the job fails on a new dependency release, treat it as a consumer outage in waiting, not as noise.
@@ -500,7 +518,7 @@ Answer these questions before adding a project:
 ## Analyzers
 
 - Ship compile-time rules in `LiteBus.Analyzers` only. Take no runtime dependency on mediator or durable packages.
-- Keep the rule inventory in `site/content/docs/reference/analyzers.md` aligned with `DiagnosticIds` (LB1001-LB1024). LB1002 and LB1006 are reserved and never shipped.
+- Keep the rule inventory in `site/content/docs/reference/analyzers.md` aligned with `DiagnosticIds` (LB1001-LB1030). LB1002 and LB1006 are reserved and never shipped.
 - LB1007 covers handled durable types that miss contract registration. Honor `RegisterFromAssembly` the same as explicit `Contracts.Register`.
 - LB1017 covers attributed durable types. Match only `IContractWriter` or `IMessageContractRegistry` `Register` invocations, not unrelated `Register<T>()` methods.
 - LB1004 must cover `AcceptAsync`, `AcceptBatchAsync`, and the `ITransactionalInbox` acceptance APIs.
@@ -515,6 +533,7 @@ Answer these questions before adding a project:
 
 ## Releases and changelog
 
+- Previews of one line carry no compatibility promise between each other. A preview may remove, rename or reshape anything an earlier preview of the same line shipped, with no obsolete shim, no forwarding overload and no migration section. Design each preview as if the previous one never shipped. Compatibility and migration apply from one stable release to the next: the migration guide for a major describes the move from the previous stable version, and the delta changelog section of a preview lists what changed without upgrade steps.
 - A version has one Changelog section, and every preview after the first has its own. `## v7.0.0` accumulates everything landing in 7.0.0, and it is what the first preview and the stable release publish, so each of those describes the whole line. Every later preview adds a `## v7.0.0-preview.N` section above it that holds only what changed since `preview.N-1`. The release workflow publishes that section instead. A reader moving from one preview to the next wants the difference, not the two hundred lines they already read when they took the previous preview. A reader arriving at the line for the first time wants all of it, which is what the first preview and the stable release give them.
 - A delta section names what it compares against and links to the cumulative one. Open it with a line that says which preview it is a delta against and that points at the version's own section, so the whole line stays one link away from anyone who wants it. `.github/scripts/generate-release-notes.sh` also puts that link in the pre-release banner it prepends.
 - Do not add a section for the first preview of a line. `.github/workflows/release.yml` prefers a section matching the tag and falls back to the version's own, so a `## v7.0.0-preview.1` section would turn the first preview into a delta against nothing.

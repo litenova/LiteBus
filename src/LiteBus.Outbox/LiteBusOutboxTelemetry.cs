@@ -86,4 +86,24 @@ public static class LiteBusOutboxTelemetry
     ///     <c>failed</c>, <c>skipped</c> or <c>timed_out</c>.
     /// </summary>
     public const string ImmediateDispatchOutcomeAttributeName = "litebus.outbox.immediate_dispatch.outcome";
+
+    /// <summary>
+    ///     Gets the instrument name incremented when an immediate-addressed envelope is staged with scheduled visibility.
+    /// </summary>
+    public const string ImmediateDispatchSkippedScheduledInstrumentName = "litebus.outbox.immediate_dispatch.skipped_scheduled";
+
+    /// <summary>
+    ///     Gets the attribute key carrying the stable contract name of an immediate-addressed envelope staged with scheduled visibility.
+    /// </summary>
+    public const string ImmediateDispatchContractAttributeName = "litebus.contract.name";
+
+    /// <summary>
+    ///     Gets the instrument name incremented for each in-dispatch reaction retry scheduled after a storage conflict.
+    /// </summary>
+    public const string ReactionRetryInstrumentName = "litebus.outbox.reaction_retry.retries";
+
+    /// <summary>
+    ///     Gets the instrument name incremented when a storage conflict meets no further in-dispatch retry.
+    /// </summary>
+    public const string ReactionRetryExhaustedInstrumentName = "litebus.outbox.reaction_retry.exhausted";
 }

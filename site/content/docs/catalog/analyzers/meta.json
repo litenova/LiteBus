@@ -19,6 +19,8 @@
     "shortcut-contracts",
     "transactional-ef-interceptor",
     "transactional-inbox-wiring",
-    "transactional-outbox-wiring"
+    "transactional-outbox-wiring",
+    "subscriber-names",
+    "definition-concerns"
   ]
 }

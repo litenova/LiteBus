@@ -1,3 +1,4 @@
+using LiteBus.Auditing;
 using LiteBus.Commands;
 using LiteBus.Commands.Abstractions;
 using LiteBus.Events;
@@ -34,14 +35,18 @@ builder.Services.AddLiteBus(liteBus =>
 {
     var applicationAssembly = typeof(ProcessPaymentCommand).Assembly;
 
-    // The trail and the outcome mapper are the shared half of auditing, so they are configured here;
-    // each axis then decides for itself whether its messages produce records.
-    liteBus.AddMessaging(messaging => messaging.UseAuditTrail<ConsoleAuditTrail>());
+    liteBus.AddMessaging(_ => { });
+
+    // Auditing is its own module: the sample writes records to its console trail, for commands and queries.
+    liteBus.Modules.AddAuditing(auditing => auditing
+        .ForCommands()
+        .ForQueries()
+        .UseTrail<ConsoleAuditTrail>());
 
     // The batch and immediate order handlers stage their work in the sample unit of work, so one
     // mediation commits once and a batch commits once for all of its commands.
-    liteBus.AddCommands(commands => commands.RegisterFromAssembly(applicationAssembly).EnableAuditing().UseUnitOfWork<SampleUnitOfWork>());
-    liteBus.AddQueries(queries => queries.RegisterFromAssembly(applicationAssembly).EnableAuditing());
+    liteBus.AddCommands(commands => commands.RegisterFromAssembly(applicationAssembly).UseUnitOfWork<SampleUnitOfWork>());
+    liteBus.AddQueries(queries => queries.RegisterFromAssembly(applicationAssembly));
     liteBus.AddEvents(events => events.RegisterFromAssembly(applicationAssembly));
 
     liteBus.AddInbox(inbox =>

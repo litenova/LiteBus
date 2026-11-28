@@ -71,6 +71,28 @@ internal sealed class AutofacDependencyRegistryAdapter : IDependencyRegistry
     }
 
     /// <inheritdoc />
+    public void Replace(DependencyDescriptor descriptor)
+    {
+        ArgumentNullException.ThrowIfNull(descriptor);
+
+        if (descriptor.IsCollectionRegistration)
+        {
+            throw new ModuleCompositionException(
+                $"Service type '{descriptor.DependencyType.FullName ?? descriptor.DependencyType.Name}' was registered with collection metadata. " +
+                $"Use {nameof(RegisterCollection)} for multi-registration services such as IEnumerable<T> hooks.");
+        }
+
+        if (!_tracker.TryReplace(descriptor))
+        {
+            return;
+        }
+
+        // Autofac resolves the last registration for a service, so registering after the tracker
+        // records the replacement is enough to make resolution return the replacement.
+        ConvertToAutofacRegistration(descriptor);
+    }
+
+    /// <inheritdoc />
     public void RegisterCollection(DependencyDescriptor descriptor)
     {
         ArgumentNullException.ThrowIfNull(descriptor);

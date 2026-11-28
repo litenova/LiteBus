@@ -9,7 +9,7 @@ using Npgsql;
 namespace LiteBus.Commands.Recurring.Storage.PostgreSql;
 
 /// <summary>
-///     Module for registering the PostgreSQL recurring command lease.
+///     Module for registering the PostgreSQL recurring command lease and occurrence store.
 /// </summary>
 /// <remarks>
 ///     Declared as a child of <see cref="CommandModule" /> through
@@ -81,6 +81,16 @@ public sealed class PostgreSqlRecurringLeaseModule : IModule
             },
             InstanceLifetime.Singleton));
 
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IRecurringOccurrenceStore),
+            services =>
+            {
+                var owner = (PostgreSqlDataSourceOwner<PostgreSqlRecurringLeaseModule>) services.GetService(
+                    typeof(PostgreSqlDataSourceOwner<PostgreSqlRecurringLeaseModule>))!;
+                return new PostgreSqlRecurringOccurrenceStore(owner.DataSource, registration.Options);
+            },
+            InstanceLifetime.Singleton));
+
         if (moduleBuilder.IsSchemaInitializationEnabled)
         {
             configuration.DependencyRegistry.Register(new DependencyDescriptor(
@@ -88,6 +98,12 @@ public sealed class PostgreSqlRecurringLeaseModule : IModule
                 typeof(PostgreSqlRecurringLeaseSchemaInitializer)));
 
             configuration.RegisterStartupTask(typeof(PostgreSqlRecurringLeaseSchemaInitializer));
+
+            configuration.DependencyRegistry.Register(new DependencyDescriptor(
+                typeof(PostgreSqlRecurringOccurrenceSchemaInitializer),
+                typeof(PostgreSqlRecurringOccurrenceSchemaInitializer)));
+
+            configuration.RegisterStartupTask(typeof(PostgreSqlRecurringOccurrenceSchemaInitializer));
         }
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
@@ -98,6 +114,15 @@ public sealed class PostgreSqlRecurringLeaseModule : IModule
         configuration.RegisterDiagnosticCheck(
             typeof(PostgreSqlRecurringLeaseSchemaDiagnosticCheck),
             PostgreSqlRecurringLeaseSchemaDiagnosticCheck.CheckName);
+
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(PostgreSqlRecurringOccurrenceSchemaDiagnosticCheck),
+            typeof(PostgreSqlRecurringOccurrenceSchemaDiagnosticCheck),
+            InstanceLifetime.Singleton));
+
+        configuration.RegisterDiagnosticCheck(
+            typeof(PostgreSqlRecurringOccurrenceSchemaDiagnosticCheck),
+            PostgreSqlRecurringOccurrenceSchemaDiagnosticCheck.CheckName);
     }
 
     /// <summary>

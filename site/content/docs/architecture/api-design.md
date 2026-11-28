@@ -156,6 +156,7 @@ Do not use implicit conversions from the message body to `*Item`. Do not add wri
 | Shared durable value objects | `LiteBus.Messaging.Abstractions` (`DurableMessaging` namespace) |
 | Axis-specific items, metadata, receipts | `LiteBus.Inbox.Abstractions`, `LiteBus.Outbox.Abstractions` |
 | Mediation settings | `LiteBus.Commands.Abstractions`, `LiteBus.Events.Abstractions`, `LiteBus.Queries.Abstractions` |
+| Authorization policy model | `LiteBus.Messaging.Abstractions` (`Authorization` namespace) |
 | Module and host options | Feature or adapter package that registers the service |
 | Internal envelope projection | Core feature package (`LiteBus.Messaging`, `LiteBus.Inbox`, `LiteBus.Outbox`) as `internal` helpers |
 

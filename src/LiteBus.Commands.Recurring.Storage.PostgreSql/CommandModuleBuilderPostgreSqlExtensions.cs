@@ -23,7 +23,9 @@ public static class CommandModuleBuilderPostgreSqlExtensions
     ///     holder whose process dies stops renewing, so its row becomes takeable once the lease duration lapses on the
     ///     database clock. Each statement opens its own pooled connection and no connection is held between statements,
     ///     so the lease works behind PgBouncer in transaction mode. Loops opt in per registration with
-    ///     <see cref="RecurringCommandHostOptions.RequireLease" />.
+    ///     <see cref="RecurringCommandHostOptions.RequireLease" />. The module also registers the PostgreSQL occurrence
+    ///     store behind <see cref="IRecurringOccurrenceStore" />, backed by <c>litebus_recurring_occurrences</c>
+    ///     (configurable through <see cref="PostgreSqlRecurringLeaseOptions" />).
     /// </remarks>
     /// <example>
     ///     <code><![CDATA[

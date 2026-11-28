@@ -28,19 +28,28 @@ public static class ModuleRegistryExtensions
     }
 
     /// <summary>
-    ///     Registers the inbox module.
+    ///     Registers the inbox module, or configures the registered one again.
     /// </summary>
     /// <param name="moduleRegistry">The module registry.</param>
     /// <param name="builderAction">The inbox module configuration action.</param>
     /// <returns>The current module registry.</returns>
     /// <remarks>
     ///     <see cref="InboxModule" /> declares its messaging dependency in the module graph, so registration order does
-    ///     not affect validation.
+    ///     not affect validation. Calling this twice configures one module instead of registering a second one, so
+    ///     several application modules can add to one composition.
     /// </remarks>
     public static IModuleRegistry AddInboxModule(this IModuleRegistry moduleRegistry, Action<InboxModuleBuilder> builderAction)
     {
         ArgumentNullException.ThrowIfNull(moduleRegistry);
         ArgumentNullException.ThrowIfNull(builderAction);
+
+        var existing = moduleRegistry.Find<InboxModule>();
+
+        if (existing is not null)
+        {
+            existing.Configure(builderAction, child => moduleRegistry.Register(child));
+            return moduleRegistry;
+        }
 
         moduleRegistry.Register(new InboxModule(builderAction));
         return moduleRegistry;

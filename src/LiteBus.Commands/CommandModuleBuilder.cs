@@ -73,15 +73,6 @@ public sealed class CommandModuleBuilder
     public IContractWriter Contracts => _contracts;
 
     /// <summary>
-    ///     Gets a value indicating whether <see cref="EnableAuditing" /> was called.
-    /// </summary>
-    /// <remarks>
-    ///     The module reads this after the configuration action runs, so it can register the diagnostic probe that reports
-    ///     a missing <see cref="IAuditTrail" /> before the first audited mediation fails inside the completion stage.
-    /// </remarks>
-    internal bool AuditingEnabled { get; private set; }
-
-    /// <summary>
     ///     Gets a value indicating whether <see cref="EnableIdempotency" /> was called.
     /// </summary>
     /// <remarks>
@@ -99,31 +90,6 @@ public sealed class CommandModuleBuilder
     ///     scoped <see cref="IUnitOfWork" />.
     /// </remarks>
     internal Type? UnitOfWorkType { get; private set; }
-
-    /// <summary>
-    ///     Registers the LiteBus command audit writer, so every command mediation produces an audit record when the
-    ///     message declares one.
-    /// </summary>
-    /// <returns>The current <see cref="CommandModuleBuilder" /> instance for method chaining.</returns>
-    /// <remarks>
-    ///     <para>
-    ///         The writer runs at the completion stage, so refusals, failures and cancellations are recorded as well as
-    ///         successes. A message is recorded only when it declares an audited position through
-    ///         <see cref="AuditedAttribute" /> or an <c>IAuditDefinition&lt;TMessage&gt;</c>.
-    ///     </para>
-    ///     <para>
-    ///         The application must register an <see cref="IAuditTrail" /> implementation; the
-    ///         <c>litebus.audit.trail</c> diagnostic probe reports when it is missing. Registering an
-    ///         <see cref="IAuditOutcomeMapper" /> is optional and lets a refusal raised as an exception be recorded as
-    ///         <see cref="AuditOutcome.Denied" /> rather than <see cref="AuditOutcome.Failed" />; a refusal from a guard
-    ///         is already recorded as a denial without one.
-    ///     </para>
-    /// </remarks>
-    public CommandModuleBuilder EnableAuditing()
-    {
-        AuditingEnabled = true;
-        return Register<CommandAuditCompletionHandler>();
-    }
 
     /// <summary>
     ///     Registers the LiteBus in-process idempotency handlers, so a command declaring an idempotency key is applied
@@ -326,6 +292,14 @@ public sealed class CommandModuleBuilder
     internal static bool IsCommandConstruct(Type type)
     {
         if (typeof(ICommand).IsAssignableFrom(type))
+        {
+            return true;
+        }
+
+        // A declaration source may describe commands alongside queries and events, so it counts for every axis
+        // rather than only for the messages one scan can see. The registry applies each declaration to the message
+        // it names, whatever axis registered the source.
+        if (typeof(IMultiMessageDefinition).IsAssignableFrom(type))
         {
             return true;
         }

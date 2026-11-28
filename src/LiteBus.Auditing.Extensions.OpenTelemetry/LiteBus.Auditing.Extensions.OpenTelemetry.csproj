@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+
+    <ItemGroup>
+
+        <PackageReference Include="OpenTelemetry"/>
+
+    </ItemGroup>
+
+
+    <ItemGroup>
+
+        <ProjectReference Include="..\LiteBus.Auditing\LiteBus.Auditing.csproj"/>
+
+    </ItemGroup>
+
+
+</Project>

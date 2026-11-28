@@ -37,6 +37,10 @@ internal static class DeclarationAnalysis
     /// <summary>
     ///     The message kinds a declaration requirement applies to.
     /// </summary>
+    /// <remarks>
+    ///     Events are excluded: event declaration requirements are composition-only, enforced by
+    ///     <c>RequireDeclaration</c> at composition time rather than by <c>LB1020</c>.
+    /// </remarks>
     private static readonly MessageKind[] DeclarableKinds =
         [MessageKind.Command, MessageKind.Query, MessageKind.StreamQuery];
 
@@ -262,7 +266,9 @@ internal static class DeclarationAnalysis
     ///     requirement is answered either way, exactly as <c>[DeclarationExempt]</c> is. <c>Audited</c> and
     ///     <c>NotAudited</c> both key their declaration by <c>AuditDeclaration</c>, which is what makes
     ///     <c>NotAudited</c> answer the same question <c>Audited</c> does, and <c>Authorized</c> and
-    ///     <c>AuthorizationExempt</c> both key theirs by <c>AuthorizationDeclaration</c> for the same reason.
+    ///     <c>AuthorizationExempt</c> both key theirs by <c>AuthorizationDeclaration</c> for the same reason. Audit
+    ///     declarations live in the auditing package as extension methods on the collector, so calls on it are matched
+    ///     through their original definition as well as through ordinary members.
     /// </remarks>
     private static void RecordDescribeBody(
         SyntaxNodeAnalysisContext context,
@@ -288,8 +294,7 @@ internal static class DeclarationAnalysis
             }
 
             if (context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken).Symbol is not IMethodSymbol called ||
-                called.ContainingType is null ||
-                !SymbolEqualityComparer.Default.Equals(called.ContainingType.OriginalDefinition, declarations))
+                !IsCallOnDeclarations(called, declarations))
             {
                 continue;
             }
@@ -328,6 +333,326 @@ internal static class DeclarationAnalysis
             passesCollector,
             declaration.SyntaxTree,
             declaration.Span));
+    }
+
+    /// <summary>
+    ///     Records what one catalog source <c>Describe</c> method body declares for each message it names.
+    /// </summary>
+    /// <param name="context">The syntax node analysis context.</param>
+    /// <param name="collector">The collector holding the compilation's facts.</param>
+    /// <param name="symbols">The resolved declaration symbols.</param>
+    /// <remarks>
+    ///     The method is filtered syntactically by name and parameter count before anything is bound. Only a
+    ///     <c>Describe</c> whose containing type implements the catalog source contract counts, so an unrelated
+    ///     method of the same shape contributes nothing. Each explicit <c>Describe</c> and <c>Replace</c> call is
+    ///     read where it stands; a catalog handed to a helper declares out of this pass's sight, and composition
+    ///     still enforces what the helper declares at startup.
+    /// </remarks>
+    internal static void AnalyzeCatalogDescribeMethod(
+        SyntaxNodeAnalysisContext context,
+        DeclarationCollector collector,
+        DeclarationSymbols symbols)
+    {
+        var declaration = (MethodDeclarationSyntax) context.Node;
+
+        if (!string.Equals(declaration.Identifier.Text, DescribeMethodName, StringComparison.Ordinal) ||
+            declaration.ParameterList.Parameters.Count != 1)
+        {
+            return;
+        }
+
+        var catalog = symbols.DeclarationCatalog;
+
+        if (catalog is null || symbols.CatalogSourceContract is null || symbols.Declarations is null)
+        {
+            return;
+        }
+
+        if (context.SemanticModel.GetDeclaredSymbol(declaration, context.CancellationToken) is not IMethodSymbol method ||
+            method.Parameters.Length != 1 ||
+            !SymbolEqualityComparer.Default.Equals(method.Parameters[0].Type, catalog))
+        {
+            return;
+        }
+
+        if (method.ContainingType is null || !ImplementsCatalogSource(method.ContainingType, symbols.CatalogSourceContract))
+        {
+            return;
+        }
+
+        RecordCatalogBody(context, collector, symbols, declaration);
+    }
+
+    /// <summary>
+    ///     Reads one catalog source body and records what each <c>Describe</c> call declares.
+    /// </summary>
+    /// <param name="context">The syntax node analysis context, carrying the body's semantic model.</param>
+    /// <param name="collector">The collector holding the compilation's facts.</param>
+    /// <param name="symbols">The resolved declaration symbols.</param>
+    /// <param name="declaration">The source <c>Describe</c> method declaration.</param>
+    private static void RecordCatalogBody(
+        SyntaxNodeAnalysisContext context,
+        DeclarationCollector collector,
+        DeclarationSymbols symbols,
+        MethodDeclarationSyntax declaration)
+    {
+        foreach (var invocation in declaration.DescendantNodes().OfType<InvocationExpressionSyntax>())
+        {
+            context.CancellationToken.ThrowIfCancellationRequested();
+
+            if (context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken).Symbol is not IMethodSymbol called ||
+                !IsCallOnCatalog(called, symbols.DeclarationCatalog!))
+            {
+                continue;
+            }
+
+            if (!string.Equals(called.Name, "Describe", StringComparison.Ordinal) &&
+                !string.Equals(called.Name, "Replace", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            var described = DescribedMessage(invocation, called, context.SemanticModel, context.CancellationToken);
+
+            if (described is null)
+            {
+                continue;
+            }
+
+            var lambda = CatalogLambda(invocation);
+
+            if (lambda is null)
+            {
+                collector.CatalogFacts.Add((described, [], StatesAuditPosition: false, PassesCollector: true));
+                continue;
+            }
+
+            var (declaredValues, statesAuditPosition, passesCollector) = ReadCatalogLambda(
+                lambda,
+                context.SemanticModel,
+                symbols,
+                context.CancellationToken);
+
+            collector.CatalogFacts.Add((described, declaredValues, statesAuditPosition, passesCollector));
+        }
+    }
+
+    /// <summary>
+    ///     Determines whether a type implements the catalog source contract.
+    /// </summary>
+    /// <param name="type">The candidate containing type.</param>
+    /// <param name="contract">The catalog source contract symbol.</param>
+    /// <returns><see langword="true" /> when the type is a declaration source.</returns>
+    private static bool ImplementsCatalogSource(INamedTypeSymbol type, INamedTypeSymbol contract)
+    {
+        return type.AllInterfaces.Any(candidate => SymbolEqualityComparer.Default.Equals(candidate, contract));
+    }
+
+    /// <summary>
+    ///     Determines whether an invocation calls a member of the declaration catalog.
+    /// </summary>
+    /// <param name="called">The invoked method symbol.</param>
+    /// <param name="catalog">The declaration catalog symbol.</param>
+    /// <returns><see langword="true" /> when the call targets the declaration catalog.</returns>
+    private static bool IsCallOnCatalog(IMethodSymbol called, INamedTypeSymbol catalog)
+    {
+        return called.ContainingType is not null &&
+            SymbolEqualityComparer.Default.Equals(called.ContainingType.OriginalDefinition, catalog);
+    }
+
+    /// <summary>
+    ///     Reads the message type one catalog <c>Describe</c> call describes.
+    /// </summary>
+    /// <param name="invocation">The <c>Describe</c> invocation.</param>
+    /// <param name="called">The invoked method symbol.</param>
+    /// <param name="model">The semantic model of the body.</param>
+    /// <param name="cancellationToken">Cancels the analysis.</param>
+    /// <returns>The described message type, or <see langword="null" /> when it cannot be read.</returns>
+    /// <remarks>
+    ///     The generic call names the message in its type argument. The type-valued call names it through
+    ///     <c>typeof</c> as its first argument.
+    /// </remarks>
+    private static INamedTypeSymbol? DescribedMessage(
+        InvocationExpressionSyntax invocation,
+        IMethodSymbol called,
+        SemanticModel model,
+        CancellationToken cancellationToken)
+    {
+        if (called.TypeArguments.Length == 1 && called.TypeArguments[0] is INamedTypeSymbol generic)
+        {
+            return generic;
+        }
+
+        if (invocation.ArgumentList.Arguments.Count == 2)
+        {
+            var typeExpression = invocation.ArgumentList.Arguments[0].Expression;
+
+            if (typeExpression is TypeOfExpressionSyntax typeOf &&
+                model.GetTypeInfo(typeOf.Type, cancellationToken).Type is INamedTypeSymbol typeOfTarget)
+            {
+                return typeOfTarget;
+            }
+
+            var typeInfo = model.GetTypeInfo(typeExpression, cancellationToken);
+
+            if (typeInfo.ConvertedType is INamedTypeSymbol converted)
+            {
+                return converted;
+            }
+
+            if (model.GetSymbolInfo(typeExpression, cancellationToken).Symbol is INamedTypeSymbol named)
+            {
+                return named;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    ///     Finds the declaration lambda one catalog <c>Describe</c> call carries.
+    /// </summary>
+    /// <param name="invocation">The <c>Describe</c> invocation.</param>
+    /// <returns>The lambda, or <see langword="null" /> when the call passes a method group or delegates elsewhere.</returns>
+    private static ExpressionSyntax? CatalogLambda(InvocationExpressionSyntax invocation)
+    {
+        var arguments = invocation.ArgumentList.Arguments;
+
+        if (arguments.Count == 0)
+        {
+            return null;
+        }
+
+        var expression = arguments[arguments.Count - 1].Expression;
+
+        return expression is SimpleLambdaExpressionSyntax or ParenthesizedLambdaExpressionSyntax or AnonymousMethodExpressionSyntax
+            ? expression
+            : null;
+    }
+
+    /// <summary>
+    ///     Reads one catalog <c>Describe</c> lambda and records what it declares.
+    /// </summary>
+    /// <param name="lambda">The declaration lambda.</param>
+    /// <param name="model">The semantic model of the body.</param>
+    /// <param name="symbols">The resolved declaration symbols.</param>
+    /// <param name="cancellationToken">Cancels the analysis.</param>
+    /// <returns>What the lambda declares, whether it states an audit position, and whether it passes the collector on.</returns>
+    /// <remarks>
+    ///     The lambda parameter is the same <c>IMessageDeclarations</c> a <c>Describe</c> body receives, so the same
+    ///     calls count: <c>Declare</c> and <c>Exempt</c> name their value in the type argument, <c>Audited</c> and
+    ///     <c>NotAudited</c> state the audit position, and <c>Authorized</c> and <c>AuthorizationExempt</c> state the
+    ///     authorization position.
+    /// </remarks>
+    private static (ImmutableArray<ITypeSymbol> DeclaredValues, bool StatesAuditPosition, bool PassesCollector) ReadCatalogLambda(
+        ExpressionSyntax lambda,
+        SemanticModel model,
+        DeclarationSymbols symbols,
+        CancellationToken cancellationToken)
+    {
+        var declaredValues = ImmutableArray.CreateBuilder<ITypeSymbol>();
+        var statesAuditPosition = false;
+
+        var collectorParameter = LambdaCollectorParameter(lambda, model, symbols.Declarations!, cancellationToken);
+
+        foreach (var invocation in lambda.DescendantNodesAndSelf().OfType<InvocationExpressionSyntax>())
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (collectorParameter is not null && PassesLambdaCollector(invocation, model, collectorParameter, cancellationToken))
+            {
+                return (declaredValues.ToImmutable(), statesAuditPosition, PassesCollector: true);
+            }
+
+            if (model.GetSymbolInfo(invocation, cancellationToken).Symbol is not IMethodSymbol called ||
+                !IsCallOnDeclarations(called, symbols.Declarations!))
+            {
+                continue;
+            }
+
+            switch (called.Name)
+            {
+                case "Declare":
+                case "Exempt":
+                    if (called.TypeArguments.Length == 1)
+                    {
+                        declaredValues.Add(called.TypeArguments[0]);
+                    }
+
+                    break;
+
+                case "Audited":
+                case "NotAudited":
+                    statesAuditPosition = true;
+                    break;
+
+                case "Authorized":
+                case "AuthorizationExempt":
+                    if (symbols.AuthorizationDeclaration is not null)
+                    {
+                        declaredValues.Add(symbols.AuthorizationDeclaration);
+                    }
+
+                    break;
+            }
+        }
+
+        return (declaredValues.ToImmutable(), statesAuditPosition, PassesCollector: false);
+    }
+
+    /// <summary>
+    ///     Finds the lambda parameter holding the declaration collector.
+    /// </summary>
+    /// <param name="lambda">The declaration lambda.</param>
+    /// <param name="model">The semantic model of the body.</param>
+    /// <param name="declarations">The declaration collector symbol.</param>
+    /// <param name="cancellationToken">Cancels the analysis.</param>
+    /// <returns>The collector parameter symbol, or <see langword="null" /> when it cannot be bound.</returns>
+    private static IParameterSymbol? LambdaCollectorParameter(
+        ExpressionSyntax lambda,
+        SemanticModel model,
+        INamedTypeSymbol declarations,
+        CancellationToken cancellationToken)
+    {
+        if (model.GetSymbolInfo(lambda, cancellationToken).Symbol is not IMethodSymbol lambdaSymbol)
+        {
+            return null;
+        }
+
+        foreach (var parameter in lambdaSymbol.Parameters)
+        {
+            if (SymbolEqualityComparer.Default.Equals(parameter.Type, declarations))
+            {
+                return parameter;
+            }
+        }
+
+        return lambdaSymbol.Parameters.Length == 1 ? lambdaSymbol.Parameters[0] : null;
+    }
+
+    /// <summary>
+    ///     Determines whether an invocation inside a catalog <c>Describe</c> lambda hands the collector to something
+    ///     else.
+    /// </summary>
+    /// <param name="invocation">The invocation in the lambda.</param>
+    /// <param name="model">The semantic model of the body.</param>
+    /// <param name="collector">The lambda parameter holding the collector.</param>
+    /// <param name="cancellationToken">Cancels the analysis.</param>
+    /// <returns><see langword="true" /> when the collector is passed as an argument.</returns>
+    private static bool PassesLambdaCollector(
+        InvocationExpressionSyntax invocation,
+        SemanticModel model,
+        IParameterSymbol collector,
+        CancellationToken cancellationToken)
+    {
+        if (model.GetSymbolInfo(invocation, cancellationToken).Symbol is IMethodSymbol called &&
+            called.ContainingType is not null &&
+            called.Name is "Describe" or "Replace")
+        {
+            return false;
+        }
+
+        return PassesCollector(invocation, model, collector, cancellationToken);
     }
 
     /// <summary>
@@ -513,13 +838,14 @@ internal static class DeclarationAnalysis
     }
 
     /// <summary>
-    ///     Collects the message types a definition in the analyzed assembly declares the value type for.
+    ///     Collects the message types a definition or a catalog source in the analyzed assembly declares the value
+    ///     type for.
     /// </summary>
     /// <param name="collector">The collector holding the compilation's facts.</param>
     /// <param name="symbols">The resolved declaration symbols.</param>
     /// <param name="valueType">The metadata value type in question.</param>
     /// <param name="cancellationToken">The analysis cancellation token.</param>
-    /// <returns>The message types covered by a definition.</returns>
+    /// <returns>The message types covered by a definition or a source.</returns>
     private static ImmutableHashSet<INamedTypeSymbol> CollectDefinedMessageTypes(
         DeclarationCollector collector,
         DeclarationSymbols symbols,
@@ -548,7 +874,49 @@ internal static class DeclarationAnalysis
             }
         }
 
+        foreach (var catalog in collector.CatalogFacts)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (CatalogDeclares(catalog, valueType, symbols))
+            {
+                builder.Add(catalog.Described);
+            }
+        }
+
         return builder.ToImmutable();
+    }
+
+    /// <summary>
+    ///     Determines whether one catalog <c>Describe</c> call declares the required value type.
+    /// </summary>
+    /// <param name="fact">The recorded <c>Describe</c> call.</param>
+    /// <param name="valueType">The metadata value type in question.</param>
+    /// <param name="symbols">The resolved declaration symbols.</param>
+    /// <returns><see langword="true" /> when the call covers the message for that value type.</returns>
+    /// <remarks>
+    ///     A call that passes the collector to another method or whose lambda cannot be read is treated as covered,
+    ///     for the same reason an unreadable <c>Describe</c> body is: a false negative is still enforced at startup,
+    ///     while a false positive is a build that cannot be made to pass.
+    /// </remarks>
+    private static bool CatalogDeclares(
+        (INamedTypeSymbol Described, ImmutableArray<ITypeSymbol> DeclaredValues, bool StatesAuditPosition, bool PassesCollector) fact,
+        INamedTypeSymbol valueType,
+        DeclarationSymbols symbols)
+    {
+        if (fact.PassesCollector)
+        {
+            return true;
+        }
+
+        if (fact.DeclaredValues.Any(candidate => SymbolEqualityComparer.Default.Equals(candidate, valueType)))
+        {
+            return true;
+        }
+
+        return fact.StatesAuditPosition &&
+            symbols.AuditDeclaration is not null &&
+            SymbolEqualityComparer.Default.Equals(valueType, symbols.AuditDeclaration);
     }
 
     /// <summary>
@@ -642,14 +1010,15 @@ internal static class DeclarationAnalysis
     }
 
     /// <summary>
-    ///     Determines whether a definition declares the value for the message or for something it derives from.
+    ///     Determines whether a definition or a source declares the value for the message or for something it derives
+    ///     from.
     /// </summary>
     /// <param name="messageType">The message type being checked.</param>
-    /// <param name="declaredByDefinition">The types a definition declares the value for.</param>
-    /// <returns><see langword="true" /> when a definition covers the message.</returns>
+    /// <param name="declaredByDefinition">The types a definition or a source declares the value for.</param>
+    /// <returns><see langword="true" /> when a definition or a source covers the message.</returns>
     /// <remarks>
-    ///     A declaration applies to the type it names and to every message assignable to it, so a definition written
-    ///     for a base command or a marker interface satisfies the requirement for the whole family.
+    ///     A declaration applies to the type it names and to every message assignable to it, so a definition or a
+    ///     source written for a base command or a marker interface satisfies the requirement for the whole family.
     /// </remarks>
     private static bool CoveredByDefinition(
         INamedTypeSymbol messageType,
@@ -724,6 +1093,31 @@ internal static class DeclarationAnalysis
         }
 
         return false;
+    }
+
+    /// <summary>
+    ///     Determines whether an invocation calls a member of the declaration collector, including an extension method.
+    /// </summary>
+    /// <param name="called">The invoked method symbol.</param>
+    /// <param name="declarations">The declaration collector symbol.</param>
+    /// <returns><see langword="true" /> when the call targets the declaration collector.</returns>
+    /// <remarks>
+    ///     Audit declarations are extension methods on <c>IMessageDeclarations</c> in the auditing package. A reduced
+    ///     extension method carries the extension class as its containing type, so the original definition has to be
+    ///     read to find the receiver in the first parameter, as the module builder analyses do.
+    /// </remarks>
+    private static bool IsCallOnDeclarations(IMethodSymbol called, INamedTypeSymbol declarations)
+    {
+        if (called.ContainingType is not null &&
+            SymbolEqualityComparer.Default.Equals(called.ContainingType.OriginalDefinition, declarations))
+        {
+            return true;
+        }
+
+        var declaredMethod = called.ReducedFrom ?? called;
+
+        return declaredMethod is { IsExtensionMethod: true, Parameters.Length: > 0 } &&
+               SymbolEqualityComparer.Default.Equals(declaredMethod.Parameters[0].Type, declarations);
     }
 
     /// <summary>

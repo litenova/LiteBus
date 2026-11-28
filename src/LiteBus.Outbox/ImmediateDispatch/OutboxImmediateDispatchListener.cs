@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using LiteBus.Messaging;
 using LiteBus.Messaging.Abstractions;
 using LiteBus.Messaging.Abstractions.Processing;
 using LiteBus.Outbox.Abstractions;
@@ -27,6 +28,11 @@ namespace LiteBus.Outbox.ImmediateDispatch;
 ///         A successful dispatch marks the envelope published, so the outbox processor never runs it again. A failed
 ///         dispatch leaves the envelope to the processor retry. The mediation outcome never changes because the data is
 ///         already committed.
+///     </para>
+///     <para>
+///         Each delivery runs as a root mediation inside <see cref="RootMediationScope" />, so the reaction carries the
+///         envelope cause as data and never inherits the ambient scope of the mediation that staged it. Processor
+///         delivery and immediate delivery therefore observe identical lineage.
 ///     </para>
 /// </remarks>
 internal sealed class OutboxImmediateDispatchListener : IUnitOfWorkCommitListener
@@ -144,7 +150,13 @@ internal sealed class OutboxImmediateDispatchListener : IUnitOfWorkCommitListene
 
         if (_options.Mode == OutboxImmediateDispatchMode.Background)
         {
-            _ = Task.Run(() => DispatchInBackgroundAsync(staged), CancellationToken.None);
+            using (System.Threading.ExecutionContext.SuppressFlow())
+            {
+                _ = Task.Run(
+                    () => RootMediationScope.RunAsync(() => DispatchInBackgroundAsync(staged), CancellationToken.None),
+                    CancellationToken.None);
+            }
+
             return Task.CompletedTask;
         }
 
@@ -158,7 +170,8 @@ internal sealed class OutboxImmediateDispatchListener : IUnitOfWorkCommitListene
     /// <returns>A task representing the asynchronous dispatch.</returns>
     /// <remarks>
     ///     The caller cancellation token is not used once the commit has happened; <see cref="OutboxImmediateDispatchOptions.Timeout" />
-    ///     bounds the wait.
+    ///     bounds the wait. The dispatch runs inside <see cref="RootMediationScope" />, so the reactions start as root
+    ///     mediations even though the commit listener runs inside the staging mediation's ambient scope.
     /// </remarks>
     private async Task DispatchAwaitAsync(IReadOnlyList<Guid> staged)
     {
@@ -166,16 +179,19 @@ internal sealed class OutboxImmediateDispatchListener : IUnitOfWorkCommitListene
 
         try
         {
-            await DispatchCoreAsync(
-                staged,
-                _leaseStore,
-                _stateWriter,
-                _dispatcher,
-                _processorOptions,
-                _options,
-                _clock,
-                _hooks,
-                _logger).ConfigureAwait(false);
+            using (RootMediationScope.Begin())
+            {
+                await DispatchCoreAsync(
+                    staged,
+                    _leaseStore,
+                    _stateWriter,
+                    _dispatcher,
+                    _processorOptions,
+                    _options,
+                    _clock,
+                    _hooks,
+                    _logger).ConfigureAwait(false);
+            }
         }
         finally
         {
@@ -192,7 +208,9 @@ internal sealed class OutboxImmediateDispatchListener : IUnitOfWorkCommitListene
     /// <remarks>
     ///     The mediation scope is gone by the time this runs, so every service is resolved from a fresh dispatch scope,
     ///     falling back to the mediation services when the fresh scope has none. A failure is logged and never fails the
-    ///     mediation, because the caller has already continued.
+    ///     mediation, because the caller has already continued. The caller runs this inside
+    ///     <see cref="RootMediationScope" /> with execution-context flow suppressed, so the reactions start as root
+    ///     mediations without the staging mediation's ambient scope.
     /// </remarks>
     private async Task DispatchInBackgroundAsync(IReadOnlyList<Guid> staged)
     {
@@ -324,7 +342,8 @@ internal sealed class OutboxImmediateDispatchListener : IUnitOfWorkCommitListene
                 clock,
                 logger,
                 hooks,
-                timeoutSource.Token).ConfigureAwait(false);
+                timeoutSource.Token,
+                OutboxDispatchKind.Immediate).ConfigureAwait(false);
 
             if (updated is null)
             {

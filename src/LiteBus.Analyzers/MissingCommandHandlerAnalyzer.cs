@@ -45,7 +45,7 @@ public sealed class MissingCommandHandlerAnalyzer : DiagnosticAnalyzer
             SymbolKind.NamedType);
 
         context.RegisterCompilationEndAction(
-            endContext => AnalyzeCompilationEnd(endContext, handlers, commands));
+            endContext => AnalyzeCompilationEnd(endContext, typeCache, handlers, commands));
     }
 
     /// <summary>
@@ -70,15 +70,20 @@ public sealed class MissingCommandHandlerAnalyzer : DiagnosticAnalyzer
     ///     Reports command types without a main handler within a compilation.
     /// </summary>
     /// <param name="context">The compilation analysis context.</param>
+    /// <param name="typeCache">The per-compilation type cache.</param>
     /// <param name="handlers">The handler registration collector.</param>
     /// <param name="commands">The command type collector.</param>
     /// <remarks>
     ///     Only commands declared in the analyzed assembly are candidates, while handlers from eligible referenced
-    ///     assemblies still satisfy coverage. A handler that lives in a dependent project is compiled separately and
-    ///     stays invisible here; co-locate the handler with the command or suppress the diagnostic.
+    ///     assemblies still satisfy coverage. A command whose assembly carries
+    ///     <c>[assembly: MessageContractsRegisteredIn("X")]</c> for another assembly is skipped here; the named
+    ///     compilation reports the referenced commands it does not handle at its first location. A handler that lives
+    ///     in a dependent project is compiled separately and stays invisible here; co-locate the handler with the
+    ///     command or suppress the diagnostic.
     /// </remarks>
     private static void AnalyzeCompilationEnd(
         CompilationAnalysisContext context,
+        LiteBusTypeCache typeCache,
         HandlerRegistrationCollector handlers,
         MessageTypeCollector commands)
     {
@@ -90,6 +95,11 @@ public sealed class MissingCommandHandlerAnalyzer : DiagnosticAnalyzer
 
         foreach (var command in commands.ToMessageTypes())
         {
+            if (ContractRegistrationAnalysis.IsRegisteredInAnotherAssembly(command.MessageType, context.Compilation))
+            {
+                continue;
+            }
+
             if (MessageAnalysis.HasMainHandler(
                     command.MessageType,
                     mainHandlers,
@@ -103,6 +113,49 @@ public sealed class MissingCommandHandlerAnalyzer : DiagnosticAnalyzer
                 DiagnosticDescriptors.MissingCommandHandler,
                 LiteBusSymbols.GetDiagnosticLocation(context.Compilation, command.Location),
                 HandlerAnalysis.GetMessageTypeDisplay(command.MessageType)));
+        }
+
+        ReportMissingReferencedHandlers(context, typeCache, mainHandlers, openGenericHandlers);
+    }
+
+    /// <summary>
+    ///     Reports referenced command types that name the analyzed compilation and lack a main handler.
+    /// </summary>
+    /// <param name="context">The compilation analysis context.</param>
+    /// <param name="typeCache">The per-compilation type cache.</param>
+    /// <param name="mainHandlers">The discovered main handler registrations.</param>
+    /// <param name="openGenericHandlers">The discovered open generic main handler type definitions.</param>
+    /// <remarks>
+    ///     A command declared in a referenced assembly has no source location in the analyzed compilation, so the
+    ///     diagnostic is reported at the first location of the analyzed compilation.
+    /// </remarks>
+    private static void ReportMissingReferencedHandlers(
+        CompilationAnalysisContext context,
+        LiteBusTypeCache typeCache,
+        ImmutableArray<HandlerRegistration> mainHandlers,
+        ImmutableArray<INamedTypeSymbol> openGenericHandlers)
+    {
+        var unhandled = HandlerCoverageAnalysis.GetUnhandledReferencedMessages(
+            context.Compilation,
+            typeCache,
+            MessageKind.Command,
+            mainHandlers,
+            openGenericHandlers,
+            context.CancellationToken);
+
+        if (unhandled.IsEmpty)
+        {
+            return;
+        }
+
+        var location = HandlerCoverageAnalysis.GetFirstCompilationLocation(context.Compilation);
+
+        foreach (var command in unhandled)
+        {
+            context.ReportDiagnostic(Diagnostic.Create(
+                DiagnosticDescriptors.MissingCommandHandler,
+                location,
+                HandlerAnalysis.GetMessageTypeDisplay(command)));
         }
     }
 }

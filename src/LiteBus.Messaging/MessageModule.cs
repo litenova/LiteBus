@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using LiteBus.Messaging.Abstractions;
-using LiteBus.Messaging.Audit;
+using LiteBus.Messaging.Composition;
 using LiteBus.Messaging.Idempotency;
 using LiteBus.Messaging.Mediator;
 using LiteBus.Messaging.Pipeline;
@@ -19,9 +19,9 @@ namespace LiteBus.Messaging;
 public sealed class MessageModule : IModule
 {
     /// <summary>
-    ///     The configuration callback invoked while the messaging module is built.
+    ///     The configuration callbacks invoked while the messaging module is built, in registration order.
     /// </summary>
-    private readonly Action<MessageModuleBuilder> _builder;
+    private readonly List<Action<MessageModuleBuilder>> _builders = [];
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="MessageModule" /> class.
@@ -31,7 +31,19 @@ public sealed class MessageModule : IModule
     public MessageModule(Action<MessageModuleBuilder> builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
-        _builder = builder;
+        _builders.Add(builder);
+    }
+
+    /// <summary>
+    ///     Runs an additional configuration callback on this module's builder when the module builds.
+    /// </summary>
+    /// <param name="builderAction">The additional messaging configuration callback.</param>
+    /// <param name="registerChild">Registers child modules with the module registry; the messaging module declares none.</param>
+    internal void Configure(Action<MessageModuleBuilder> builderAction, Action<IModule> registerChild)
+    {
+        ArgumentNullException.ThrowIfNull(builderAction);
+        ArgumentNullException.ThrowIfNull(registerChild);
+        _builders.Add(builderAction);
     }
 
     /// <inheritdoc />
@@ -48,11 +60,16 @@ public sealed class MessageModule : IModule
         // Create or get the message registry shared by all messaging-related modules in this configuration.
         var messageRegistry = configuration.GetOrCreateContext<IMessageRegistry>(() => new MessageRegistry());
         var messageContractRegistry = configuration.GetOrCreateContext(() => new MessageContractRegistry());
+        var refusalCatalog = configuration.GetOrCreateContext(() => RefusalCatalog.CreateDefault());
         var startIndex = messageRegistry.Handlers.Count;
 
         // Configure the message module using the builder.
-        var moduleBuilder = new MessageModuleBuilder(messageRegistry, messageContractRegistry);
-        _builder(moduleBuilder);
+        var moduleBuilder = new MessageModuleBuilder(messageRegistry, messageContractRegistry, refusalCatalog);
+
+        foreach (var configure in _builders)
+        {
+            configure(moduleBuilder);
+        }
 
         // Applied before anything mediates, and process-wide, because an ActivitySource and a Meter are.
         // Always assigned, so a composition that configures no telemetry resets the process-wide options to the
@@ -67,32 +84,22 @@ public sealed class MessageModule : IModule
             moduleBuilder.TimeProvider,
             moduleBuilder.Serializer,
             moduleBuilder.SerializerLifetime,
-            moduleBuilder.AuditOutcomeMapper,
-            moduleBuilder.AuditTrail,
-            moduleBuilder.AuditTrailLifetime,
-            moduleBuilder.AuditActorResolver,
-            moduleBuilder.AuditActorResolverLifetime,
-            moduleBuilder.AuditRecordWriter,
-            moduleBuilder.AuditRecordWriterLifetime,
+            moduleBuilder.SerializerOptionsProvider,
+            moduleBuilder.MessageSampleFactory,
+            moduleBuilder.MessageSamples,
             moduleBuilder.FaultRefusalClassifiers);
+        RegisterRefusalCatalog(configuration, refusalCatalog);
         ModuleRegistration.RegisterNewHandlers(configuration, messageRegistry, startIndex);
 
-        // Published for the axis modules, which build after this one because they declare IRequires<MessageModule>.
-        // AddAuditing decides the axes here so the consumer does not repeat the decision on each axis builder.
-        if (moduleBuilder.Auditing is not null)
+        foreach (var step in moduleBuilder.BuildSteps)
         {
-            configuration.SetContext(moduleBuilder.Auditing);
-
-            // A trail with no axis selected is the whole feature wired and inert, which no probe can report as
-            // unhealthy because nothing is wrong at runtime: no message is ever audited, so nothing ever fails. It is
-            // only detectable here, where the intent to audit is visible next to the absence of anything to audit.
-            if (!moduleBuilder.Auditing.AnyAxis)
-            {
-                throw new AuditConfigurationException(
-                    "AddAuditing configured the audit trail but selected no axis, so no message would ever produce a "
-                    + "record. Call ForCommands, ForQueries, ForEvents, or ForAllAxes to say what to audit.");
-            }
+            step(configuration);
         }
+
+        // Deferred past the build steps so convention-supplied refusal declarations are harvested, and before the
+        // composition checks so the refusals section reports every harvested entry.
+        configuration.RegisterCompositionValidation(
+            () => RefusalCatalog.HarvestDeclarations(messageRegistry, refusalCatalog));
 
         // Registered now and filled in after every module has built, because none of the counts exist yet. Sharing
         // the instance is what lets the axis modules record their own message counts into it.
@@ -122,13 +129,15 @@ public sealed class MessageModule : IModule
                 () => RequiredDeclarationValidator.Validate(messageRegistry, required));
         }
 
-        // Deferred for the same reason. The catalog is built once here and shared by every check, so ten conventions
-        // cost one traversal of the registry.
-        if (moduleBuilder.CompositionChecks.Count > 0)
-        {
-            var checks = moduleBuilder.CompositionChecks;
-            configuration.RegisterCompositionValidation(() => RunCompositionChecks(messageRegistry, checks));
-        }
+        // Deferred for the same reason. The model is built once here and shared by every check, so ten checks
+        // cost one traversal of the registry. It is built even when no check was registered, so a misregistered
+        // section contributor still fails composition instead of surfacing on first resolve.
+        var compositionChecks = moduleBuilder.CompositionChecks;
+        configuration.RegisterCompositionValidation(() => RunCompositionChecks(
+            messageRegistry,
+            messageContractRegistry,
+            configuration.DependencyRegistry,
+            compositionChecks));
     }
 
     /// <summary>
@@ -173,7 +182,7 @@ public sealed class MessageModule : IModule
     /// </summary>
     /// <param name="summary">The summary registered during build.</param>
     /// <param name="reader">The registry holding every registered message and open generic closure.</param>
-    /// <param name="moduleBuilder">The messaging builder, read for the audit and declaration configuration.</param>
+    /// <param name="moduleBuilder">The messaging builder, read for the declaration configuration.</param>
     /// <remarks>
     ///     Runs as a composition validation rather than during build, because the message count, the axis counts and
     ///     the open generic closures are all only complete after the last axis module has registered its types.
@@ -184,23 +193,7 @@ public sealed class MessageModule : IModule
         MessageModuleBuilder moduleBuilder)
     {
         summary.MessageCount = reader.Count;
-        summary.AuditingEnabled = moduleBuilder.Auditing?.AnyAxis == true;
-        summary.AuditActorResolverRegistered = moduleBuilder.AuditActorResolver is not null;
         summary.CompositionChecks = moduleBuilder.CompositionChecks.Count;
-
-        summary.AuditTrail = moduleBuilder.AuditTrail switch
-        {
-            Type trailType => $"{trailType.Name} ({moduleBuilder.AuditTrailLifetime})",
-            null => null,
-            var instance => $"{instance.GetType().Name} (Singleton)"
-        };
-
-        summary.AuditRecordWriter = moduleBuilder.AuditRecordWriter switch
-        {
-            Type writerType => $"{writerType.Name} ({moduleBuilder.AuditRecordWriterLifetime})",
-            null => null,
-            var instance => $"{instance.GetType().Name} (Singleton)"
-        };
 
         foreach (var (handlerType, closures) in reader.OpenGenericClosures)
         {
@@ -298,22 +291,28 @@ public sealed class MessageModule : IModule
     }
 
     /// <summary>
-    ///     Runs every application composition check over one catalog of registered messages.
+    ///     Runs every application composition check over one model of everything the host composed.
     /// </summary>
     /// <param name="reader">The registry holding every registered message descriptor.</param>
+    /// <param name="contracts">The contract registry holding every registered message contract.</param>
+    /// <param name="dependencyRegistry">The dependency registry holding every composed descriptor.</param>
     /// <param name="checks">The checks the application registered through <c>ValidateComposition</c>.</param>
     /// <remarks>
     ///     Checks run in registration order and the first to throw ends composition. Aggregating them would report
     ///     more at once, but a check is free to name every offender itself, and a convention violation is usually one
     ///     fix rather than a list of independent ones.
     /// </remarks>
-    private static void RunCompositionChecks(IMessageReader reader, IReadOnlyList<Action<IMessageCatalog>> checks)
+    private static void RunCompositionChecks(
+        IMessageReader reader,
+        MessageContractRegistry contracts,
+        IDependencyRegistry dependencyRegistry,
+        IReadOnlyList<Action<ICompositionModel>> checks)
     {
-        var catalog = new MessageCatalog(reader);
+        var model = CompositionModel.CreateForValidation(reader, contracts, [.. dependencyRegistry]);
 
         foreach (var check in checks)
         {
-            check(catalog);
+            check(model);
         }
     }
 
@@ -326,13 +325,9 @@ public sealed class MessageModule : IModule
     /// <param name="timeProvider">The optional time provider registered for messaging services.</param>
     /// <param name="messageSerializer">The serializer instance or implementation type, or null for the built-in one.</param>
     /// <param name="messageSerializerLifetime">The lifetime a serializer implementation type is registered with.</param>
-    /// <param name="auditOutcomeMapper">The optional audit outcome mapper registered for the audit writer.</param>
-    /// <param name="auditTrail">The audit trail registered through the builder, when the application supplied one there.</param>
-    /// <param name="auditTrailLifetime">The lifetime an audit trail implementation type is registered with.</param>
-    /// <param name="auditActorResolver">The audit actor resolver registered through the builder, when there is one.</param>
-    /// <param name="auditActorResolverLifetime">The lifetime an actor resolver implementation type is registered with.</param>
-    /// <param name="auditRecordWriter">The audit record writer registered through the builder, or null for the built-in one.</param>
-    /// <param name="auditRecordWriterLifetime">The lifetime an audit record writer implementation type is registered with.</param>
+    /// <param name="serializerOptionsProvider">The options, provider instance, or provider type, or null for the built-in one.</param>
+    /// <param name="messageSampleFactory">The sample factory instance or implementation type, or null for the built-in one.</param>
+    /// <param name="messageSamples">The per-type samples registered for the built-in factory.</param>
     /// <param name="faultRefusalClassifiers">The classifier implementation types and instances, in registration order.</param>
     private static void RegisterMessagingServices(
         IModuleConfiguration configuration,
@@ -341,13 +336,9 @@ public sealed class MessageModule : IModule
         TimeProvider? timeProvider,
         object? messageSerializer,
         InstanceLifetime messageSerializerLifetime,
-        IAuditOutcomeMapper? auditOutcomeMapper,
-        object? auditTrail,
-        InstanceLifetime auditTrailLifetime,
-        object? auditActorResolver,
-        InstanceLifetime auditActorResolverLifetime,
-        object? auditRecordWriter,
-        InstanceLifetime auditRecordWriterLifetime,
+        object? serializerOptionsProvider,
+        object? messageSampleFactory,
+        MessageSampleRegistry messageSamples,
         IReadOnlyList<object> faultRefusalClassifiers)
     {
         // Register message registry as singleton.
@@ -366,6 +357,19 @@ public sealed class MessageModule : IModule
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(IMessageCatalog),
             _ => new MessageCatalog(messageRegistry),
+            InstanceLifetime.Singleton));
+
+        // Resolvable at runtime as well as inside a composition check, so a host logs the exported snapshot and
+        // tests assert over it. Built by a singleton factory, so the snapshot is taken on first resolve, after
+        // every module has registered what it owns, and the effective port implementations resolve from the
+        // container that answers them at mediation.
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(ICompositionModel),
+            provider => CompositionModel.CreateResolved(
+                messageRegistry,
+                messageContractRegistry,
+                [.. configuration.DependencyRegistry],
+                provider),
             InstanceLifetime.Singleton));
 
         // The read-only view applications use to read their own declarations, so a generic guard does not have to
@@ -390,7 +394,8 @@ public sealed class MessageModule : IModule
             typeof(IContractWriter),
             messageContractRegistry));
 
-        RegisterMessageSerializer(configuration, messageSerializer, messageSerializerLifetime);
+        RegisterMessageSerializer(configuration, messageSerializer, messageSerializerLifetime, serializerOptionsProvider);
+        RegisterMessageSampleFactory(configuration, messageSampleFactory, messageSamples);
 
         configuration.DependencyRegistry.Register(new DependencyDescriptor(
             typeof(TimeProvider),
@@ -405,22 +410,6 @@ public sealed class MessageModule : IModule
             typeof(IExecutionContext),
             static _ => AmbientExecutionContext.Current,
             InstanceLifetime.Scoped));
-
-        // The audit scope is stateless: it reads and writes the ambient execution context, so a singleton is correct
-        // and remains safe under concurrency because two mediations never share an execution context.
-        configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(IAuditScope),
-            new AmbientAuditScope()));
-
-        // Applications supply their own mapper to record a refusal exception as a denial rather than a failure.
-        configuration.DependencyRegistry.Register(new DependencyDescriptor(
-            typeof(IAuditOutcomeMapper),
-            auditOutcomeMapper ?? new DefaultAuditOutcomeMapper()));
-
-        RegisterAuditTrail(configuration, auditTrail, auditTrailLifetime);
-        RegisterAuditActorResolver(configuration, auditActorResolver, auditActorResolverLifetime);
-
-        RegisterAuditRecordWriter(configuration, auditRecordWriter, auditRecordWriterLifetime);
 
         // The key resolver reads a declaration resolved once at registration, so it holds no state and a singleton is
         // correct. The store itself is application-supplied and is not registered here.
@@ -469,145 +458,31 @@ public sealed class MessageModule : IModule
     }
 
     /// <summary>
-    ///     Registers the audit trail the builder was given, when it was given one.
+    ///     Registers the shared refusal catalog for transports and the composition model.
     /// </summary>
     /// <param name="configuration">The module configuration.</param>
-    /// <param name="auditTrail">The trail instance or implementation type, or null when the application registers it itself.</param>
-    /// <param name="lifetime">The lifetime an implementation type is registered with; an instance is always a singleton.</param>
+    /// <param name="refusalCatalog">The catalog the messaging builder collected registrations into.</param>
     /// <remarks>
-    ///     An application may register the trail with its own container instead, which is what the
-    ///     <c>litebus.audit.trail</c> probe checks for. Configuring it here keeps the whole feature on one builder.
+    ///     The catalog instance also contributes the <c>refusals</c> composition section, so the export names every
+    ///     entry with its owner.
     /// </remarks>
-    private static void RegisterAuditTrail(
-        IModuleConfiguration configuration,
-        object? auditTrail,
-        InstanceLifetime lifetime)
+    private static void RegisterRefusalCatalog(IModuleConfiguration configuration, RefusalCatalog refusalCatalog)
     {
-        switch (auditTrail)
-        {
-            case null:
-                return;
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IRefusalCatalog),
+            refusalCatalog));
 
-            case Type trailType:
-                configuration.DependencyRegistry.Register(new DependencyDescriptor(
-                    typeof(IAuditTrail),
-                    trailType,
-                    lifetime));
-                return;
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IRefusalReader),
+            refusalCatalog));
 
-            default:
-                configuration.DependencyRegistry.Register(new DependencyDescriptor(
-                    typeof(IAuditTrail),
-                    auditTrail));
-                return;
-        }
-    }
+        configuration.DependencyRegistry.Register(new DependencyDescriptor(
+            typeof(IRefusalWriter),
+            refusalCatalog));
 
-    /// <summary>
-    ///     Registers the audit record writer: the application's, when it replaced it, and otherwise the built-in one.
-    /// </summary>
-    /// <param name="configuration">The module configuration.</param>
-    /// <param name="auditRecordWriter">The writer implementation type, the writer instance, or null for the built-in one.</param>
-    /// <param name="lifetime">The lifetime a writer implementation type is registered with.</param>
-    /// <remarks>
-    ///     The built-in writer is registered through a factory rather than by type on purpose. It needs an
-    ///     <see cref="IAuditTrail" /> that only an application auditing its messages registers, and a by-type
-    ///     registration makes a container running <c>ValidateOnBuild</c> fail at startup for every application that is
-    ///     not auditing at all. The factory defers the lookup to the first audited mediation and names the fix when it
-    ///     is missing; the <c>litebus.audit.trail</c> probe reports it earlier still. A replacement is registered
-    ///     normally, because what it depends on is the application's business.
-    /// </remarks>
-    private static void RegisterAuditRecordWriter(
-        IModuleConfiguration configuration,
-        object? auditRecordWriter,
-        InstanceLifetime lifetime)
-    {
-        switch (auditRecordWriter)
-        {
-            case Type writerType:
-                configuration.DependencyRegistry.Register(new DependencyDescriptor(
-                    typeof(IAuditRecordWriter),
-                    writerType,
-                    lifetime));
-                return;
-
-            case not null:
-                configuration.DependencyRegistry.Register(new DependencyDescriptor(
-                    typeof(IAuditRecordWriter),
-                    auditRecordWriter));
-                return;
-
-            default:
-                configuration.DependencyRegistry.Register(new DependencyDescriptor(
-                    typeof(IAuditRecordWriter),
-                    CreateAuditRecordWriter,
-                    InstanceLifetime.Scoped));
-                return;
-        }
-    }
-
-    /// <summary>
-    ///     Registers the audit actor resolver the builder was given, when it was given one.
-    /// </summary>
-    /// <param name="configuration">The module configuration.</param>
-    /// <param name="auditActorResolver">
-    ///     The resolver instance or implementation type, or null when the application registers it itself or does not
-    ///     attribute its records.
-    /// </param>
-    /// <param name="lifetime">The lifetime an implementation type is registered with; an instance is always a singleton.</param>
-    /// <remarks>
-    ///     A missing resolver is not a composition failure. Auditing without attribution is a poorer trail rather than
-    ///     a broken one, and an application may register the resolver with its own container; the
-    ///     <c>litebus.audit.trail</c> probe reports the gap either way.
-    /// </remarks>
-    private static void RegisterAuditActorResolver(
-        IModuleConfiguration configuration,
-        object? auditActorResolver,
-        InstanceLifetime lifetime)
-    {
-        switch (auditActorResolver)
-        {
-            case null:
-                return;
-
-            case Type resolverType:
-                configuration.DependencyRegistry.Register(new DependencyDescriptor(
-                    typeof(IAuditActorResolver),
-                    resolverType,
-                    lifetime));
-                return;
-
-            default:
-                configuration.DependencyRegistry.Register(new DependencyDescriptor(
-                    typeof(IAuditActorResolver),
-                    auditActorResolver));
-                return;
-        }
-    }
-
-    /// <summary>
-    ///     Creates the audit record writer, reporting a missing trail as configuration rather than a null reference.
-    /// </summary>
-    /// <param name="serviceProvider">The scope the writer is being resolved from.</param>
-    /// <returns>The writer bound to the registered trail.</returns>
-    /// <exception cref="AuditConfigurationException">
-    ///     Auditing is enabled but no <see cref="IAuditTrail" /> is registered.
-    /// </exception>
-    private static AuditRecordWriter CreateAuditRecordWriter(IServiceProvider serviceProvider)
-    {
-        var trail = (IAuditTrail?) serviceProvider.GetService(typeof(IAuditTrail))
-                    ?? throw new AuditConfigurationException(
-                        "Auditing is enabled but no IAuditTrail is registered, so audit records cannot be written. "
-                        + "Register one with UseAuditTrail on the messaging module builder, or with the application "
-                        + "container. The litebus.audit.trail diagnostic check reports this before the first message "
-                        + "arrives.");
-
-        return new AuditRecordWriter(
-            trail,
-            (IMessageRegistry) serviceProvider.GetService(typeof(IMessageRegistry))!,
-            (IAuditOutcomeMapper) serviceProvider.GetService(typeof(IAuditOutcomeMapper))!,
-            (TimeProvider) serviceProvider.GetService(typeof(TimeProvider))!,
-            (IAuditActorResolver?) serviceProvider.GetService(typeof(IAuditActorResolver)));
+        configuration.DependencyRegistry.RegisterCollection(DependencyDescriptor.ForCollection(
+            typeof(ICompositionSectionContributor),
+            refusalCatalog));
     }
 
     /// <summary>
@@ -616,22 +491,37 @@ public sealed class MessageModule : IModule
     /// <param name="configuration">The module configuration.</param>
     /// <param name="messageSerializer">The serializer instance or implementation type, or null for the built-in one.</param>
     /// <param name="lifetime">The lifetime an implementation type is registered with.</param>
-    /// <exception cref="LiteBusConfigurationException">The builder held a value that is not a serializer.</exception>
+    /// <param name="serializerOptionsProvider">The options, provider instance, or provider type, or null for the built-in one.</param>
+    /// <exception cref="LiteBusConfigurationException">
+    ///     The builder held a value that is not a serializer, or held both a custom serializer and custom options.
+    /// </exception>
     /// <remarks>
-    ///     Falling back to <see cref="SystemTextJsonMessageSerializer" /> keeps the default wire format unchanged for
-    ///     applications that never state one.
+    ///     Falling back to <see cref="SystemTextJsonMessageSerializer" /> built from the resolved options provider
+    ///     keeps the default wire format unchanged for applications that never state one. A custom serializer together
+    ///     with custom options fails composition, because two payload formats would apply with nothing saying which.
     /// </remarks>
     private static void RegisterMessageSerializer(
         IModuleConfiguration configuration,
         object? messageSerializer,
-        InstanceLifetime lifetime)
+        InstanceLifetime lifetime,
+        object? serializerOptionsProvider)
     {
+        if (messageSerializer is not null && serializerOptionsProvider is not null)
+        {
+            throw new LiteBusConfigurationException(
+                "The composition sets both a custom message serializer and custom serializer options. "
+                + "A custom serializer carries its own format, so the options would never apply; state the wire "
+                + "format once, either as a serializer or as options.");
+        }
+
+        RegisterSerializerOptionsProvider(configuration, serializerOptionsProvider);
+
         switch (messageSerializer)
         {
             case null:
-                configuration.DependencyRegistry.Register(new DependencyDescriptor(
+                configuration.DependencyRegistry.Register(DependencyDescriptor.ForDefaultPort(
                     typeof(IMessageSerializer),
-                    typeof(SystemTextJsonMessageSerializer)));
+                    provider => new SystemTextJsonMessageSerializer(ResolveSerializerOptions(provider))));
                 break;
 
             case Type implementationType:
@@ -651,6 +541,135 @@ public sealed class MessageModule : IModule
                 throw new LiteBusConfigurationException(
                     $"The configured message serializer '{messageSerializer.GetType().Name}' is neither an "
                     + $"{nameof(IMessageSerializer)} instance nor an implementation type.");
+        }
+    }
+
+    /// <summary>
+    ///     Registers the JSON serializer options provider every durable feature serializes message payloads with.
+    /// </summary>
+    /// <param name="configuration">The module configuration.</param>
+    /// <param name="serializerOptionsProvider">The options, provider instance, or provider type, or null for the built-in one.</param>
+    /// <exception cref="LiteBusConfigurationException">The builder held a value that is not serializer options.</exception>
+    /// <remarks>
+    ///     Always registered, so the composition model names the effective source and the default serializer factory
+    ///     resolves it. Fixed options wrap in a constant provider, which is what the simple
+    ///     <c>UseSerializerOptions</c> overload registers over.
+    /// </remarks>
+    private static void RegisterSerializerOptionsProvider(IModuleConfiguration configuration, object? serializerOptionsProvider)
+    {
+        switch (serializerOptionsProvider)
+        {
+            case null:
+                configuration.DependencyRegistry.Register(DependencyDescriptor.ForDefaultPort(
+                    typeof(IMessageJsonSerializerOptionsProvider),
+                    typeof(DefaultMessageJsonSerializerOptionsProvider)));
+                break;
+
+            case System.Text.Json.JsonSerializerOptions options:
+                configuration.DependencyRegistry.Register(new DependencyDescriptor(
+                    typeof(IMessageJsonSerializerOptionsProvider),
+                    new FixedMessageJsonSerializerOptionsProvider(options)));
+                break;
+
+            case Type implementationType:
+                configuration.DependencyRegistry.Register(new DependencyDescriptor(
+                    typeof(IMessageJsonSerializerOptionsProvider),
+                    implementationType,
+                    InstanceLifetime.Singleton));
+                break;
+
+            case IMessageJsonSerializerOptionsProvider instance:
+                configuration.DependencyRegistry.Register(new DependencyDescriptor(
+                    typeof(IMessageJsonSerializerOptionsProvider),
+                    instance));
+                break;
+
+            default:
+                throw new LiteBusConfigurationException(
+                    $"The configured serializer options '{serializerOptionsProvider.GetType().Name}' are neither "
+                    + "'JsonSerializerOptions', nor an 'IMessageJsonSerializerOptionsProvider' instance, nor an "
+                    + "implementation type.");
+        }
+    }
+
+    /// <summary>
+    ///     Resolves the JSON serializer options the default serializer serializes message payloads with.
+    /// </summary>
+    /// <param name="provider">The service provider holding the composed options provider.</param>
+    /// <returns>The shared options.</returns>
+    /// <exception cref="LiteBusDependencyResolutionException">No options provider is registered.</exception>
+    private static System.Text.Json.JsonSerializerOptions ResolveSerializerOptions(IServiceProvider provider)
+    {
+        return ((IMessageJsonSerializerOptionsProvider?) provider.GetService(
+                typeof(IMessageJsonSerializerOptionsProvider))
+            ?? throw new LiteBusDependencyResolutionException(typeof(IMessageJsonSerializerOptionsProvider))).Options;
+    }
+
+    /// <summary>
+    ///     Registers the sample factory host validation round-trip checks sample message contracts with.
+    /// </summary>
+    /// <param name="configuration">The module configuration.</param>
+    /// <param name="messageSampleFactory">The sample factory instance or implementation type, or null for the built-in one.</param>
+    /// <param name="messageSamples">The per-type samples registered for the built-in factory.</param>
+    /// <exception cref="LiteBusConfigurationException">
+    ///     The builder held a value that is not a sample factory, or held both per-type samples and a custom
+    ///     factory that would silently ignore them.
+    /// </exception>
+    /// <remarks>
+    ///     A default factory fed with registered samples still registers through
+    ///     <see cref="DependencyDescriptor.ForDefaultPort(Type, object)" />, so the composition model reports the
+    ///     port as the default. The samples registry joins the composition sections only when samples exist, so
+    ///     compositions without samples export no empty section.
+    /// </remarks>
+    private static void RegisterMessageSampleFactory(
+        IModuleConfiguration configuration,
+        object? messageSampleFactory,
+        MessageSampleRegistry messageSamples)
+    {
+        if (messageSampleFactory is not null && messageSamples.Count > 0)
+        {
+            throw new LiteBusConfigurationException(
+                "The composition registers per-type samples through 'RegisterSample' and replaces the message "
+                + "sample factory. A custom factory never consults the registered samples, so they would be "
+                + "silently ignored; move the samples into the custom factory or remove the replacement.");
+        }
+
+        if (messageSamples.Count > 0)
+        {
+            configuration.DependencyRegistry.Register(DependencyDescriptor.ForDefaultPort(
+                typeof(IMessageSampleFactory),
+                new DefaultMessageSampleFactory(messageSamples.Snapshot())));
+            configuration.DependencyRegistry.RegisterCollection(DependencyDescriptor.ForCollection(
+                typeof(ICompositionSectionContributor),
+                messageSamples));
+            return;
+        }
+
+        switch (messageSampleFactory)
+        {
+            case null:
+                configuration.DependencyRegistry.Register(DependencyDescriptor.ForDefaultPort(
+                    typeof(IMessageSampleFactory),
+                    typeof(DefaultMessageSampleFactory)));
+                break;
+
+            case Type implementationType:
+                configuration.DependencyRegistry.Register(new DependencyDescriptor(
+                    typeof(IMessageSampleFactory),
+                    implementationType,
+                    InstanceLifetime.Singleton));
+                break;
+
+            case IMessageSampleFactory instance:
+                configuration.DependencyRegistry.Register(new DependencyDescriptor(
+                    typeof(IMessageSampleFactory),
+                    instance));
+                break;
+
+            default:
+                throw new LiteBusConfigurationException(
+                    $"The configured message sample factory '{messageSampleFactory.GetType().Name}' is neither an "
+                    + $"{nameof(IMessageSampleFactory)} instance nor an implementation type.");
         }
     }
 }

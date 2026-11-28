@@ -19,7 +19,7 @@ namespace LiteBus.Messaging.Abstractions;
 ///     <para>
 ///         It covers auditing like anything else: <c>[DeclarationExempt(typeof(AuditDeclaration), "why")]</c> exempts a
 ///         message from producing an audit record and satisfies <c>RequireDeclaration&lt;AuditDeclaration&gt;</c>.
-///         <see cref="AuditExemptAttribute" /> is the shorthand for exactly that, and records the same exemption here,
+///         <c>AuditExemptAttribute</c> is the shorthand for exactly that, and records the same exemption here,
 ///         so there is one place to read every exemption a message carries whichever spelling wrote it.
 ///     </para>
 /// </remarks>

@@ -29,6 +29,8 @@ if (-not (Test-Path -LiteralPath $resolvedPackageDirectory -PathType Container))
     throw "Package directory '$resolvedPackageDirectory' does not exist."
 }
 
+# Every runtime package ships one lib folder per target framework that src/Directory.Build.props lists.
+$script:TargetFrameworks = @("net10.0", "net11.0")
 $errors = [Collections.Generic.List[string]]::new()
 $expectedPackageIds = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
 $projectFiles = Get-ChildItem -LiteralPath $sourceRoot -Recurse -Filter "*.csproj" -File
@@ -119,10 +121,10 @@ foreach ($packageFile in $packageFiles) {
             }
         }
         else {
-            foreach ($requiredEntry in @(
-                "lib/net10.0/$packageId.dll",
-                "lib/net10.0/$packageId.xml"
-            )) {
+            foreach ($requiredEntry in @($script:TargetFrameworks | ForEach-Object {
+                "lib/$_/$packageId.dll"
+                "lib/$_/$packageId.xml"
+            })) {
                 if ($entries -notcontains $requiredEntry) {
                     $errors.Add("Package '$packageId' does not contain '$requiredEntry'.")
                 }
@@ -271,9 +273,11 @@ foreach ($symbolPackageFile in $symbolPackageFiles) {
             continue
         }
 
-        $expectedPdb = "lib/net10.0/$($matchingPackage.Id).pdb"
-        if ($entries -notcontains $expectedPdb) {
-            $errors.Add("Symbol package '$($symbolPackageFile.Name)' does not contain '$expectedPdb'.")
+        foreach ($targetFramework in $script:TargetFrameworks) {
+            $expectedPdb = "lib/$targetFramework/$($matchingPackage.Id).pdb"
+            if ($entries -notcontains $expectedPdb) {
+                $errors.Add("Symbol package '$($symbolPackageFile.Name)' does not contain '$expectedPdb'.")
+            }
         }
     }
     finally {
